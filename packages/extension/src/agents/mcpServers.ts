@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConnectionStore } from '../connections/connectionStore';
-import type { SessionManager } from '../connections/session';
+import type { SessionManager, SessionState } from '../connections/session';
 import { claudeCodeConfig } from './claudeCodeConfig';
 
 export function registerConsoleMcpServer(sessions: SessionManager, connections: ConnectionStore): vscode.Disposable {
@@ -10,13 +10,14 @@ export function registerConsoleMcpServer(sessions: SessionManager, connections: 
     provideMcpServerDefinitions: () => {
       const state = sessions.current();
       if (state.status !== 'ready') return [];
-      const uri = vscode.Uri.parse(`${state.client.baseUrl}/api/mcp`);
-      return [new vscode.McpHttpServerDefinition(`Conduktor Console (${state.connection.name})`, uri)];
+      return [new vscode.McpHttpServerDefinition(`Conduktor Console (${state.connection.name})`, mcpUri(state))];
     },
-    // The token is added only when VS Code starts the server, so it never sits in a listed definition.
+    // The token is added only when VS Code starts the server, so it never sits in a listed definition. A definition
+    // listed for another connection gets nothing, so a token never reaches another Console.
     resolveMcpServerDefinition: async (server) => {
       const state = sessions.current();
-      const token = state.status === 'ready' ? await connections.token(state.connection.id) : undefined;
+      if (state.status !== 'ready' || server.uri.toString() !== mcpUri(state).toString()) return undefined;
+      const token = await connections.token(state.connection.id);
       if (!token) return undefined;
       server.headers = { ...server.headers, Authorization: `Bearer ${token}` };
       return server;
@@ -27,6 +28,10 @@ export function registerConsoleMcpServer(sessions: SessionManager, connections: 
     sessions.onDidChange(() => changed.fire()),
     changed,
   );
+}
+
+function mcpUri(state: Extract<SessionState, { status: 'ready' }>): vscode.Uri {
+  return vscode.Uri.parse(`${state.client.baseUrl}/api/mcp`);
 }
 
 export function registerClaudeCodeConfigCommand(sessions: SessionManager, extensionUri: vscode.Uri): vscode.Disposable {

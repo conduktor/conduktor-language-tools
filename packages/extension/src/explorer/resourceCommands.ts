@@ -5,6 +5,7 @@ import {
   itemPath,
   kebabCase,
   parentsOf,
+  withSecretPlaceholders,
   type KindCatalog,
   type KindVersion,
 } from '@conduktor/vscode-core';
@@ -57,8 +58,14 @@ async function copyToWorkspace(sessions: SessionManager, target?: ResourceNode |
       filters: { YAML: ['yaml', 'yml'] },
     });
     if (!destination) return;
-    await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(stringify(resource)));
+    const { resource: copy, variables } = withSecretPlaceholders(resource);
+    await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(stringify(copy)));
     await vscode.window.showTextDocument(destination);
+    if (variables.length > 0) {
+      void vscode.window.showInformationMessage(
+        `Secrets were left out of the copy; set ${variables.join(', ')} before applying it.`,
+      );
+    }
   } catch (error) {
     void vscode.window.showErrorMessage(`Could not copy ${kind.kind} ${name}: ${describeError(error)}`);
   }
