@@ -59,9 +59,27 @@ describe('parseResourceDocuments', () => {
     expect(docs[0]!.error).toBeTruthy();
   });
 
+  it('expands variables before parsing, as ctl does, so they work inside flow mappings', () => {
+    const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: { name: t, cluster: ${C} }\n', {
+      env: { C: 'local' },
+    });
+    expect(docs[0]?.resource?.metadata).toEqual({ name: 't', cluster: 'local' });
+    expect(
+      parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: { name: t, cluster: ${C} }\n', { env: {} })[0],
+    ).toMatchObject({ error: 'Missing environment variables: C' });
+  });
+
   it('requires metadata.name', () => {
     const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: {}\n', { env: {} });
     expect(docs[0]).toMatchObject({ error: 'metadata.name is required' });
+  });
+
+  it('splits Windows line endings the same way', () => {
+    const docs = parseResourceDocuments(
+      'apiVersion: v1\r\nkind: Application\r\nmetadata:\r\n  name: a\r\n---\r\n\r\napiVersion: v1\r\nkind: Application\r\nmetadata:\r\n  name: b\r\n',
+      { env: {} },
+    );
+    expect(docs.map((d) => d.resource?.metadata.name)).toEqual(['a', 'b']);
   });
 
   it('returns nothing for an empty or comment-only file', () => {

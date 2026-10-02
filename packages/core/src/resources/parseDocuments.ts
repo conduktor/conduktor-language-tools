@@ -1,4 +1,4 @@
-import { parse, parseAllDocuments } from 'yaml';
+import { parse } from 'yaml';
 import { describeError } from '../client/errors';
 import type { KindCatalog } from '../openapi/kindCatalog';
 import { isRecord } from '../util';
@@ -6,6 +6,8 @@ import { expandEnvVars } from './envVars';
 import type { Resource } from './types';
 
 const KIND_LINE = /^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(?:#.*)?$/m;
+const SEPARATOR = /^(?:---|\.\.\.)(?:[ \t].*)?\r?$/;
+const BLANK_OR_COMMENT = /^[ \t]*(?:#.*)?\r?$/;
 
 export interface ResourceDocument {
   index: number;
@@ -22,18 +24,10 @@ export interface ParseOptions {
 
 export function parseResourceDocuments(text: string, options: ParseOptions): ResourceDocument[] {
   const documents: ResourceDocument[] = [];
-  for (const document of parseAllDocuments(text)) {
-    const start = document.contents?.range[0] ?? document.range[0];
-    const end = document.range[2];
+  for (const { start, end } of splitDocuments(text)) {
     const source = text.slice(start, end);
-    if (document.errors.length > 0) {
-      const kind = KIND_LINE.exec(source)?.[1];
-      if (kind) documents.push({ index: documents.length, start, end, kind, error: document.errors[0]!.message });
-      continue;
-    }
-    const raw: unknown = document.toJS();
-    if (!isRecord(raw) || typeof raw.apiVersion !== 'string' || typeof raw.kind !== 'string') continue;
-    documents.push({ index: documents.length, start, end, kind: raw.kind, ...toResource(source, options) });
+    const kind = sniffKind(source);
+    if (kind) documents.push({ index: documents.length, start, end, kind, ...toResource(source, options) });
   }
   return documents;
 }
@@ -61,4 +55,34 @@ function toResource(source: string, options: ParseOptions): Pick<ResourceDocumen
     return { error: 'metadata.name is required' };
   }
   return { resource: value as Resource };
+}
+
+// Documents are split on separator lines rather than by the YAML parser: like ctl, variables are expanded before
+// parsing, and `${VAR}` inside a flow mapping is a syntax error that would otherwise shift the parser's boundaries.
+function splitDocuments(text: string): { start: number; end: number }[] {
+  const documents: { start: number; end: number }[] = [];
+  let start: number | undefined;
+  let offset = 0;
+  for (const line of text.split('\n')) {
+    const lineEnd = offset + line.length;
+    if (SEPARATOR.test(line)) {
+      if (start !== undefined) documents.push({ start, end: offset });
+      start = undefined;
+    } else if (start === undefined && !BLANK_OR_COMMENT.test(line)) {
+      start = offset;
+    }
+    offset = lineEnd + 1;
+  }
+  if (start !== undefined) documents.push({ start, end: text.length });
+  return documents;
+}
+
+function sniffKind(source: string): string | undefined {
+  try {
+    const raw: unknown = parse(source);
+    if (isRecord(raw)) return typeof raw.apiVersion === 'string' && typeof raw.kind === 'string' ? raw.kind : undefined;
+  } catch {
+    // unparseable until variables are expanded; fall back to the kind line
+  }
+  return KIND_LINE.exec(source)?.[1];
 }
