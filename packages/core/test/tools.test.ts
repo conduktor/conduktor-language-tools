@@ -206,3 +206,53 @@ describe('conduktor_get_resources', () => {
     );
   });
 });
+
+describe('secrets in tool output', () => {
+  const cluster: Resource = {
+    apiVersion: 'v2',
+    kind: 'KafkaCluster',
+    metadata: { name: 'prod' },
+    spec: {
+      bootstrapServers: 'kafka:9092',
+      properties: {
+        'security.protocol': 'SASL_SSL',
+        'sasl.jaas.config': 'PlainLoginModule username="u" password="p";',
+      },
+      kafkaFlavor: { type: 'Gateway', url: 'http://gw', user: 'admin', password: 'conduktor' },
+      schemaRegistry: {
+        type: 'ConfluentLike',
+        security: {
+          type: 'SSLAuth',
+          key: '-----BEGIN PRIVATE KEY-----\nabc',
+          certificateChain: '-----BEGIN CERTIFICATE-----\nxyz',
+        },
+      },
+      amazonSecurity: { type: 'Credentials', accessKeyId: 'AKIA', secretKey: 's3cr3t' },
+    },
+  };
+
+  it('never hands credentials to the agent', async () => {
+    const { ctx, client } = context();
+    client.get.mockResolvedValueOnce(cluster);
+    const text = await tool('conduktor_get_resources').run({ kind: 'KafkaCluster', name: 'prod' }, ctx);
+    for (const secret of ['password="p"', 'conduktor', 'BEGIN PRIVATE KEY', 'AKIA', 's3cr3t'])
+      expect(text).not.toContain(secret);
+    expect(text).toContain('SASL_SSL');
+    expect(text).toContain('BEGIN CERTIFICATE');
+    expect(text).toContain('user: admin');
+    expect(text).toMatch(/^# Secret values are replaced with <redacted>/);
+  });
+
+  it('rejects YAML that carries a redacted placeholder back, so a real secret is never overwritten', async () => {
+    const { ctx, client } = context();
+    const yaml =
+      'apiVersion: v2\nkind: KafkaCluster\nmetadata: { name: prod }\nspec: { bootstrapServers: k, kafkaFlavor: { type: Gateway, url: u, user: a, password: <redacted> } }\n';
+    const validation = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
+    expect(validation.documents[0].errors).toContainEqual({
+      path: '/spec/kafkaFlavor/password',
+      message: 'is a redacted secret; leave it out or use a ${VAR} the user sets',
+    });
+    await expect(tool('conduktor_dry_run').run({ yaml }, ctx)).rejects.toThrow(/redacted secret/);
+    expect(client.upsert).not.toHaveBeenCalled();
+  });
+});

@@ -6,6 +6,7 @@ import { PARENT_KINDS } from '../openapi/parents';
 import type { JsonSchema } from '../openapi/types';
 import { upsertDocuments } from '../plan/upsertDocuments';
 import { kebabCase } from '../util';
+import { REDACTED, REDACTED_MESSAGE, redactedPaths, redactSecrets } from './redact';
 import { noSuchVersion, resolveKind, resourceDocuments, type BodyKind } from './resolve';
 import { ToolError, type ToolContext, type ToolDefinition } from './types';
 
@@ -99,7 +100,10 @@ const validate: ToolDefinition = {
       const identity = { index: document.index, kind: document.kind, name: resource?.metadata.name ?? null };
       const errors = !resource
         ? [{ path: '/', message: document.error ?? 'Not a Conduktor resource' }]
-        : schemaErrors(context, resource.kind, resource.apiVersion, resource);
+        : [
+            ...redactedPaths(resource).map((path) => ({ path, message: REDACTED_MESSAGE })),
+            ...schemaErrors(context, resource.kind, resource.apiVersion, resource),
+          ];
       return { ...identity, valid: errors.length === 0, errors };
     });
     return json({ console: context.connectionName, documents });
@@ -121,11 +125,16 @@ const dryRun: ToolDefinition = {
         `${context.connectionName} is read-only, so dry runs are off. The user can change that with "Conduktor: Change Mode".`,
       );
     }
-    const items = await upsertDocuments(context.client, context.catalog, resourceDocuments(input, context), {
+    const documents = resourceDocuments(input, context);
+    for (const { resource } of documents) {
+      const [path] = resource ? redactedPaths(resource) : [];
+      if (path) throw new ToolError(`${resource!.kind} ${resource!.metadata.name} ${path} ${REDACTED_MESSAGE}.`);
+    }
+    const items = await upsertDocuments(context.client, context.catalog, documents, {
       dryRun: true,
       readInclude: context.readInclude,
     });
-    const documents = items.map(({ document, outcome }) => ({
+    const results = items.map(({ document, outcome }) => ({
       index: document.index,
       kind: document.kind,
       name: document.resource?.metadata.name ?? null,
@@ -133,7 +142,7 @@ const dryRun: ToolDefinition = {
     }));
     return json({
       console: context.connectionName,
-      documents,
+      documents: results,
       note: 'Nothing was changed: this was a dry run. The user applies from the editor (the Apply CodeLens, or by saving a live document).',
     });
   },
@@ -168,18 +177,20 @@ const getResources: ToolDefinition = {
       throw new ToolError(`${kind.kind} needs ${missing.join(' and ')}.${hint}`);
     }
     const parents = Object.fromEntries(kind.parentPathParams.map((param) => [param, input[param] as string]));
-    if (typeof input.name === 'string' && input.name !== '') {
-      return stringify(await context.client.get(itemPath(kind, parents, input.name)));
-    }
-    const resources = await context.client.list(listPath(kind, parents));
+    const resources =
+      typeof input.name === 'string' && input.name !== ''
+        ? [await context.client.get(itemPath(kind, parents, input.name))]
+        : await context.client.list(listPath(kind, parents));
     if (resources.length === 0) return `# No ${kind.kind} resources on ${context.connectionName}.\n`;
-    const shown = resources
-      .slice(0, LIST_LIMIT)
-      .map((resource) => stringify(resource))
-      .join('---\n');
-    return resources.length > LIST_LIMIT
-      ? `# The first ${LIST_LIMIT} of ${resources.length}; ask for one by name for the rest.\n${shown}`
-      : shown;
+    const { value, redacted } = redactSecrets(resources.slice(0, LIST_LIMIT));
+    const notes = [
+      redacted > 0 &&
+        `# Secret values are replaced with ${REDACTED}. Never copy them into YAML you write: leave those fields out or use \${VAR} placeholders the user sets.`,
+      resources.length > LIST_LIMIT &&
+        `# The first ${LIST_LIMIT} of ${resources.length}; ask for one by name for the rest.`,
+    ].filter(Boolean);
+    const yaml = (value as unknown[]).map((resource) => stringify(resource)).join('---\n');
+    return notes.length > 0 ? `${notes.join('\n')}\n${yaml}` : yaml;
   },
 };
 
