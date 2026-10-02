@@ -1,0 +1,5 @@
+**
+!dist/extension.js
+!dist/public-api-doc.yaml
+!resources/**
+!README.md

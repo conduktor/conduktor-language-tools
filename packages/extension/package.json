@@ -1,0 +1,142 @@
+{
+  "name": "conduktor-console",
+  "displayName": "Conduktor Console",
+  "description": "Browse, author, validate and dry-run Conduktor Console resources.",
+  "publisher": "conduktor",
+  "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conduktor/vscode-conduktor"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:yaml",
+    "onFileSystem:conduktor"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Conduktor",
+      "properties": {
+        "conduktor.connections": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Console connections. Tokens are kept in VS Code secret storage, never here.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "url",
+              "mode"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "read-only",
+                  "dry-run",
+                  "apply"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "conduktor.addConnection",
+        "title": "Add Connection",
+        "category": "Conduktor",
+        "icon": "$(add)"
+      },
+      {
+        "command": "conduktor.removeConnection",
+        "title": "Remove Connection",
+        "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.switchConnection",
+        "title": "Switch Connection",
+        "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.showOutput",
+        "title": "Show Output",
+        "category": "Conduktor"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "conduktor",
+          "title": "Conduktor",
+          "icon": "resources/conduktor.svg"
+        }
+      ]
+    },
+    "views": {
+      "conduktor": [
+        {
+          "id": "conduktor.explorer",
+          "name": "Explorer"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "conduktor.explorer",
+        "contents": "Connect to a Conduktor Console to browse its resources.\n[Add Connection](command:conduktor.addConnection)",
+        "when": "!conduktor.hasConnection"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "conduktor.addConnection",
+          "when": "view == conduktor.explorer",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:vscode": "node esbuild.mjs --tests && vscode-test",
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license --out dist/conduktor-console.vsix"
+  },
+  "dependencies": {
+    "@conduktor/vscode-core": "workspace:*",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.100.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.28.0",
+    "vitest": "^5.0.0"
+  }
+}
