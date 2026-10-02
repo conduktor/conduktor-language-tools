@@ -24,6 +24,38 @@ is valid, and what applying it would change. Git comes with VS Code.
 | **Dry run, apply, diff**  | CodeLenses above every resource: **Dry run**, **Apply** (dry run, confirmation, apply) and **Diff with Live**. The last result shows in the lens and at the end of the line; failures land in Problems.                                    |
 | **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                    |
 | **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                      |
+| **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                        |
+
+## AI agents
+
+Coding agents get the same live schema and dry run as the editor, so they write resources the Console accepts instead
+of guessing their shape. They never change the Console: an agent writes YAML and dry-runs it, and you apply it with the
+CodeLens or by saving a live document.
+
+| Tool                        | What it does                                                                                    |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `conduktor_list_kinds`      | The kinds the connected Console accepts, with versions and parent fields                        |
+| `conduktor_get_kind_schema` | One kind's JSON Schema and its published example                                                |
+| `conduktor_validate`        | Schema errors with JSON paths, per resource, for YAML text or a workspace file. No Console call |
+| `conduktor_dry_run`         | Created / Updated / NotChanged or the Console's error, per resource. Nothing is applied         |
+| `conduktor_get_resources`   | Existing resources as YAML, with secret values redacted                                         |
+
+- **Copilot (agent mode):** the tools are available as soon as a connection is ready; reference them in a prompt with
+  `#conduktorValidate`, `#conduktorDryRun` and so on. The Console's own MCP server (topics, consumer groups, lineage,
+  insights and more) is offered to VS Code as **Conduktor Console (<connection>)** in the MCP servers list.
+- **Claude Code:** run **Conduktor: Copy MCP Config for Claude Code**, paste it into the project's `.mcp.json`, and
+  `export CONDUKTOR_TOKEN=<personal access token>` before starting `claude`. It adds the same tools (run by
+  `dist/mcp-server.js` from the installed extension) and the Console's MCP server. Copy it again after updating the
+  extension, since the path includes its version.
+- **Any other MCP client:** run `node packages/extension/dist/mcp-server.js` with `CONDUKTOR_URL`, `CONDUKTOR_TOKEN`,
+  and optionally `CONDUKTOR_MODE` (`dry-run` by default; `read-only` turns dry runs off) and `CONDUKTOR_NAME`.
+
+Tokens are never written to a file: VS Code adds them when it starts a server, and the copied config uses
+`${CONDUKTOR_TOKEN}`. Secret values (passwords, SASL configs, keys) are redacted before an agent sees a resource, and
+YAML that carries a redacted value back is rejected.
+
+Try: _"Using the Conduktor tools, write topics.yaml with an `orders` topic on local-kafka: 6 partitions, 7 days
+retention. Validate and dry-run it."_
 
 ## Requirements
 
@@ -104,6 +136,9 @@ pnpm test:vscode      # smoke test inside a downloaded VS Code
 
 Press **F5** in this folder to start an Extension Development Host.
 
+After changing an agent tool's name, description or input, run `pnpm sync-tools`: the extension manifest has to list
+the tools, and a unit test fails until it matches core.
+
 The smoke test has a live part that runs when `CONDUKTOR_SMOKE_URL` and `CONDUKTOR_SMOKE_TOKEN` are set (a PAT or an
 admin key for a local Console). It creates, edits, diffs and deletes a `vscode-smoke-<timestamp>` topic on the
 `local-kafka` cluster. The variables are separate from `CDK_*` because VS Code re-reads the login shell environment on
@@ -122,7 +157,9 @@ packages/core/        no VS Code dependency; unit-tested with Vitest
   src/resources/      YAML documents with CLI-compatible variables, includes and apply order
   src/plan/           dry run and apply of a set of documents
   snapshot/           the bundled OpenAPI, also the test fixture
-packages/extension/   VS Code wiring: connections, explorer, conduktor: documents, CodeLenses, schema contributor
+  src/tools/          agent tools shared by the VS Code tools and the MCP server
+packages/mcp/         stdio MCP server over the core tools, bundled as dist/mcp-server.js
+packages/extension/   VS Code wiring: connections, explorer, conduktor: documents, CodeLenses, schema contributor, agents
 docs/specs/           design
 docs/plans/           implementation plans, as executed
 ```
@@ -141,7 +178,5 @@ From the [design](docs/specs/2026-10-02-slice-a-design.md):
 
 - **Slice (a), next:** upgrade a PAT to an admin key, run the CLI's actions (topic empty, connector restart, …),
   consumer groups and offset resets for admin keys.
-- **AI helpers:** language-model tools over the core (schema, validate, dry run) and the Console MCP server for
-  Copilot and other agents, with writes staying behind the confirmation.
 - **Slice (b), GitOps:** a repository template with plan-on-PR and apply-on-merge GitHub Actions.
 - **Slice (c), self-service:** ownership-aware validation for application teams.

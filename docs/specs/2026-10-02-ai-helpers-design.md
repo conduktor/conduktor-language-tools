@@ -17,6 +17,10 @@ schema and dry run the editor uses, so they stop guessing resource shapes.
 | Console data | Console's MCP server (`/api/mcp`, 31 read tools) registered with VS Code's MCP provider API                                                                                  | It already answers questions about topics, consumer groups, lineage, insights.    |
 | Tokens       | Never written to files: added to the Console MCP definition at start, passed to the stdio server through its environment, `${CONDUKTOR_TOKEN}` placeholders in copied config | Same rule as the rest of the extension.                                           |
 
+Secrets are redacted in every resource an agent reads (passwords, SASL and JAAS configs, tokens, API and access keys,
+PEM private keys), as Console's own MCP responses are, found by field name across all kinds. Validate and dry run
+reject YAML that still holds the redaction placeholder, so applying an agent's YAML can never overwrite a secret.
+
 ## Tools
 
 All tools are read-only on the Console and live in `packages/core/src/tools`, with no VS Code or MCP dependency.
