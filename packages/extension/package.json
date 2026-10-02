@@ -1,6 +1,7 @@
 {
   "name": "conduktor-console",
   "displayName": "Conduktor Console",
+  "icon": "resources/icon.png",
   "description": "Browse, author, validate and dry-run Conduktor Console resources.",
   "publisher": "conduktor",
   "version": "0.0.1",
