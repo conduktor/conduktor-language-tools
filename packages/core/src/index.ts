@@ -23,3 +23,4 @@ export {
 } from './resources/parseDocuments';
 export { expandIncludes, IncludeError } from './resources/includes';
 export { sortForApply } from './resources/ordering';
+export { buildSpec, loadSpec, type LoadedSpec, type SpecCache, type SpecSource } from './openapi/loadSpec';
