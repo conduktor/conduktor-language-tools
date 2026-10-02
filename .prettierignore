@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+**/snapshot/
+**/test/fixtures/
+**/dist/
+**/out/
+**/.vscode-test/
+.superpowers/
