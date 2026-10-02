@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-
-export type ConnectionMode = 'read-only' | 'dry-run' | 'apply';
+import type { ConnectionMode } from '@conduktor/vscode-core';
 
 export interface Connection {
   id: string;

@@ -35,3 +35,4 @@ export { buildSpec, loadSpec, type LoadedSpec, type SpecCache, type SpecSource }
 export { upsertDocuments, type UpsertItem, type UpsertOptions, type UpsertOutcome } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
 export { comparableYaml, newResourceYaml } from './resources/yamlText';
+export type { ConnectionMode } from './connectionMode';

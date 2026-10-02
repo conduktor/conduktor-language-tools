@@ -6,9 +6,10 @@ import {
   describeError,
   describeToken,
   normaliseBaseUrl,
+  type ConnectionMode,
   type TokenInfo,
 } from '@conduktor/vscode-core';
-import type { ConnectionMode, ConnectionStore } from './connectionStore';
+import type { ConnectionStore } from './connectionStore';
 import type { SessionManager } from './session';
 
 const MODES: (vscode.QuickPickItem & { mode: ConnectionMode })[] = [
