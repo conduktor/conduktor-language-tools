@@ -1,5 +1,5 @@
 import type { ConsoleClient } from '../client/consoleClient';
-import { describeError } from '../client/errors';
+import { ConsoleError, describeError } from '../client/errors';
 import type { KindCatalog } from '../openapi/kindCatalog';
 import { upsertTarget } from '../openapi/paths';
 import { expandIncludes } from '../resources/includes';
@@ -9,7 +9,7 @@ import type { UpsertResult } from '../resources/types';
 
 export type UpsertOutcome =
   | { status: 'ok'; result: UpsertResult }
-  | { status: 'error'; message: string }
+  | { status: 'error'; message: string; httpStatus?: number }
   | { status: 'pending'; message: string; waitingFor: string[] }
   | { status: 'skipped' };
 
@@ -58,6 +58,7 @@ async function upsertOne(
     const response = await client.upsert(upsertTarget(kind, expanded), expanded, { dryRun: options.dryRun });
     return { status: 'ok', result: response.upsertResult };
   } catch (error) {
-    return { status: 'error', message: describeError(error) };
+    const httpStatus = error instanceof ConsoleError ? error.status : undefined;
+    return { status: 'error', message: describeError(error), ...(httpStatus && { httpStatus }) };
   }
 }

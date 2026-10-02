@@ -65,7 +65,7 @@ describe('upsertDocuments', () => {
     const items = await upsertDocuments({ upsert }, snapshotCatalog, documents, { dryRun: true });
     expect(items.map((i) => i.outcome)).toEqual([
       { status: 'error', message: 'Missing environment variables: C' },
-      { status: 'error', message: 'No Ownership: You do not own orders' },
+      { status: 'error', message: 'No Ownership: You do not own orders', httpStatus: 403 },
     ]);
   });
 

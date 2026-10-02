@@ -58,7 +58,7 @@ describe('planDocuments', () => {
         waitingFor: ['shop'],
         message: 'Forbidden: Missing GovernanceApplicationsEdit (associated roles: admin) on app shop',
       },
-      orders: { status: 'error', message: 'Policy violation: - partitions must be at least 3' },
+      orders: { status: 'error', message: 'Policy violation: - partitions must be at least 3', httpStatus: 422 },
     });
   });
 
@@ -85,6 +85,42 @@ describe('planDocuments', () => {
       { upsert },
       snapshotCatalog,
       documents().filter((d) => d.kind !== 'Topic' && d.kind !== 'ApplicationInstance'),
+    );
+    expect(byName(items).shop).toMatchObject({ status: 'error' });
+  });
+
+  it("does not take a resource's own name in its error for a dependency", async () => {
+    const yaml = `apiVersion: v1
+kind: Application
+metadata: { name: payments }
+spec: { title: Payments, owner: team-a }
+---
+apiVersion: v2
+kind: Topic
+metadata: { name: payments, cluster: local }
+spec: { partitions: 1 }
+`;
+    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
+      if (resource.kind === 'Topic') throw new ConsoleError(403, 'Forbidden', 'Topic payments violates policy p1');
+      return { resource, upsertResult: 'Created' as const };
+    });
+    const items = await planDocuments({ upsert }, snapshotCatalog, parseResourceDocuments(yaml));
+    expect(items.map((i) => [i.document.kind, i.outcome.status])).toEqual([
+      ['Application', 'ok'],
+      ['Topic', 'error'],
+    ]);
+  });
+
+  it('only waits on a not-found or no-permission error, not a rejected value that names a resource', async () => {
+    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
+      if (resource.kind === 'Application')
+        throw new ConsoleError(422, 'Policy violation', 'owner team-a must have a description');
+      return { resource, upsertResult: 'Created' as const };
+    });
+    const items = await planDocuments(
+      { upsert },
+      snapshotCatalog,
+      documents().filter((d) => d.kind === 'Group' || d.kind === 'Application'),
     );
     expect(byName(items).shop).toMatchObject({ status: 'error' });
   });
