@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { includeRoot } from '../sync/folders';
 
 export function includeReaderFor(uri: vscode.Uri): ((file: string) => string) | undefined {
-  const folder = vscode.workspace.getWorkspaceFolder(uri);
-  return folder && uri.scheme === 'file'
-    ? (file: string) => readFileSync(path.resolve(folder.uri.fsPath, file), 'utf8')
-    : undefined;
+  if (uri.scheme !== 'file') return undefined;
+  const root = includeRoot(uri.fsPath, vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? []);
+  return (file: string) => readFileSync(path.resolve(root, file), 'utf8');
 }

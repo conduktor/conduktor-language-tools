@@ -4,9 +4,7 @@
       "2": {
         "ListPath": "/public/monitoring/v2/cluster/{cluster}/alert",
         "Name": "Alert",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {
           "alertType": {
@@ -42,11 +40,7 @@
         "ListPath": "/public/monitoring/v3/alert",
         "Name": "Alert",
         "ParentPathParam": [],
-        "ParentQueryParam": [
-          "appInstance",
-          "group",
-          "user"
-        ],
+        "ParentQueryParam": ["appInstance", "group", "user"],
         "ListQueryParamter": {
           "alertType": {
             "FlagName": "alert-type",
@@ -236,10 +230,7 @@
       "2": {
         "ListPath": "/public/kafka/v2/cluster/{cluster}/connect/{connectCluster}/connector",
         "Name": "Connector",
-        "ParentPathParam": [
-          "cluster",
-          "connectCluster"
-        ],
+        "ParentPathParam": ["cluster", "connectCluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v2\nkind: Connector\nmetadata:\n    name: my-connector\n    cluster: my-cluster\n    connectCluster: my-connect\n    autoRestart:\n        enabled: true\n        frequencySeconds: 600\n    description: My connector\nspec:\n    config: {}\n",
@@ -313,9 +304,7 @@
       "2": {
         "ListPath": "/public/kafka/v2/cluster/{cluster}/glue-schemas",
         "Name": "GlueSchema",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v2\nkind: GlueSchema\nmetadata:\n    name: my-schema\n    cluster: my-cluster\n    labels:\n        conduktor.io/application: application-a\n        conduktor.io/application-instance: staging\nspec:\n    format: AVRO\n    compatibility: BACKWARD_ALL\n    schema: '{\"type\": \"long\"}'\n",
@@ -341,9 +330,7 @@
       "1": {
         "ListPath": "/public/sql/v1/cluster/{cluster}/indexed_topic",
         "Name": "IndexedTopic",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v1\nkind: IndexedTopic\nmetadata:\n    cluster: my-cluster\n    name: my-topic\nspec:\n    retentionTimeInSecond: 3600\n",
@@ -382,9 +369,7 @@
       "2": {
         "ListPath": "/public/console/v2/cluster/{cluster}/kafka-connect",
         "Name": "KafkaConnectCluster",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v2\nkind: KafkaConnectCluster\nmetadata:\n    name: connect-1\n    cluster: my-cloud\n    labels:\n        user-labels: I am a user label\nspec:\n    displayName: My kafka connect\n    urls: http://localhost:8083\n    headers:\n        a: b\n        c: d\n    ignoreUntrustedCertificate: true\n    security:\n        username: user\n        password: password\n        type: BasicAuth\n",
@@ -397,9 +382,7 @@
       "2": {
         "ListPath": "/public/console/v2/cluster/{cluster}/ksqldb",
         "Name": "KsqlDBCluster",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v2\nkind: KsqlDBCluster\nmetadata:\n    name: connect-1\n    cluster: my-cloud\nspec:\n    displayName: My kafka connect\n    url: http://localhost:8083\n    headers:\n        a: b\n        c: d\n    ignoreUntrustedCertificate: true\n    security:\n        username: user\n        password: password\n        type: BasicAuth\n",
@@ -449,9 +432,7 @@
       "1": {
         "ListPath": "/public/self-serve/v1/cluster/{cluster}/service-account",
         "Name": "ServiceAccount",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v1\nkind: ServiceAccount\nmetadata:\n    appInstance: my-app-instance-dev\n    cluster: my-kafka-cluster\n    labels:\n        conduktor.io/application: application-a\n        conduktor.io/application-instance: dev\n        user-labels: I am a user label\n    name: sa-clicko-dev\nspec:\n    authorization:\n        acls:\n            - type: TOPIC\n              name: click.\n              patternType: PREFIXED\n              operations:\n                - Write\n              host: '*'\n              permission: Allow\n        type: KAFKA_ACL\n    schemaRegistryAuthorization:\n        acls:\n            - name: click.\n              patternType: PREFIXED\n              operations:\n                - Read\n                - Write\n",
@@ -464,9 +445,7 @@
       "2": {
         "ListPath": "/public/kafka/v2/cluster/{cluster}/subject",
         "Name": "Subject",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v2\nkind: Subject\nmetadata:\n    name: my-subject\n    cluster: my-cluster\n    labels:\n        conduktor.io/application: application-a\n        conduktor.io/application-instance: staging\nspec:\n    format: AVRO\n    compatibility: BACKWARD_TRANSITIVE\n    schema: '{\"type\": \"long\"}'\n",
@@ -479,9 +458,7 @@
       "2": {
         "ListPath": "/public/kafka/v2/cluster/{cluster}/topic",
         "Name": "Topic",
-        "ParentPathParam": [
-          "cluster"
-        ],
+        "ParentPathParam": ["cluster"],
         "ParentQueryParam": null,
         "ListQueryParamter": {},
         "ApplyExample": "apiVersion: v2\nkind: Topic\nmetadata:\n    name: my-topic\n    cluster: my-cluster\n    labels:\n        conduktor.io/application: application-a\n        conduktor.io/application-instance: staging\n        user-labels: I am a user label\n    catalogVisibility: PUBLIC\n    descriptionIsEditable: true\n    description: This is a topic description\n    sqlStorage:\n        retentionTimeInSecond: 42\nspec:\n    partitions: 1\n    configs:\n        cleanup.policy: delete\n        retention.ms: '86400000'\n",

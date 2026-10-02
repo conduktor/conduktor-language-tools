@@ -31,7 +31,7 @@ export function expandIncludes(resource: Resource, readInclude?: (path: string) 
 
 function read(path: string, readInclude: ((path: string) => string) | undefined): string {
   if (!readInclude) {
-    throw new IncludeError(`${path} is read from a file; save the YAML inside a workspace folder to use it`);
+    throw new IncludeError(`${path} is read from a file; save the YAML as a file to use it`);
   }
   try {
     return readInclude(path);

@@ -3,6 +3,7 @@ import {
   catalogDocuments,
   planDocuments,
   upsertDocuments,
+  type ReadInclude,
   type ResourceDocument,
   type UpsertItem,
 } from '@conduktor/vscode-core';
@@ -44,15 +45,20 @@ export async function applyAllChanges(
     return undefined;
   }
 
-  const origin = new Map<ResourceDocument, { entry: LocalEntry; text: string }>();
+  const origin = new Map<ResourceDocument, { entry: LocalEntry; text: string; read?: (file: string) => string }>();
   for (const entry of changed) {
     const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
+    const source = { entry, text, read: includeReaderFor(entry.uri) };
     for (const document of catalogDocuments(text, state.spec.catalog, { env: process.env })) {
-      origin.set(document, { entry, text });
+      origin.set(document, source);
     }
   }
   const documents = [...origin.keys()];
-  const readInclude = includeReaderFor(changed[0]!.uri);
+  const readInclude: ReadInclude = (file, document) => {
+    const source = origin.get(document);
+    if (!source?.read) throw new Error(`${source?.entry.path ?? 'the file'} is not a local file`);
+    return source.read(file);
+  };
   const name = state.connection.name;
   const fileOf = (item: UpsertItem) => origin.get(item.document)?.entry.path ?? '?';
 

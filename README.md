@@ -147,7 +147,8 @@ Files you write here work with `conduktor apply`, and the reverse:
 - `${VAR}` and `${VAR:-default}` are expanded from VS Code's environment, and `$${VAR}` passes a literal `${VAR}`
   through — the same rules as the CLI.
 - `spec.schemaFile` on a `Subject` and the `conduktor.io/descriptionFile` label on a `Topic` are read from files,
-  relative to the workspace folder root (where you would run the CLI).
+  relative to the root of the workspace folder holding the YAML (where you would run the CLI), or to the YAML's own
+  folder when it is outside the workspace.
 - Resources in one file are applied in the CLI's order (users and groups, then clusters, then self-service, then
   topics and the rest).
 

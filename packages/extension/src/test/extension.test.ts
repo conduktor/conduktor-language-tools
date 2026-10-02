@@ -615,6 +615,43 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test("reads each file's includes next to it when the sync folder is outside the workspace", async () => {
+    const api = await activate();
+    api.setConfirm(async () => undefined);
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    assert.strictEqual(state.connection.mode, 'apply');
+    await api.clusters.set('local-kafka');
+    const elsewhere = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-includes-')));
+    await api.sync.setSyncRoot(elsewhere);
+    try {
+      const name = `vscode-include-${Date.now()}`;
+      const uri = await api.sync.writeNew(
+        state.spec.catalog.latest('Topic')!,
+        ['local-kafka'],
+        stringify({
+          apiVersion: 'v2',
+          kind: 'Topic',
+          metadata: { name, cluster: 'local-kafka', labels: { 'conduktor.io/descriptionFile': 'description.md' } },
+          spec: { partitions: 1, replicationFactor: 1 },
+        }),
+        name,
+      );
+      await vscode.workspace.fs.writeFile(
+        vscode.Uri.joinPath(uri, '..', 'description.md'),
+        new TextEncoder().encode('Read from the file next to it'),
+      );
+      const preview = await api.applyAllChanges();
+      assert.deepStrictEqual(preview?.find((item) => item.document.resource?.metadata.name === name)?.outcome, {
+        status: 'ok',
+        result: 'Created',
+      });
+    } finally {
+      await useWorkspaceSyncRoot(api);
+      await Promise.resolve(vscode.workspace.fs.delete(elsewhere, { recursive: true })).catch(() => undefined);
+    }
+  });
+
   test('keeps local copies under the chosen root, one folder per connection', async () => {
     const api = await activate();
     const state = api.sessions.current();

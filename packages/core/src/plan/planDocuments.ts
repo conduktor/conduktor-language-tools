@@ -1,7 +1,7 @@
 import type { ConsoleClient } from '../client/consoleClient';
 import type { KindCatalog } from '../openapi/kindCatalog';
 import type { ResourceDocument } from '../resources/parseDocuments';
-import { upsertDocuments, type UpsertItem } from './upsertDocuments';
+import { upsertDocuments, type ReadInclude, type UpsertItem } from './upsertDocuments';
 
 // Console's dry run cannot see what earlier steps of the same plan would create, so a dependent fails with a not-found
 // or no-permission error that names the missing resource (`Group with id 'x' not found`, `… on app x`). Those are
@@ -10,7 +10,7 @@ export async function planDocuments(
   client: Pick<ConsoleClient, 'upsert'>,
   catalog: KindCatalog,
   documents: readonly ResourceDocument[],
-  options: { readInclude?: (path: string) => string } = {},
+  options: { readInclude?: ReadInclude } = {},
 ): Promise<UpsertItem[]> {
   const items = await upsertDocuments(client, catalog, documents, { ...options, dryRun: true });
   const willExist: string[] = [];

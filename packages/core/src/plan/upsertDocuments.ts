@@ -18,10 +18,13 @@ export interface UpsertItem {
   outcome: UpsertOutcome;
 }
 
+// Given the document too, since documents applied together can come from files in different folders.
+export type ReadInclude = (path: string, document: ResourceDocument) => string;
+
 export interface UpsertOptions {
   dryRun: boolean;
   stopOnError?: boolean;
-  readInclude?: (path: string) => string;
+  readInclude?: ReadInclude;
 }
 
 export async function upsertDocuments(
@@ -54,7 +57,8 @@ async function upsertOne(
   if (!kind)
     return { status: 'error', message: `${resource.kind} ${resource.apiVersion} is not available on this Console` };
   try {
-    const expanded = expandIncludes(resource, options.readInclude);
+    const { readInclude } = options;
+    const expanded = expandIncludes(resource, readInclude && ((path) => readInclude(path, document)));
     const response = await client.upsert(upsertTarget(kind, expanded), expanded, { dryRun: options.dryRun });
     return { status: 'ok', result: response.upsertResult };
   } catch (error) {

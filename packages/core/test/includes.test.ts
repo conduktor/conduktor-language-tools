@@ -40,9 +40,9 @@ describe('expandIncludes', () => {
     expect(expandIncludes(plain)).toBe(plain);
   });
 
-  it('explains that includes need a saved file in a workspace folder', () => {
+  it('explains that includes need a saved file', () => {
     expect(() => expandIncludes(subject)).toThrow(IncludeError);
-    expect(() => expandIncludes(subject)).toThrow(/workspace folder/);
+    expect(() => expandIncludes(subject)).toThrow(/save the YAML as a file/);
   });
 
   it('names the file that could not be read', () => {

@@ -53,6 +53,28 @@ describe('upsertDocuments', () => {
     expect(upsert.mock.calls.every(([, , options]) => options.dryRun)).toBe(true);
   });
 
+  it("reads each document's includes for that document, so files from different folders resolve on their own", async () => {
+    const upsert = vi.fn(async (_target: unknown, resource: unknown) => ({
+      resource: resource as never,
+      upsertResult: 'Created' as const,
+    }));
+    const subject = (name: string) =>
+      `apiVersion: v2\nkind: Subject\nmetadata: { name: ${name}, cluster: local }\nspec: { schemaFile: s.avsc }\n`;
+    const documents = [
+      ...parseResourceDocuments(subject('a'), { env: {} }),
+      ...parseResourceDocuments(subject('b'), { env: {} }),
+    ];
+    const folderOf = new Map(documents.map((d, i) => [d, ['team-a', 'team-b'][i]]));
+    await upsertDocuments({ upsert }, snapshotCatalog, documents, {
+      dryRun: true,
+      readInclude: (path, document) => `${folderOf.get(document)}/${path}`,
+    });
+    expect(upsert.mock.calls.map(([, resource]) => (resource as { spec: { schema: string } }).spec.schema)).toEqual([
+      'team-a/s.avsc',
+      'team-b/s.avsc',
+    ]);
+  });
+
   it('turns Console errors and parse errors into error outcomes', async () => {
     const upsert = vi.fn(async () => {
       throw new ConsoleError(403, 'No Ownership', 'You do not own orders');
@@ -69,10 +91,13 @@ describe('upsertDocuments', () => {
     ]);
   });
 
-  it('reports an include that cannot be read without a workspace folder', async () => {
+  it('reports an include that cannot be read without a file', async () => {
     const documents = parseResourceDocuments(text, { env: {} }).filter((d) => d.kind === 'Subject');
     const items = await upsertDocuments({ upsert: vi.fn() }, snapshotCatalog, documents, { dryRun: true });
-    expect(items[0]?.outcome).toMatchObject({ status: 'error', message: expect.stringMatching(/workspace folder/) });
+    expect(items[0]?.outcome).toMatchObject({
+      status: 'error',
+      message: expect.stringMatching(/save the YAML as a file/),
+    });
   });
 
   it('applies for real when dryRun is false', async () => {
