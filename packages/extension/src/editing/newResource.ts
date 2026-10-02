@@ -1,7 +1,14 @@
 import * as vscode from 'vscode';
-import { listPath, newResourceYaml, parentsOf, type KindCatalog, type KindVersion } from '@conduktor/vscode-core';
+import {
+  listPath,
+  newResourceYaml,
+  PARENT_KINDS,
+  parentsOf,
+  type KindCatalog,
+  type KindVersion,
+} from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
-import { PARENT_KINDS, type ExplorerNode } from '../explorer/explorerModel';
+import type { ExplorerNode } from '../explorer/explorerModel';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 

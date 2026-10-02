@@ -3,6 +3,7 @@ import {
   describeError,
   listPath,
   parentsOf,
+  PARENT_KINDS,
   type ConsoleClient,
   type KindCatalog,
   type KindVersion,
@@ -21,11 +22,6 @@ export interface ExplorerSource {
   catalog: KindCatalog;
   client: Pick<ConsoleClient, 'list'>;
 }
-
-export const PARENT_KINDS: Readonly<Record<string, string>> = {
-  cluster: 'KafkaCluster',
-  connectCluster: 'KafkaConnectCluster',
-};
 
 export async function childrenOf(source: ExplorerSource, node?: ExplorerNode): Promise<ExplorerNode[]> {
   if (!node) {

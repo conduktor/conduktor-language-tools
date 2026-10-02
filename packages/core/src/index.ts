@@ -36,3 +36,6 @@ export { upsertDocuments, type UpsertItem, type UpsertOptions, type UpsertOutcom
 export { splitPolicyMessages } from './plan/messages';
 export { comparableYaml, newResourceYaml } from './resources/yamlText';
 export type { ConnectionMode } from './connectionMode';
+export { PARENT_KINDS } from './openapi/parents';
+export { kindSchema } from './openapi/kindSchema';
+export { agentInstructions, conduktorTools, ToolError, type ToolContext, type ToolDefinition } from './tools';

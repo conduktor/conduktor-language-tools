@@ -12,11 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "ajv": "^8.17.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "ajv": "^8.17.0",
     "vitest": "^5.0.0",
     "vscode-languageserver-textdocument": "^1.0.12",
     "yaml-language-server": "^1.24.0"

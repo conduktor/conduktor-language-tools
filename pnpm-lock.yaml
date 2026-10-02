@@ -184,6 +184,9 @@ importers:
 
   packages/core:
     dependencies:
+      ajv:
+        specifier: ^8.17.0
+        version: 8.20.0
       yaml:
         specifier: ^2.9.0
         version: 2.9.1
@@ -191,9 +194,6 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.4
-      ajv:
-        specifier: ^8.17.0
-        version: 8.20.0
       vitest:
         specifier: ^5.0.0
         version: 5.0.3(@types/node@22.20.4)(vite@8.3.2(@types/node@22.20.4)(esbuild@0.28.2)(yaml@2.9.1))
