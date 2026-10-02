@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
   listPath,
+  newResourceName,
   newResourceYaml,
   PARENT_KINDS,
   parentsOf,
@@ -8,7 +9,6 @@ import {
   type KindVersion,
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
-import { parse } from 'yaml';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { SyncFolder } from '../sync/syncFolder';
 
@@ -38,13 +38,20 @@ export async function newResource(
     if (!value) return undefined;
     parents = [...parents, value];
   }
-  const content = newResourceYaml(kind, parentsOf(kind, parents));
-  const name = String(parse(content)?.metadata?.name ?? `new-${kind.kind.toLowerCase()}`);
   const document = (await sync.ensureChosen())
-    ? await vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name))
-    : await vscode.workspace.openTextDocument({ language: 'yaml', content });
+    ? await draftLocally(sync, kind, parents)
+    : await vscode.workspace.openTextDocument({
+        language: 'yaml',
+        content: newResourceYaml(kind, parentsOf(kind, parents)),
+      });
   await vscode.window.showTextDocument(document);
   return document;
+}
+
+async function draftLocally(sync: SyncFolder, kind: KindVersion, parents: string[]): Promise<vscode.TextDocument> {
+  const name = await sync.freeName(kind, parents, newResourceName(kind));
+  const content = newResourceYaml(kind, parentsOf(kind, parents), name);
+  return vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name));
 }
 
 async function pickKind(catalog: KindCatalog): Promise<KindVersion | undefined> {

@@ -34,7 +34,7 @@ export { sortForApply } from './resources/ordering';
 export { buildSpec, loadSpec, type LoadedSpec, type SpecCache, type SpecSource } from './openapi/loadSpec';
 export { upsertDocuments, type UpsertItem, type UpsertOptions, type UpsertOutcome } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
-export { comparableYaml, newResourceYaml } from './resources/yamlText';
+export { comparableYaml, newResourceName, newResourceYaml } from './resources/yamlText';
 export type { ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';

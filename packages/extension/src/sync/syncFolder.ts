@@ -137,7 +137,7 @@ export class SyncFolder implements vscode.Disposable {
 
   entryFor(kind: string, parents: readonly string[], name: string): LocalEntry | undefined {
     return this.entries.find(
-      (entry) => entry.kind === kind && entry.name === name && entry.parents.join('/') === parents.join('/'),
+      (entry) => entry.kind === kind && entry.name === name && sameParents(entry.parents, parents),
     );
   }
 
@@ -168,22 +168,38 @@ export class SyncFolder implements vscode.Disposable {
     if (!(await proceed(resources.length))) return undefined;
     for (const resource of resources) {
       const staged = this.entryFor(kind.kind, parents, resource.metadata.name);
-      if (!staged || staged.status === 'synced') await this.writeSynced(kind, [...parents], resource);
+      if (staged && staged.status !== 'synced') continue;
+      try {
+        await this.writeSynced(kind, [...parents], resource);
+      } catch (error) {
+        this.output.warn(describeError(error));
+      }
     }
     await this.refresh();
     return resources.length;
   }
 
-  /** Writes an edited live resource into the folder, tracked against the Console version as its base. */
+  /**
+   * Writes an edited live resource into the folder, tracked against the Console version as its base. A rename in the
+   * edit stages a new resource; the original keeps its own file.
+   */
   async stageEdit(kind: KindVersion, parents: readonly string[], name: string, text: string): Promise<vscode.Uri> {
-    const uri = this.entryFor(kind.kind, parents, name)?.uri ?? (await this.syncResource(kind, parents, name));
-    let staged = text;
-    try {
-      const value: unknown = parse(text);
-      if (isRecord(value)) staged = stringify(withSecretPlaceholders(value as Resource).resource);
-    } catch {
-      // unparseable YAML is staged as typed, so the user can fix it in the file
+    const state = this.ready();
+    const staged = withPlaceholders(text);
+    const identity = identify(text, state);
+    if (
+      identity &&
+      !(identity.kind === kind.kind && identity.name === name && sameParents(identity.parents, parents))
+    ) {
+      const renamed = state.spec.catalog.resolve(identity.apiVersion, identity.kind)!;
+      const missing = renamed.parentPathParams.filter((_, i) => identity.parents[i] === '');
+      if (missing.length > 0)
+        throw new Error(`${identity.kind} ${identity.name} needs metadata.${missing.join(', metadata.')}.`);
+      return this.writeNew(renamed, identity.parents, staged, identity.name);
     }
+    const entry = this.entryFor(kind.kind, parents, name);
+    if (entry && entry.status !== 'synced') throw new LocalChangesError(entry);
+    const uri = entry?.uri ?? (await this.syncResource(kind, parents, name));
     await write(uri, staged);
     await this.refresh();
     return this.entryFor(kind.kind, parents, name)?.uri ?? uri;
@@ -192,13 +208,27 @@ export class SyncFolder implements vscode.Disposable {
   async writeNew(kind: KindVersion, parents: readonly string[], text: string, name: string): Promise<vscode.Uri> {
     await this.requireChosen();
     const root = this.requireRoot();
-    let uri = vscode.Uri.joinPath(root, syncPath(kind, parents, name));
-    for (let n = 2; await fileExists(uri); n++)
-      uri = vscode.Uri.joinPath(root, syncPath(kind, parents, `${name}-${n}`));
+    const existing = this.entryFor(kind.kind, parents, name);
+    if (existing) throw new Error(`${kind.kind} ${name} already has a local file: ${existing.path}.`);
+    const path = syncPath(kind, parents, name);
+    const uri = vscode.Uri.joinPath(root, path);
+    if (await fileExists(uri)) throw new Error(`${path} already exists.`);
     await this.ensureStateDir();
     await write(uri, text);
     await this.refresh();
     return uri;
+  }
+
+  /** The name, or the first `<name>-<n>` that no local file uses. */
+  async freeName(kind: KindVersion, parents: readonly string[], name: string): Promise<string> {
+    const root = this.requireRoot();
+    for (let n = 1; ; n++) {
+      const candidate = n === 1 ? name : `${name}-${n}`;
+      const taken =
+        this.entryFor(kind.kind, parents, candidate) ||
+        (await fileExists(vscode.Uri.joinPath(root, syncPath(kind, parents, candidate))));
+      if (!taken) return candidate;
+    }
   }
 
   async markApplied(uri: vscode.Uri, text: string): Promise<void> {
@@ -264,15 +294,19 @@ export class SyncFolder implements vscode.Disposable {
     return entries;
   }
 
-  // Keeps every file at <name>.yaml in its mirrored folder, after a rename in the file or a layout change. Moves go
-  // through a WorkspaceEdit so open editors and git follow them.
+  // Keeps synced files at <name>.yaml in their mirrored folder, after a rename in the file or a layout change. A file
+  // with no base moves only when renamed where it already sits, so files laid out by hand (a GitOps repository) stay
+  // put. Moves go through a WorkspaceEdit so open editors and git follow them.
   private async relocate(root: vscode.Uri, entries: readonly LocalEntry[], state: Ready): Promise<boolean> {
     let moved = false;
     for (const entry of entries) {
       const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
-      if (!kind) continue;
+      if (!kind || entry.parents.includes('')) continue;
       const expected = syncPath(kind, entry.parents, entry.name);
-      if (expected === entry.path) continue;
+      if (expected.toLowerCase() === entry.path.toLowerCase()) continue;
+      const base = this.baseOf(entry.uri);
+      const tracked = await fileExists(base);
+      if (!tracked && folderOf(expected) !== folderOf(entry.path)) continue;
       const target = vscode.Uri.joinPath(root, expected);
       if (await fileExists(target)) {
         this.output.warn(`${entry.path} describes ${entry.kind} ${entry.name}, but ${expected} already exists.`);
@@ -282,10 +316,9 @@ export class SyncFolder implements vscode.Disposable {
       const edit = new vscode.WorkspaceEdit();
       edit.renameFile(entry.uri, target);
       if (!(await vscode.workspace.applyEdit(edit))) continue;
-      const base = this.baseOf(entry.uri);
-      if (await fileExists(base)) {
+      if (tracked) {
         await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(this.baseOf(target), '..'));
-        await vscode.workspace.fs.rename(base, this.baseOf(target));
+        await vscode.workspace.fs.rename(base, this.baseOf(target), { overwrite: true });
       }
       this.output.info(`Moved ${entry.path} to ${expected}`);
       moved = true;
@@ -325,7 +358,10 @@ export class SyncFolder implements vscode.Disposable {
 
   private async writeSynced(kind: KindVersion, parents: string[], live: Resource): Promise<vscode.Uri> {
     const root = this.requireRoot();
-    const uri = vscode.Uri.joinPath(root, syncPath(kind, parents, live.metadata.name));
+    const path = syncPath(kind, parents, live.metadata.name);
+    const uri = vscode.Uri.joinPath(root, path);
+    if ((await fileExists(uri)) && this.entryAt(uri)?.status !== 'synced')
+      throw new Error(`${path} is not a synced copy of ${live.kind} ${live.metadata.name}, so it is left as it is.`);
     const { resource, variables } = withSecretPlaceholders(live);
     if (variables.length > 0) {
       this.output.info(
@@ -386,6 +422,33 @@ export class SyncFolder implements vscode.Disposable {
     }
     await this.refresh();
   }
+}
+
+export class LocalChangesError extends Error {
+  constructor(readonly entry: LocalEntry) {
+    super(
+      `${entry.kind} ${entry.name} has local changes in ${entry.path} that are not applied yet. Edit that file, or ` +
+        'Discard Changes on it first.',
+    );
+  }
+}
+
+// No secret value is written to disk; unparseable YAML is staged as typed, so the user can fix it in the file.
+function withPlaceholders(text: string): string {
+  try {
+    const value: unknown = parse(text);
+    return isRecord(value) ? stringify(withSecretPlaceholders(value as Resource).resource) : text;
+  } catch {
+    return text;
+  }
+}
+
+function sameParents(a: readonly string[], b: readonly string[]): boolean {
+  return a.join('/') === b.join('/');
+}
+
+function folderOf(path: string): string {
+  return path.slice(0, path.lastIndexOf('/'));
 }
 
 function identify(text: string, state: Ready) {

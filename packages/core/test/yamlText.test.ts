@@ -15,6 +15,11 @@ describe('newResourceYaml', () => {
     expect(topic.spec).toMatchObject({ partitions: 1 });
   });
 
+  it('takes the name it is given in place of the example name', () => {
+    const topic = parse(newResourceYaml(snapshotCatalog.latest('Topic')!, { cluster: 'local-kafka' }, 'my-topic-2'));
+    expect(topic.metadata).toMatchObject({ name: 'my-topic-2', cluster: 'local-kafka' });
+  });
+
   it('fills every parent of a nested kind', () => {
     const connector = parse(
       newResourceYaml(snapshotCatalog.latest('Connector')!, { cluster: 'local-kafka', connectCluster: 'main' }),

@@ -21,7 +21,7 @@ import { Output } from './output';
 import { registerYamlSchemas } from './schema/yamlSchemaContributor';
 import { applyAllChanges } from './sync/applyChanges';
 import { registerSyncCommands } from './sync/commands';
-import { SyncFolder } from './sync/syncFolder';
+import { LocalChangesError, SyncFolder } from './sync/syncFolder';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -115,7 +115,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
             const state = sessions.current();
             const kind = state.status === 'ready' ? state.spec.catalog.resolve(`v${ref.version}`, ref.kind) : undefined;
             if (!kind) throw new Error(`${ref.kind} v${ref.version} is not available on this Console.`);
-            const local = await sync.stageEdit(kind, ref.parents, ref.name, text);
+            const local = await sync.stageEdit(kind, ref.parents, ref.name, text).catch(async (error: unknown) => {
+              if (error instanceof LocalChangesError) await vscode.window.showTextDocument(error.entry.uri);
+              throw error;
+            });
             await vscode.window.showTextDocument(local);
             void vscode.window.showInformationMessage(
               `Staged ${ref.kind} ${ref.name} in ${vscode.workspace.asRelativePath(local)}. Nothing is applied until you Apply.`,

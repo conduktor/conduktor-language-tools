@@ -68,8 +68,10 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
     const ref = parseLiveUriParts(uri.authority, uri.path);
     if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
     const state = this.sessions.current();
-    if (state.status !== 'ready' || state.connection.mode === 'read-only')
-      throw vscode.FileSystemError.NoPermissions(uri);
+    if (state.status !== 'ready' || state.connection.id !== ref.connectionId) {
+      throw vscode.FileSystemError.Unavailable('Switch to this connection to save its resources.');
+    }
+    if (state.connection.mode === 'read-only') throw vscode.FileSystemError.NoPermissions(uri);
     const text = new TextDecoder().decode(content);
     // Saving applies only in apply mode without a sync folder; otherwise the edit is staged as a local file and the
     // live document reloads what the Console holds.

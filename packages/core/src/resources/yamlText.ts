@@ -5,16 +5,21 @@ import type { Resource } from './types';
 
 const IDENTITY_KEYS = ['apiVersion', 'kind', 'metadata', 'spec'];
 
-export function newResourceYaml(kind: KindVersion, parents: Readonly<Record<string, string>>): string {
+export function newResourceYaml(kind: KindVersion, parents: Readonly<Record<string, string>>, name?: string): string {
   const example = isRecord(kind.applyExample) ? kind.applyExample : {};
-  const metadata = isRecord(example.metadata) ? example.metadata : { name: `my-${kebabCase(kind.kind)}` };
+  const metadata = isRecord(example.metadata) ? example.metadata : { name: newResourceName(kind) };
   return stringify({
     ...example,
     apiVersion: `v${kind.version}`,
     kind: kind.kind,
-    metadata: { ...metadata, ...parents },
+    metadata: { ...metadata, ...parents, ...(name && { name }) },
     spec: example.spec ?? {},
   });
+}
+
+export function newResourceName(kind: KindVersion): string {
+  const example = isRecord(kind.applyExample) && isRecord(kind.applyExample.metadata) ? kind.applyExample.metadata : {};
+  return typeof example.name === 'string' && example.name ? example.name : `my-${kebabCase(kind.kind)}`;
 }
 
 export function comparableYaml(resource: Resource): string {

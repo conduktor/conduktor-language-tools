@@ -489,6 +489,129 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('never stages a live save over local changes, an unknown file or another connection', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+    const name = existing!.metadata.name;
+    const node: ResourceNode = { type: 'resource', kind: topicKind, parents: ['local-kafka'], name };
+    const read = async (uri: vscode.Uri) => new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    const replaceAll = async (document: vscode.TextDocument, text: string) => {
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), text);
+      assert.ok(await vscode.workspace.applyEdit(edit));
+    };
+
+    const local = await api.sync.syncResource(topicKind, ['local-kafka'], name);
+    const live = await vscode.workspace.openTextDocument(api.liveUri(node));
+    try {
+      const mine = parse(await read(local));
+      mine.metadata.labels = { ...(mine.metadata.labels ?? {}), local: 'edit' };
+      await vscode.workspace.fs.writeFile(local, new TextEncoder().encode(stringify(mine)));
+      await api.sync.refresh();
+      const fromLive = parse(live.getText());
+      fromLive.metadata.labels = { ...(fromLive.metadata.labels ?? {}), live: 'edit' };
+      await replaceAll(live, stringify(fromLive));
+      assert.strictEqual(await live.save(), false, 'the live save is refused');
+      assert.strictEqual(parse(await read(local)).metadata.labels.local, 'edit', 'the local edit survives');
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.files.revert', live.uri);
+      await api.sync.discard(local).catch(() => undefined);
+    }
+
+    await vscode.workspace.fs.writeFile(local, new TextEncoder().encode('kind: [\n'));
+    await api.sync.refresh();
+    try {
+      await assert.rejects(api.sync.syncResource(topicKind, ['local-kafka'], name), /not a synced copy/);
+      assert.strictEqual(await read(local), 'kind: [\n');
+    } finally {
+      await vscode.workspace.fs.delete(local);
+      await api.sync.syncResource(topicKind, ['local-kafka'], name);
+    }
+
+    const other = vscode.Uri.from({ ...api.liveUri(node), authority: 'another-connection' });
+    await assert.rejects(
+      Promise.resolve(vscode.workspace.fs.writeFile(other, new TextEncoder().encode(live.getText()))),
+    );
+    assert.strictEqual(api.sync.entryAt(local)?.status, 'synced');
+  });
+
+  test('stages a renamed live resource as a new file, leaving the original alone', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+    const name = existing!.metadata.name;
+    const local = await api.sync.syncResource(topicKind, ['local-kafka'], name);
+    const live = await vscode.workspace.openTextDocument(
+      api.liveUri({ type: 'resource', kind: topicKind, parents: ['local-kafka'], name }),
+    );
+    const renamed = `vscode-copy-${Date.now()}`;
+    const edited = parse(live.getText());
+    edited.metadata.name = renamed;
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
+    assert.ok(await vscode.workspace.applyEdit(edit));
+    assert.ok(await live.save());
+    await api.sync.refresh();
+    const copy = api.sync.entryFor('Topic', ['local-kafka'], renamed);
+    try {
+      assert.strictEqual(copy?.status, 'new');
+      assert.ok(copy.path.endsWith(`clusters/local-kafka/kafka/Topic/${renamed}.yaml`), copy.path);
+      assert.strictEqual(api.sync.entryAt(local)?.status, 'synced', 'the original is still its own synced copy');
+      assert.strictEqual(api.sync.entryAt(local)?.name, name);
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      if (copy) await Promise.resolve(vscode.workspace.fs.delete(copy.uri)).catch(() => undefined);
+    }
+  });
+
+  test('leaves files it did not write where they are, and never stages the same resource twice', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const root = api.sync.root()!;
+    const id = `vscode-foreign-${Date.now()}`;
+    const topic = (name: string, cluster?: string) =>
+      stringify({ apiVersion: 'v2', kind: 'Topic', metadata: { name, ...(cluster && { cluster }) }, spec: {} });
+    const foreign = vscode.Uri.joinPath(root, 'prod', 'topics', `${id}.yaml`);
+    const unscoped = vscode.Uri.joinPath(root, 'clusters', 'local-kafka', 'kafka', 'Topic', `${id}-x.yaml`);
+    await vscode.workspace.fs.writeFile(foreign, new TextEncoder().encode(topic(id, 'local-kafka')));
+    await vscode.workspace.fs.writeFile(unscoped, new TextEncoder().encode(topic(`${id}-x`)));
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const drafted: vscode.Uri[] = [];
+    try {
+      await api.sync.refresh();
+      assert.strictEqual(api.sync.entryFor('Topic', ['local-kafka'], id)?.uri.toString(), foreign.toString());
+      assert.strictEqual(api.sync.entryAt(unscoped)?.uri.toString(), unscoped.toString());
+
+      for (let i = 0; i < 2; i++) {
+        const document = await api.newResource({ type: 'parent', kind: topicKind, parents: ['local-kafka'] });
+        assert.ok(document);
+        drafted.push(document.uri);
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      }
+      const names = drafted.map((uri) => api.sync.entryAt(uri)?.name);
+      assert.strictEqual(new Set(names).size, 2, `two drafts get two names: ${names.join(', ')}`);
+      await assert.rejects(
+        api.sync.writeNew(topicKind, ['local-kafka'], topic(id, 'local-kafka'), id),
+        /already has a local file/,
+      );
+    } finally {
+      for (const uri of [foreign, unscoped, ...drafted])
+        await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);
+      await Promise.resolve(vscode.workspace.fs.delete(vscode.Uri.joinPath(root, 'prod'), { recursive: true })).catch(
+        () => undefined,
+      );
+    }
+  });
+
   test('keeps local copies under the chosen root, one folder per connection', async () => {
     const api = await activate();
     const state = api.sessions.current();
