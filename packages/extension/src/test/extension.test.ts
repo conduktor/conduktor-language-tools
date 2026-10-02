@@ -224,7 +224,12 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual((saved.metadata.labels as Record<string, string>).smoke, 'edited');
 
       await vscode.commands.executeCommand('conduktor.diffWithLive', draft.uri, 0);
-      assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputTextDiff);
+      const diff = vscode.window.tabGroups.activeTabGroup.activeTab;
+      assert.ok(diff?.input instanceof vscode.TabInputTextDiff);
+      const sides = [diff.input.original, diff.input.modified];
+      assert.match(api.compare.provideTextDocumentContent(sides[0]!), /kind: Topic/);
+      await vscode.window.tabGroups.close(diff);
+      await until(() => sides.every((side) => api.compare.provideTextDocumentContent(side) === ''));
 
       await vscode.commands.executeCommand('conduktor.deleteResource', node);
       assert.ok(!(await exists()), 'topic deleted');

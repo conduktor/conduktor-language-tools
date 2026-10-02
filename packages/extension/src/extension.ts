@@ -35,6 +35,7 @@ export interface ExtensionApi {
   setConfirm: (confirm: Confirm) => void;
   sync: SyncFolder;
   clusters: ClusterSelection;
+  compare: Compare;
   applyAllChanges: () => Promise<UpsertItem[] | undefined>;
 }
 
@@ -167,6 +168,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     sync,
     applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output, clusters.current()),
     clusters,
+    compare,
   });
 }
 

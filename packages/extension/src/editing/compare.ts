@@ -14,12 +14,22 @@ import { includeReaderFor } from './includes';
 export const COMPARE_SCHEME = 'conduktor-compare';
 
 export class Compare implements vscode.TextDocumentContentProvider, vscode.Disposable {
+  // The live side holds the Console's version, secrets included, so it is kept only while its diff is open.
   private readonly contents = new Map<string, string>();
-  private readonly registration: vscode.Disposable;
+  private readonly registrations: vscode.Disposable[];
   private next = 0;
 
   constructor(private readonly sessions: SessionManager) {
-    this.registration = vscode.workspace.registerTextDocumentContentProvider(COMPARE_SCHEME, this);
+    this.registrations = [
+      vscode.workspace.registerTextDocumentContentProvider(COMPARE_SCHEME, this),
+      vscode.workspace.onDidCloseTextDocument((document) => this.contents.delete(document.uri.toString())),
+      vscode.window.tabGroups.onDidChangeTabs(({ closed }) => {
+        for (const { input } of closed) {
+          if (input instanceof vscode.TabInputTextDiff)
+            [input.original, input.modified].forEach((uri) => this.contents.delete(uri.toString()));
+        }
+      }),
+    ];
   }
 
   provideTextDocumentContent(uri: vscode.Uri): string {
@@ -77,7 +87,8 @@ export class Compare implements vscode.TextDocumentContentProvider, vscode.Dispo
   }
 
   dispose(): void {
-    this.registration.dispose();
+    this.registrations.forEach((registration) => registration.dispose());
+    this.contents.clear();
   }
 
   private put(path: string, text: string): vscode.Uri {
