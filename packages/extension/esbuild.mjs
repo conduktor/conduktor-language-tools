@@ -1,6 +1,6 @@
 import { build, context } from 'esbuild';
 import { cp, mkdir } from 'node:fs/promises';
-import { globSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 
 const watch = process.argv.includes('--watch');
 const tests = process.argv.includes('--tests');
@@ -17,13 +17,24 @@ const extension = {
   logLevel: 'info',
 };
 
+// Claude Code and other MCP clients run this with node; it reads the bundled OpenAPI next to it.
+const mcpServer = {
+  ...extension,
+  entryPoints: ['../mcp/src/main.ts'],
+  outfile: 'dist/mcp-server.js',
+  external: [],
+  define: { CONDUKTOR_VERSION: JSON.stringify(JSON.parse(readFileSync('package.json', 'utf8')).version) },
+};
+
 await mkdir('dist', { recursive: true });
 await cp('../core/snapshot/public-api-doc.yaml', 'dist/public-api-doc.yaml');
 
 if (watch) {
   await (await context(extension)).watch();
+  await (await context(mcpServer)).watch();
 } else {
   await build(extension);
+  await build(mcpServer);
   if (tests) {
     const { outfile: _outfile, ...shared } = extension;
     await build({

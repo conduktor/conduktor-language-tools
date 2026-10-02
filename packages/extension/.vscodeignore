@@ -1,5 +1,6 @@
 **
 !dist/extension.js
+!dist/mcp-server.js
 !dist/public-api-doc.yaml
 !resources/**
 !README.md

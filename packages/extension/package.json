@@ -107,7 +107,7 @@
       },
       {
         "command": "conduktor.newResource",
-        "title": "New Resource…",
+        "title": "New Resource\u2026",
         "category": "Conduktor",
         "icon": "$(add)"
       },
@@ -130,7 +130,7 @@
       },
       {
         "command": "conduktor.copyToWorkspace",
-        "title": "Copy to Workspace…",
+        "title": "Copy to Workspace\u2026",
         "category": "Conduktor",
         "icon": "$(save-as)"
       },
@@ -401,6 +401,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@conduktor/vscode-mcp": "workspace:*",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
     "@types/vscode": "~1.101.0",
