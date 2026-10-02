@@ -174,6 +174,21 @@ export class SyncFolder implements vscode.Disposable {
     return resources.length;
   }
 
+  /** Writes an edited live resource into the folder, tracked against the Console version as its base. */
+  async stageEdit(kind: KindVersion, parents: readonly string[], name: string, text: string): Promise<vscode.Uri> {
+    const uri = this.entryFor(kind.kind, parents, name)?.uri ?? (await this.syncResource(kind, parents, name));
+    let staged = text;
+    try {
+      const value: unknown = parse(text);
+      if (isRecord(value)) staged = stringify(withSecretPlaceholders(value as Resource).resource);
+    } catch {
+      // unparseable YAML is staged as typed, so the user can fix it in the file
+    }
+    await write(uri, staged);
+    await this.refresh();
+    return this.entryFor(kind.kind, parents, name)?.uri ?? uri;
+  }
+
   async writeNew(kind: KindVersion, parents: readonly string[], text: string, name: string): Promise<vscode.Uri> {
     await this.requireChosen();
     const root = this.requireRoot();
@@ -220,6 +235,14 @@ export class SyncFolder implements vscode.Disposable {
       return;
     }
     const state = this.sessions.current();
+    let entries = await this.scan(root, state);
+    if (state.status === 'ready' && (await this.relocate(root, entries, state))) entries = await this.scan(root, state);
+    if (options.drift && state.status === 'ready') await this.checkDrift(entries, state);
+    this.entries = entries.map((entry) => ({ ...entry, drifted: this.drift.has(entry.uri.toString()) }));
+    this.changed.fire();
+  }
+
+  private async scan(root: vscode.Uri, state: SessionState): Promise<LocalEntry[]> {
     const files = await vscode.workspace.findFiles(
       new vscode.RelativePattern(root, '**/*.{yaml,yml}'),
       new vscode.RelativePattern(root, `${STATE_DIR}/**`),
@@ -238,9 +261,36 @@ export class SyncFolder implements vscode.Disposable {
         drifted: false,
       });
     }
-    if (options.drift && state.status === 'ready') await this.checkDrift(entries, state);
-    this.entries = entries.map((entry) => ({ ...entry, drifted: this.drift.has(entry.uri.toString()) }));
-    this.changed.fire();
+    return entries;
+  }
+
+  // Keeps every file at <name>.yaml in its mirrored folder, after a rename in the file or a layout change. Moves go
+  // through a WorkspaceEdit so open editors and git follow them.
+  private async relocate(root: vscode.Uri, entries: readonly LocalEntry[], state: Ready): Promise<boolean> {
+    let moved = false;
+    for (const entry of entries) {
+      const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
+      if (!kind) continue;
+      const expected = syncPath(kind, entry.parents, entry.name);
+      if (expected === entry.path) continue;
+      const target = vscode.Uri.joinPath(root, expected);
+      if (await fileExists(target)) {
+        this.output.warn(`${entry.path} describes ${entry.kind} ${entry.name}, but ${expected} already exists.`);
+        continue;
+      }
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(target, '..'));
+      const edit = new vscode.WorkspaceEdit();
+      edit.renameFile(entry.uri, target);
+      if (!(await vscode.workspace.applyEdit(edit))) continue;
+      const base = this.baseOf(entry.uri);
+      if (await fileExists(base)) {
+        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(this.baseOf(target), '..'));
+        await vscode.workspace.fs.rename(base, this.baseOf(target));
+      }
+      this.output.info(`Moved ${entry.path} to ${expected}`);
+      moved = true;
+    }
+    return moved;
   }
 
   async requiredVariables(): Promise<{ name: string; set: boolean }[]> {

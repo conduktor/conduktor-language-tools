@@ -32,7 +32,9 @@ is valid, and what applying it would change. Git comes with VS Code.
 Stage changes as files before they reach the Console — the first step towards git sync.
 
 - **Where:** one sync folder holds every connection, each in its own subfolder:
-  `<sync folder>/<connection>/<group>/<kind>/[<cluster>/]<name>.yaml`, mirroring the Explorer. You are asked the
+  `<sync folder>/<connection>/global/<group>/<kind>/<name>.yaml` and
+  `<sync folder>/<connection>/clusters/<cluster>/<group>/<kind>/[<connect cluster>/]<name>.yaml`, mirroring the Explorer.
+  Files are kept at `<name>.yaml`: rename a resource in its file and the file follows. You are asked the
   first time anything is written (`<workspace>/conduktor` is offered), and **Set Sync Folder…** changes it — for
   example to a GitOps repository — offering to move the existing connection folders and to add the folder to the
   workspace. The choice is remembered per workspace (machine-wide when no folder is open).
@@ -41,8 +43,10 @@ Stage changes as files before they reach the Console — the first step towards 
 - From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed on the
   Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
   **Show Only Changes** filters the tree to them.
-- Live documents become read-only: **Edit Locally** stages a resource as a file, **New Resource…** writes into the
-  folder, and saving never applies.
+- **Saving a resource opened from the tree stages it** whenever it cannot apply straight away (dry-run mode, or once a
+  sync folder exists): the edit is written to its file in the sync folder (secrets as placeholders), that file opens
+  marked **M**, and the tree's copy reloads what the Console holds. **Edit Locally** does the same without editing
+  first, and **New Resource…** writes into the folder. Only apply mode without a sync folder applies on save.
 - Apply one resource from its file or the tree, or **Apply All Changes**: every new or modified file in dependency
   order, one at a time, stopping at the first failure. Each success becomes the new base. **Discard Local Changes**
   goes back to the base; **Re-sync from Console** replaces the file with what the Console holds.

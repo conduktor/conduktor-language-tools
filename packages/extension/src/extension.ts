@@ -111,6 +111,16 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
         new ConduktorFileSystem(
           sessions,
           (text, liveName) => resources.saveLive(text, liveName),
+          async (ref, text) => {
+            const state = sessions.current();
+            const kind = state.status === 'ready' ? state.spec.catalog.resolve(`v${ref.version}`, ref.kind) : undefined;
+            if (!kind) throw new Error(`${ref.kind} v${ref.version} is not available on this Console.`);
+            const local = await sync.stageEdit(kind, ref.parents, ref.name, text);
+            await vscode.window.showTextDocument(local);
+            void vscode.window.showInformationMessage(
+              `Staged ${ref.kind} ${ref.name} in ${vscode.workspace.asRelativePath(local)}. Nothing is applied until you Apply.`,
+            );
+          },
           () => sync.isActive(),
           editable,
         ),

@@ -15,19 +15,23 @@ const topic: Resource = {
 };
 
 describe('syncPath', () => {
-  it('mirrors the Explorer: group, kind, parents, name', () => {
-    expect(syncPath(snapshotCatalog.latest('Topic')!, ['local'], 'orders')).toBe('kafka/Topic/local/orders.yaml');
-    expect(syncPath(snapshotCatalog.latest('Connector')!, ['local', 'main'], 'sink')).toBe(
-      'kafka/Connector/local/main/sink.yaml',
+  it('mirrors the Explorer: global or the cluster, then group, kind and name', () => {
+    expect(syncPath(snapshotCatalog.latest('Topic')!, ['local'], 'orders')).toBe(
+      'clusters/local/kafka/Topic/orders.yaml',
     );
-    expect(syncPath(snapshotCatalog.latest('Application')!, [], 'shop')).toBe('self-serve/Application/shop.yaml');
+    expect(syncPath(snapshotCatalog.latest('Connector')!, ['local', 'main'], 'sink')).toBe(
+      'clusters/local/kafka/Connector/main/sink.yaml',
+    );
+    expect(syncPath(snapshotCatalog.latest('Application')!, [], 'shop')).toBe(
+      'global/self-serve/Application/shop.yaml',
+    );
   });
 
   it('keeps every name inside its own path segment on any filesystem', () => {
     expect(syncPath(snapshotCatalog.latest('Application')!, [], 'a/b\\c:d*e?"<>|%')).toBe(
-      'self-serve/Application/a%2Fb%5Cc%3Ad%2Ae%3F%22%3C%3E%7C%25.yaml',
+      'global/self-serve/Application/a%2Fb%5Cc%3Ad%2Ae%3F%22%3C%3E%7C%25.yaml',
     );
-    expect(syncPath(snapshotCatalog.latest('Topic')!, ['..'], '.')).toBe('kafka/Topic/%2E%2E/%2E.yaml');
+    expect(syncPath(snapshotCatalog.latest('Topic')!, ['..'], '.')).toBe('clusters/%2E%2E/kafka/Topic/%2E.yaml');
   });
 });
 

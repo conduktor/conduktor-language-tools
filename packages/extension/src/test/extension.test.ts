@@ -104,11 +104,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const live = await vscode.workspace.openTextDocument(api.liveUri(topic));
     assert.match(live.getText(), /kind: Topic/);
     assert.strictEqual(live.languageId, 'yaml');
-    // VS Code locks an editor against typing when its file system is not writable.
     assert.strictEqual(
       vscode.workspace.fs.isWritableFileSystem(live.uri.scheme),
-      false,
-      'a dry-run connection opens live documents in a read-only editor',
+      true,
+      'live documents can be edited in dry-run mode; saving stages them locally',
     );
 
     const copy = await vscode.workspace.openTextDocument({ language: 'yaml', content: live.getText() });
@@ -117,6 +116,42 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       items?.map((i) => i.outcome),
       [{ status: 'ok', result: 'NotChanged' }],
     );
+  });
+
+  test('stages an edited live resource as a local file when saved in dry-run mode', async () => {
+    const api = await activate();
+    await useWorkspaceSyncRoot(api);
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    assert.strictEqual(state.connection.mode, 'dry-run');
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+    const name = existing!.metadata.name;
+    const live = await vscode.workspace.openTextDocument(
+      api.liveUri({ type: 'resource', kind: topicKind, parents: ['local-kafka'], name }),
+    );
+    const edited = parse(live.getText());
+    edited.metadata.labels = { ...(edited.metadata.labels ?? {}), staged: 'from-live' };
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
+    assert.ok(await vscode.workspace.applyEdit(edit));
+    assert.ok(await live.save(), 'saving a live document in dry-run mode succeeds');
+
+    const local = vscode.Uri.joinPath(
+      vscode.workspace.workspaceFolders![0]!.uri,
+      'conduktor',
+      state.connection.name,
+      'clusters/local-kafka/kafka/Topic',
+      `${name}.yaml`,
+    );
+    try {
+      const staged = parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(local)));
+      assert.strictEqual(staged.metadata.labels.staged, 'from-live');
+      assert.strictEqual(api.sync.entryAt(local)?.status, 'modified');
+      await until(() => !live.getText().includes('from-live'));
+    } finally {
+      await api.sync.discard(local).catch(() => undefined);
+    }
   });
 
   test('reports a corrupted resource in Problems instead of doing nothing', async () => {
@@ -292,7 +327,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const name = existing.metadata.name;
 
     const uri = await api.sync.syncResource(topicKind, ['local-kafka'], name);
-    assert.ok(uri.path.endsWith(`/conduktor/${state.connection.name}/kafka/Topic/local-kafka/${name}.yaml`), uri.path);
+    assert.ok(
+      uri.path.endsWith(`/conduktor/${state.connection.name}/clusters/local-kafka/kafka/Topic/${name}.yaml`),
+      uri.path,
+    );
     assert.ok(api.sync.isActive());
     assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
 
@@ -326,11 +364,6 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
 
     const liveUri = api.liveUri({ type: 'resource', kind: topicKind, parents: ['local-kafka'], name });
-    assert.strictEqual(
-      (await vscode.workspace.fs.stat(liveUri)).permissions,
-      vscode.FilePermission.Readonly,
-      'live documents are read-only once changes are staged locally',
-    );
     await vscode.commands.executeCommand('conduktor.editLocally', liveUri);
     assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), uri.toString());
 
@@ -339,8 +372,18 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.match(drafted.getText(), /kind: Topic/);
     assert.match(drafted.getText(), /cluster: local-kafka/);
     assert.strictEqual(api.sync.entryAt(drafted.uri)?.status, 'new');
+    const renamed = `vscode-renamed-${Date.now()}`;
+    const draft = parse(drafted.getText());
+    draft.metadata.name = renamed;
+    const rename = new vscode.WorkspaceEdit();
+    rename.replace(drafted.uri, new vscode.Range(0, 0, drafted.lineCount, 0), stringify(draft));
+    assert.ok(await vscode.workspace.applyEdit(rename));
+    assert.ok(await drafted.save());
+    await api.sync.refresh();
+    const moved = api.sync.entryFor('Topic', ['local-kafka'], renamed);
+    assert.ok(moved && moved.path.endsWith(`clusters/local-kafka/kafka/Topic/${renamed}.yaml`), moved?.path);
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-    await vscode.workspace.fs.delete(drafted.uri);
+    await vscode.workspace.fs.delete(moved.uri);
 
     await api.sync.discard(uri);
     await api.sync.refresh({ drift: true });
@@ -457,7 +500,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
       assert.strictEqual(
         uri.fsPath,
-        join(elsewhere.fsPath, state.connection.name, 'console', 'KafkaCluster', 'local-gateway.yaml'),
+        join(elsewhere.fsPath, state.connection.name, 'global', 'console', 'KafkaCluster', 'local-gateway.yaml'),
       );
       assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
     } finally {

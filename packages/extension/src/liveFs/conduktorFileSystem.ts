@@ -2,15 +2,17 @@ import * as vscode from 'vscode';
 import { stringify } from 'yaml';
 import { ConsoleError, describeError, itemPath, parentsOf } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
-import { parseLiveUriParts } from './uris';
+import { parseLiveUriParts, type LiveRef } from './uris';
 
 export class ConduktorFileSystem implements vscode.FileSystemProvider {
   private readonly changed = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+  private readonly revisions = new Map<string, number>();
   readonly onDidChangeFile = this.changed.event;
 
   constructor(
     private readonly sessions: SessionManager,
     private readonly save: (text: string, liveName: string) => Promise<void>,
+    private readonly stage: (ref: LiveRef, text: string) => Promise<void>,
     private readonly staging: () => boolean,
     private readonly editable: boolean,
   ) {}
@@ -21,17 +23,15 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
 
   stat(uri: vscode.Uri): vscode.FileStat {
     const state = this.sessions.current();
-    // With a sync folder, edits are staged as local files instead (Edit Locally), so saving never applies.
     const writable =
       this.editable &&
-      !this.staging() &&
       state.status === 'ready' &&
-      state.connection.mode === 'apply' &&
+      state.connection.mode !== 'read-only' &&
       state.connection.id === uri.authority;
     return {
       type: vscode.FileType.File,
       ctime: 0,
-      mtime: 0,
+      mtime: this.revisions.get(uri.toString()) ?? 1,
       size: 0,
       permissions: writable ? undefined : vscode.FilePermission.Readonly,
     };
@@ -67,17 +67,27 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
   async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
     const ref = parseLiveUriParts(uri.authority, uri.path);
     if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
-    if (this.staging()) {
-      throw vscode.FileSystemError.NoPermissions(
-        'Changes are staged in the sync folder now: use Edit Locally, then apply from the local file.',
-      );
-    }
+    const state = this.sessions.current();
+    if (state.status !== 'ready' || state.connection.mode === 'read-only')
+      throw vscode.FileSystemError.NoPermissions(uri);
+    const text = new TextDecoder().decode(content);
+    // Saving applies only in apply mode without a sync folder; otherwise the edit is staged as a local file and the
+    // live document reloads what the Console holds.
+    const applies = state.connection.mode === 'apply' && !this.staging();
     try {
-      await this.save(new TextDecoder().decode(content), ref.name);
+      await (applies ? this.save(text, ref.name) : this.stage(ref, text));
     } catch (error) {
       throw vscode.FileSystemError.Unavailable(describeError(error));
     }
-    this.changed.fire([{ type: vscode.FileChangeType.Changed, uri }]);
+    const saved = (this.revisions.get(uri.toString()) ?? 1) + 1;
+    this.revisions.set(uri.toString(), saved);
+    if (!applies) {
+      // VS Code records the revision it stats right after saving; a later one makes it reload what the Console holds.
+      setTimeout(() => {
+        this.revisions.set(uri.toString(), saved + 1);
+        this.changed.fire([{ type: vscode.FileChangeType.Changed, uri }]);
+      }, 100);
+    }
   }
 
   delete(uri: vscode.Uri): void {

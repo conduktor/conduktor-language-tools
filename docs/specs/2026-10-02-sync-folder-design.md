@@ -23,7 +23,8 @@ cleanly. Observed errors name the missing resource: `Group with id '<name>' not 
 
 ```
 <workspace>/conduktor/<connection>/
-  <group>/<kind>/[<cluster>/[<connectCluster>/]]<name>.yaml
+  global/<group>/<kind>/<name>.yaml
+  clusters/<cluster>/<group>/<kind>/[<connectCluster>/]<name>.yaml
   .conduktor/.gitignore             *
   .conduktor/base/<same path>       the version last synced or applied
 ```
@@ -49,7 +50,10 @@ show as changes.
 
 - The Explorer shows badges (A / M / ⚠), lists local-only resources under their kind and parents, and opens the
   local file for synced resources. **Show Only Changes** builds the tree from local changes alone.
-- Live documents are read-only; **Edit Locally** syncs the resource and opens the file. Saving never applies.
+- Saving an edited live document stages it: the edit becomes the local file (the Console version is its base), the
+  file opens, and the live document reloads. **Edit Locally** stages without editing. Saving never applies.
+- Files stay at `<name>.yaml` in their mirrored folder; a rename in the file or a layout change moves the file (and its
+  base) as a workspace rename.
 - **New Resource…** writes the template into the folder at its path.
 - Per resource: Apply, Diff with Live, **Discard Local Changes** (back to base), **Re-sync from Console**.
 - **Apply All Changes:** every new or modified file through the preview and step-by-step apply; each success becomes
