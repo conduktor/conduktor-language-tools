@@ -56,6 +56,20 @@ apiVersion: v2
     expect(syncStatus(reordered, base)).toBe('synced');
   });
 
+  it('sees an edited secret, since both sides hold what the user wrote', () => {
+    const cluster: Resource = {
+      apiVersion: 'v2',
+      kind: 'KafkaCluster',
+      metadata: { name: 'prod' },
+      spec: { bootstrapServers: 'k', kafkaFlavor: { type: 'Gateway', password: '${CDK_SECRET_P}' } },
+    };
+    const rotated = {
+      ...cluster,
+      spec: { ...(cluster.spec as object), kafkaFlavor: { type: 'Gateway', password: 'new' } },
+    };
+    expect(syncStatus(stringify(rotated), stringify(cluster))).toBe('modified');
+  });
+
   it('counts unparseable local text as modified', () => {
     expect(syncStatus('kind: [', base)).toBe('modified');
   });

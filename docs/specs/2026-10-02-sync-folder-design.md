@@ -36,8 +36,9 @@ Nothing is copied unless asked: **Sync Locally** on a resource, a kind or a clus
 
 ## Statuses
 
-Compared on normalised YAML (identity first, keys sorted) with secret values redacted, so key order and secrets never
-show as changes.
+Compared on normalised YAML (identity first, keys sorted), so key order and formatting never show as changes. A file
+and its base both hold `${VAR}` placeholders, so they are compared as written and an edited secret is a change; drift
+compares the base with the Console with secret values redacted.
 
 | Status         | Rule                                                           |
 | -------------- | -------------------------------------------------------------- |
