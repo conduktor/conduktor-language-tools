@@ -95,6 +95,12 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const live = await vscode.workspace.openTextDocument(api.liveUri(topic));
     assert.match(live.getText(), /kind: Topic/);
     assert.strictEqual(live.languageId, 'yaml');
+    // VS Code locks an editor against typing when its file system is not writable.
+    assert.strictEqual(
+      vscode.workspace.fs.isWritableFileSystem(live.uri.scheme),
+      false,
+      'a dry-run connection opens live documents in a read-only editor',
+    );
 
     const copy = await vscode.workspace.openTextDocument({ language: 'yaml', content: live.getText() });
     const items = await api.dryRun(copy.uri);
@@ -159,6 +165,11 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       );
 
       const live = await vscode.workspace.openTextDocument(api.liveUri(node));
+      assert.strictEqual(
+        vscode.workspace.fs.isWritableFileSystem(live.uri.scheme),
+        true,
+        'apply mode can edit live documents',
+      );
       const edited = parse(live.getText());
       edited.metadata.labels = { ...(edited.metadata.labels ?? {}), smoke: 'edited' };
       const edit = new vscode.WorkspaceEdit();

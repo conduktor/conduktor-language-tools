@@ -20,7 +20,8 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onLanguage:yaml",
-    "onFileSystem:conduktor"
+    "onFileSystem:conduktor",
+    "onFileSystem:conduktor-edit"
   ],
   "contributes": {
     "configuration": {
@@ -308,7 +309,7 @@
         },
         {
           "command": "conduktor.copyToWorkspace",
-          "when": "resourceScheme == conduktor"
+          "when": "resourceScheme =~ /^conduktor(-edit)?$/"
         },
         {
           "command": "conduktor.applyFile",
@@ -328,7 +329,7 @@
         },
         {
           "command": "conduktor.editLocally",
-          "when": "resourceScheme == conduktor"
+          "when": "resourceScheme =~ /^conduktor(-edit)?$/"
         },
         {
           "command": "conduktor.applyLocal",
@@ -352,12 +353,12 @@
         },
         {
           "command": "conduktor.copyToWorkspace",
-          "when": "resourceScheme == conduktor",
+          "when": "resourceScheme =~ /^conduktor(-edit)?$/",
           "group": "navigation"
         },
         {
           "command": "conduktor.editLocally",
-          "when": "resourceScheme == conduktor && conduktor.syncFolder",
+          "when": "resourceScheme =~ /^conduktor(-edit)?$/",
           "group": "navigation"
         }
       ],

@@ -76,14 +76,18 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   liveUri(node: ResourceNode): vscode.Uri {
     const state = this.sessions.current();
     if (state.status !== 'ready') throw new Error('Not connected');
+    const editable = state.connection.mode === 'apply' && !this.sync.isActive();
     return vscode.Uri.from(
-      toLiveUriParts({
-        connectionId: state.connection.id,
-        kind: node.kind.kind,
-        version: node.kind.version,
-        parents: node.parents,
-        name: node.name,
-      }),
+      toLiveUriParts(
+        {
+          connectionId: state.connection.id,
+          kind: node.kind.kind,
+          version: node.kind.version,
+          parents: node.parents,
+          name: node.name,
+        },
+        { editable },
+      ),
     );
   }
 

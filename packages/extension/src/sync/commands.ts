@@ -3,7 +3,7 @@ import { describeError, type KindVersion } from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { SessionManager } from '../connections/session';
-import { LIVE_SCHEME, parseLiveUriParts } from '../liveFs/uris';
+import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import type { SyncFolder } from './syncFolder';
 
 const LARGE_SYNC = 20;
@@ -133,7 +133,7 @@ function resourceToEdit(
 ): { kind: KindVersion; parents: string[]; name: string } | undefined {
   if (target && !(target instanceof vscode.Uri)) return target.type === 'resource' ? target : undefined;
   const uri = target ?? vscode.window.activeTextEditor?.document.uri;
-  const ref = uri?.scheme === LIVE_SCHEME ? parseLiveUriParts(uri.authority, uri.path) : undefined;
+  const ref = uri && isLiveScheme(uri.scheme) ? parseLiveUriParts(uri.authority, uri.path) : undefined;
   const state = sessions.current();
   const kind = ref && state.status === 'ready' ? state.spec.catalog.resolve(`v${ref.version}`, ref.kind) : undefined;
   return ref && kind ? { kind, parents: ref.parents, name: ref.name } : undefined;

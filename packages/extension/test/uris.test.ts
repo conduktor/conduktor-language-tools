@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseLiveUriParts, toLiveUriParts, type LiveRef } from '../src/liveFs/uris';
+import { isLiveScheme, parseLiveUriParts, toLiveUriParts, type LiveRef } from '../src/liveFs/uris';
 
 describe('live URIs', () => {
   it.each<LiveRef>([
@@ -22,5 +22,16 @@ describe('live URIs', () => {
     expect(parseLiveUriParts('a', '/Topic/two/c/t.yaml')).toBeUndefined();
     expect(parseLiveUriParts('a', '/Topic/v2/c/t.json')).toBeUndefined();
     expect(parseLiveUriParts('a', '/Topic/v2/%E0%A4%A/t.yaml')).toBeUndefined();
+  });
+
+  it('uses a separate scheme for documents that may be edited, so VS Code enforces read-only for the rest', () => {
+    const ref = { connectionId: 'a', kind: 'Topic', version: 2, parents: ['c'], name: 't' };
+    expect(toLiveUriParts(ref).scheme).toBe('conduktor');
+    expect(toLiveUriParts(ref, { editable: true }).scheme).toBe('conduktor-edit');
+    expect([isLiveScheme('conduktor'), isLiveScheme('conduktor-edit'), isLiveScheme('file')]).toEqual([
+      true,
+      true,
+      false,
+    ]);
   });
 });

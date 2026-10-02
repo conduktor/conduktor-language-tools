@@ -12,6 +12,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
     private readonly sessions: SessionManager,
     private readonly save: (text: string, liveName: string) => Promise<void>,
     private readonly staging: () => boolean,
+    private readonly editable: boolean,
   ) {}
 
   watch(): vscode.Disposable {
@@ -22,6 +23,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
     const state = this.sessions.current();
     // With a sync folder, edits are staged as local files instead (Edit Locally), so saving never applies.
     const writable =
+      this.editable &&
       !this.staging() &&
       state.status === 'ready' &&
       state.connection.mode === 'apply' &&
@@ -65,6 +67,11 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
   async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
     const ref = parseLiveUriParts(uri.authority, uri.path);
     if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
+    if (this.staging()) {
+      throw vscode.FileSystemError.NoPermissions(
+        'Changes are staged in the sync folder now: use Edit Locally, then apply from the local file.',
+      );
+    }
     try {
       await this.save(new TextDecoder().decode(content), ref.name);
     } catch (error) {

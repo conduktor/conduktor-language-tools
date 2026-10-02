@@ -10,7 +10,7 @@ import {
 } from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
-import { LIVE_SCHEME, parseLiveUriParts } from '../liveFs/uris';
+import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import type { ResourceNode } from './explorerModel';
 import type { ExplorerProvider } from './explorerProvider';
 
@@ -96,7 +96,7 @@ function resolveTarget(catalog: KindCatalog, target: ResourceNode | vscode.Uri |
   if (target && !(target instanceof vscode.Uri))
     return { kind: target.kind, parents: target.parents, name: target.name };
   const uri = target ?? vscode.window.activeTextEditor?.document.uri;
-  if (uri?.scheme !== LIVE_SCHEME) return undefined;
+  if (!uri || !isLiveScheme(uri.scheme)) return undefined;
   const ref = parseLiveUriParts(uri.authority, uri.path);
   const kind = ref && catalog.resolve(`v${ref.version}`, ref.kind);
   return ref && kind ? { kind, parents: ref.parents, name: ref.name } : undefined;

@@ -16,7 +16,7 @@ import { ClusterSelection } from './explorer/clusterSelection';
 import { ExplorerProvider } from './explorer/explorerProvider';
 import { registerResourceCommands } from './explorer/resourceCommands';
 import { ConduktorFileSystem } from './liveFs/conduktorFileSystem';
-import { LIVE_SCHEME } from './liveFs/uris';
+import { LIVE_EDIT_SCHEME, LIVE_SCHEME } from './liveFs/uris';
 import { Output } from './output';
 import { registerYamlSchemas } from './schema/yamlSchemaContributor';
 import { applyAllChanges } from './sync/applyChanges';
@@ -105,14 +105,17 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       const target = activeUri(uri);
       return target ? compare.diffWithLive(target, index) : undefined;
     }),
-    vscode.workspace.registerFileSystemProvider(
-      LIVE_SCHEME,
-      new ConduktorFileSystem(
-        sessions,
-        (text, liveName) => resources.saveLive(text, liveName),
-        () => sync.isActive(),
+    ...[false, true].map((editable) =>
+      vscode.workspace.registerFileSystemProvider(
+        editable ? LIVE_EDIT_SCHEME : LIVE_SCHEME,
+        new ConduktorFileSystem(
+          sessions,
+          (text, liveName) => resources.saveLive(text, liveName),
+          () => sync.isActive(),
+          editable,
+        ),
+        { isCaseSensitive: true, isReadonly: !editable },
       ),
-      { isCaseSensitive: true },
     ),
     resources.onDidApply(({ uri, text, items }) => {
       explorer.refresh();
