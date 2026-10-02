@@ -18,8 +18,9 @@ schema and dry run the editor uses, so they stop guessing resource shapes.
 | Tokens       | Never written to files: added to the Console MCP definition at start, passed to the stdio server through its environment, `${CONDUKTOR_TOKEN}` placeholders in copied config | Same rule as the rest of the extension.                                           |
 
 Secrets are redacted in every resource an agent reads (passwords, SASL and JAAS configs, tokens, API and access keys,
-PEM private keys), as Console's own MCP responses are, found by field name across all kinds. Validate and dry run
-reject YAML that still holds the redaction placeholder, so applying an agent's YAML can never overwrite a secret.
+PEM private keys, and the password or secret query parameters inside connection URLs), as Console's own MCP responses
+are, found by field name across all kinds. Only string values are secrets, so a `maxTokens` number stays. Validate and
+dry run reject YAML that still holds the redaction placeholder, so applying an agent's YAML can never overwrite a secret.
 
 ## Tools
 
