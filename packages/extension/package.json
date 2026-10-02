@@ -87,6 +87,17 @@
         "title": "Refresh Explorer",
         "category": "Conduktor",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "conduktor.dryRunFile",
+        "title": "Dry Run File",
+        "category": "Conduktor",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "conduktor.dryRunDocument",
+        "title": "Dry Run Resource",
+        "category": "Conduktor"
       }
     ],
     "viewsContainers": {
@@ -123,6 +134,19 @@
         {
           "command": "conduktor.refreshExplorer",
           "when": "view == conduktor.explorer",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "conduktor.dryRunDocument",
+          "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "conduktor.dryRunFile",
+          "when": "resourceLangId == yaml",
           "group": "navigation"
         }
       ]
