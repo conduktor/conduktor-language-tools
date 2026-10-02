@@ -277,6 +277,24 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await api.sync.refresh();
     assert.strictEqual(api.sync.entryAt(uri)?.status, 'modified');
 
+    api.explorer.showOnlyChanges(true);
+    try {
+      const groups = await api.explorer.getChildren();
+      assert.deepStrictEqual(
+        groups.map((g) => g.type === 'group' && g.group),
+        ['kafka'],
+      );
+      const [topics] = await api.explorer.getChildren(groups[0]);
+      const [cluster] = await api.explorer.getChildren(topics);
+      const changed = await api.explorer.getChildren(cluster);
+      assert.deepStrictEqual(
+        changed.map((n) => n.type === 'resource' && [n.name, n.local?.status]),
+        [[name, 'modified']],
+      );
+    } finally {
+      api.explorer.showOnlyChanges(false);
+    }
+
     await api.sync.discard(uri);
     await api.sync.refresh({ drift: true });
     assert.deepStrictEqual(

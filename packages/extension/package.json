@@ -172,6 +172,18 @@
         "command": "conduktor.showRequiredVariables",
         "title": "Show Required Variables",
         "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.showOnlyChanges",
+        "title": "Show Only Changes",
+        "category": "Conduktor",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "conduktor.showAll",
+        "title": "Show All Resources",
+        "category": "Conduktor",
+        "icon": "$(filter-filled)"
       }
     ],
     "viewsContainers": {
@@ -234,6 +246,16 @@
           "command": "conduktor.showRequiredVariables",
           "when": "view == conduktor.explorer && conduktor.syncFolder",
           "group": "3_sync"
+        },
+        {
+          "command": "conduktor.showOnlyChanges",
+          "when": "view == conduktor.explorer && conduktor.syncFolder && !conduktor.onlyChanges",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.showAll",
+          "when": "view == conduktor.explorer && conduktor.onlyChanges",
+          "group": "navigation"
         }
       ],
       "commandPalette": [

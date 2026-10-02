@@ -1,17 +1,38 @@
 import * as vscode from 'vscode';
 import type { SessionManager } from '../connections/session';
+import type { SyncFolder } from '../sync/syncFolder';
 import { toLiveUriParts } from '../liveFs/uris';
-import { childrenOf, type ExplorerNode, type ResourceNode } from './explorerModel';
+import { childrenOf, type ExplorerNode, type LocalMark, type ResourceNode } from './explorerModel';
 
 const { Collapsed, None } = vscode.TreeItemCollapsibleState;
+
+const BADGES: Record<string, { label: string; color: string; tooltip: string }> = {
+  new: { label: 'A', color: 'gitDecoration.addedResourceForeground', tooltip: 'New locally, not on the Console yet' },
+  modified: { label: 'M', color: 'gitDecoration.modifiedResourceForeground', tooltip: 'Changed locally, not applied' },
+  drifted: {
+    label: '⚠',
+    color: 'gitDecoration.conflictingResourceForeground',
+    tooltip: 'Changed on the Console since it was synced',
+  },
+};
 
 export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<ExplorerNode | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
-  private readonly sessionListener: vscode.Disposable;
+  private readonly listeners: vscode.Disposable[];
+  private onlyChanges = false;
 
-  constructor(private readonly sessions: SessionManager) {
-    this.sessionListener = sessions.onDidChange(() => this.refresh());
+  constructor(
+    private readonly sessions: SessionManager,
+    private readonly sync: SyncFolder,
+  ) {
+    this.listeners = [sessions.onDidChange(() => this.refresh()), sync.onDidChange(() => this.refresh())];
+  }
+
+  showOnlyChanges(only: boolean): void {
+    this.onlyChanges = only;
+    void vscode.commands.executeCommand('setContext', 'conduktor.onlyChanges', only);
+    this.refresh();
   }
 
   refresh(): void {
@@ -28,7 +49,20 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       case 'error':
         return [{ type: 'message', text: 'Cannot connect', detail: state.message }];
       case 'ready':
-        return childrenOf({ catalog: state.spec.catalog, client: state.client }, node);
+        return childrenOf(
+          {
+            catalog: state.spec.catalog,
+            client: state.client,
+            onlyChanges: this.onlyChanges,
+            local: this.sync.list().map((entry) => ({
+              kind: entry.kind,
+              parents: entry.parents,
+              name: entry.name,
+              mark: { status: entry.status, drifted: entry.drifted, uri: entry.uri.toString() },
+            })),
+          },
+          node,
+        );
     }
   }
 
@@ -58,9 +92,21 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       case 'parent':
         return item(node.parents.at(-1)!, Collapsed, 'server', 'parent');
       case 'resource': {
-        const treeItem = item(node.name, None, 'file-code', 'resource');
-        treeItem.command = { command: 'vscode.open', title: 'Open', arguments: [this.liveUri(node)] };
-        treeItem.tooltip = `${node.kind.kind} ${[...node.parents, node.name].join(' / ')}`;
+        const badge = node.local && badgeFor(node.local);
+        const treeItem = item(node.name, None, 'file-code', node.local ? `resource.${node.local.status}` : 'resource');
+        if (badge) {
+          treeItem.iconPath = new vscode.ThemeIcon('file-code', new vscode.ThemeColor(badge.color));
+          treeItem.description = badge.label;
+        }
+        const target = node.local ? vscode.Uri.parse(node.local.uri) : this.liveUri(node);
+        treeItem.command = { command: 'vscode.open', title: 'Open', arguments: [target] };
+        treeItem.tooltip = [
+          `${node.kind.kind} ${[...node.parents, node.name].join(' / ')}`,
+          badge?.tooltip,
+          node.local && 'Opens the local file',
+        ]
+          .filter(Boolean)
+          .join('\n');
         return treeItem;
       }
       case 'message': {
@@ -72,9 +118,14 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   }
 
   dispose(): void {
-    this.sessionListener.dispose();
+    this.listeners.forEach((listener) => listener.dispose());
     this.changed.dispose();
   }
+}
+
+function badgeFor(mark: LocalMark) {
+  if (mark.drifted) return BADGES.drifted;
+  return mark.status === 'synced' ? undefined : BADGES[mark.status];
 }
 
 function item(label: string, state: vscode.TreeItemCollapsibleState, icon: string, contextValue: string) {

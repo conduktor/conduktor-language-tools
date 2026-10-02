@@ -41,12 +41,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const output = new Output();
   const connections = new ConnectionStore(context);
   const sessions = new SessionManager(context, connections, output);
-  const explorer = new ExplorerProvider(sessions);
-  const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const compare = new Compare(sessions);
   const resources = new ResourceController(sessions, output, compare, confirm);
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
   const sync = new SyncFolder(sessions, output);
+  const explorer = new ExplorerProvider(sessions, sync);
+  const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
 
   context.subscriptions.push(
@@ -68,6 +68,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     registerClaudeCodeConfigCommand(sessions, context.extensionUri),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
+    vscode.commands.registerCommand('conduktor.showOnlyChanges', () => explorer.showOnlyChanges(true)),
+    vscode.commands.registerCommand('conduktor.showAll', () => explorer.showOnlyChanges(false)),
     vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) => newResource(sessions, node)),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, codeLenses),
     vscode.commands.registerCommand('conduktor.dryRunDocument', (uri: vscode.Uri, index: number) =>
