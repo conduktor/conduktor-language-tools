@@ -24,7 +24,31 @@ is valid, and what applying it would change. Git comes with VS Code.
 | **Dry run, apply, diff**  | CodeLenses above every resource: **Dry run**, **Apply** (dry run, confirmation, apply) and **Diff with Live**. The last result shows in the lens and at the end of the line; failures land in Problems.                                    |
 | **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                    |
 | **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                      |
+| **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. See [Local sync folder](#local-sync-folder).                                                           |
 | **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                        |
+
+## Local sync folder
+
+Stage changes as files before they reach the Console — the first step towards git sync.
+
+- **Sync Locally** on a resource, a kind or a cluster copies just that into
+  `<workspace>/conduktor/<connection>/<group>/<kind>/[<cluster>/]<name>.yaml`, mirroring the Explorer. Nothing else is
+  copied. A git-ignored `.conduktor/` beside it keeps the version last synced or applied (the _base_).
+- From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed on the
+  Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
+  **Show Only Changes** filters the tree to them.
+- Live documents become read-only: **Edit Locally** stages a resource as a file, **New Resource…** writes into the
+  folder, and saving never applies.
+- Apply one resource from its file or the tree, or **Apply All Changes**: every new or modified file in dependency
+  order, one at a time, stopping at the first failure. Each success becomes the new base. **Discard Local Changes**
+  goes back to the base; **Re-sync from Console** replaces the file with what the Console holds.
+- Secrets never reach the disk: synced files hold `${CDK_SECRET_<KIND>_<NAME>_<FIELD>}` placeholders, expanded from
+  VS Code's environment when applied. **Show Required Variables** lists them.
+
+Resources that depend on others in the same plan (a Group, an Application it owns, an ApplicationInstance of that
+Application) cannot all pass a dry run before the first exists — Console's dry run does not see uncommitted creations.
+They show as **pending** ("checked when applied") rather than failed, and Apply goes one step at a time. This works
+for multi-resource files as well as Apply All Changes.
 
 ## AI agents
 
@@ -157,6 +181,7 @@ packages/core/        no VS Code dependency; unit-tested with Vitest
   src/resources/      YAML documents with CLI-compatible variables, includes and apply order
   src/plan/           dry run and apply of a set of documents
   snapshot/           the bundled OpenAPI, also the test fixture
+  src/sync/           sync-folder paths, statuses, drift and secret placeholders
   src/tools/          agent tools shared by the VS Code tools and the MCP server
 packages/mcp/         stdio MCP server over the core tools, bundled as dist/mcp-server.js
 packages/extension/   VS Code wiring: connections, explorer, conduktor: documents, CodeLenses, schema contributor, agents
@@ -178,5 +203,6 @@ From the [design](docs/specs/2026-10-02-slice-a-design.md):
 
 - **Slice (a), next:** upgrade a PAT to an admin key, run the CLI's actions (topic empty, connector restart, …),
   consumer groups and offset resets for admin keys.
+- **Git sync:** commit staged changes from the sync folder, explicit deletions, and conflict handling for drift.
 - **Slice (b), GitOps:** a repository template with plan-on-PR and apply-on-merge GitHub Actions.
 - **Slice (c), self-service:** ownership-aware validation for application teams.

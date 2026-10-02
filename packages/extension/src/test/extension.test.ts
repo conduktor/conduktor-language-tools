@@ -389,4 +389,24 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       for (const file of files) await Promise.resolve(vscode.workspace.fs.delete(file)).catch(() => undefined);
     }
   });
+
+  test('syncs a cluster with its secrets as environment variables and no drift', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
+    try {
+      const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+      const variable = 'CDK_SECRET_KAFKACLUSTER_LOCAL_GATEWAY_SPEC_KAFKAFLAVOR_PASSWORD';
+      assert.strictEqual(parse(text).spec.kafkaFlavor.password, `\${${variable}}`);
+      assert.ok((await api.sync.requiredVariables()).some((v) => v.name === variable));
+      await api.sync.refresh({ drift: true });
+      assert.deepStrictEqual(
+        { status: api.sync.entryAt(uri)?.status, drifted: api.sync.entryAt(uri)?.drifted },
+        { status: 'synced', drifted: false },
+      );
+    } finally {
+      await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);
+    }
+  });
 });

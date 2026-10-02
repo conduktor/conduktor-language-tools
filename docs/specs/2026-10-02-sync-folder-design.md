@@ -1,6 +1,6 @@
 # Conduktor for VS Code — local sync folder
 
-Status: approved 2026-10-02 · builds on [slice (a)](2026-10-02-slice-a-design.md) · first step towards git sync.
+Status: implemented 2026-10-02 · builds on [slice (a)](2026-10-02-slice-a-design.md) · first step towards git sync.
 
 ## Intent
 
