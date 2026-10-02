@@ -6,9 +6,11 @@ import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
 const EXTENSION_ID = 'conduktor.conduktor-console';
 
 async function activate(): Promise<ExtensionApi> {
-  const extension = vscode.extensions.getExtension<ExtensionApi>(EXTENSION_ID);
+  const extension = vscode.extensions.getExtension<ExtensionApi | undefined>(EXTENSION_ID);
   assert.ok(extension, `${EXTENSION_ID} is installed`);
-  return extension.activate();
+  const api = await extension.activate();
+  assert.ok(api, 'the API is exported in test mode');
+  return api;
 }
 
 async function until(condition: () => boolean, timeoutMs = 30_000): Promise<void> {

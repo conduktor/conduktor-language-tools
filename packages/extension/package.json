@@ -27,6 +27,7 @@
       "properties": {
         "conduktor.connections": {
           "type": "array",
+          "scope": "application",
           "default": [],
           "markdownDescription": "Console connections. Tokens are kept in VS Code secret storage, never here.",
           "items": {

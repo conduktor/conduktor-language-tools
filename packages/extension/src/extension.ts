@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { DryRunItem } from '@conduktor/vscode-core';
+import { exposedApi } from './api';
 import { registerConnectionCommands } from './connections/commands';
 import { ConnectionStore } from './connections/connectionStore';
 import { SessionManager } from './connections/session';
@@ -21,7 +22,7 @@ export interface ExtensionApi {
   dryRun: (uri: vscode.Uri, index?: number) => Promise<DryRunItem[] | undefined>;
 }
 
-export function activate(context: vscode.ExtensionContext): ExtensionApi {
+export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
   const output = new Output();
   const connections = new ConnectionStore(context);
   const sessions = new SessionManager(context, connections, output);
@@ -63,13 +64,13 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   void registerYamlSchemas(sessions, output).then((disposable) => context.subscriptions.push(disposable));
   void sessions.snapshotSpec();
   void sessions.reload();
-  return {
+  return exposedApi(context.extensionMode === vscode.ExtensionMode.Test, {
     connections,
     sessions,
     explorer,
-    liveUri: (node) => explorer.liveUri(node),
-    dryRun: (uri, index) => dryRun.run(uri, index),
-  };
+    liveUri: (node: ResourceNode) => explorer.liveUri(node),
+    dryRun: (uri: vscode.Uri, index?: number) => dryRun.run(uri, index),
+  });
 }
 
 export function deactivate(): void {}
