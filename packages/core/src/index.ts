@@ -26,3 +26,4 @@ export { sortForApply } from './resources/ordering';
 export { buildSpec, loadSpec, type LoadedSpec, type SpecCache, type SpecSource } from './openapi/loadSpec';
 export { upsertDocuments, type UpsertItem, type UpsertOptions, type UpsertOutcome } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
+export { comparableYaml, newResourceYaml } from './resources/yamlText';
