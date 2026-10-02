@@ -80,4 +80,17 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       [{ status: 'ok', result: 'NotChanged' }],
     );
   });
+
+  test('reports a corrupted resource in Problems instead of doing nothing', async () => {
+    const api = await activate();
+    const broken = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: 'apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n',
+    });
+    const items = await api.dryRun(broken.uri);
+    assert.strictEqual(items?.length, 1);
+    assert.strictEqual(items[0]!.outcome.status, 'error');
+    const problems = vscode.languages.getDiagnostics(broken.uri).filter((d) => d.source === 'Conduktor');
+    assert.ok(problems.length > 0, 'a Conduktor problem is shown');
+  });
 });

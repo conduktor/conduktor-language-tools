@@ -61,8 +61,16 @@ describe('parseResourceDocuments', () => {
     expect(docs[0]!.error).toBeTruthy();
   });
 
-  it('leaves other invalid YAML to the YAML extension', () => {
-    expect(parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n', { env: {} })).toEqual([]);
+  it('reports invalid YAML on a resource-like document', () => {
+    const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n', { env: {} });
+    expect(docs).toHaveLength(1);
+    expect(docs[0]!.error).toBeTruthy();
+  });
+
+  it('leaves unparseable templates (Helm, Go templates) alone', () => {
+    expect(parseResourceDocuments('apiVersion: v1\nkind: Topic\nmetadata:\n  name: {{ .Name }\n', { env: {} })).toEqual(
+      [],
+    );
   });
 
   it('expands variables before parsing, as ctl does, so they work inside flow mappings', () => {
@@ -95,6 +103,18 @@ describe('parseResourceDocuments', () => {
 });
 
 describe('catalogDocuments', () => {
+  it('keeps Console-looking documents that are broken, so the dry run can say what is wrong', () => {
+    const broken = [
+      'apiVersion: v1\nkind: Topic\nmetadata: { name: wrong-version, cluster: local }\nspec: {}\n',
+      'apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n',
+      'apiVersion: v2\nkind: Topic\nspec: {}\n',
+    ].join('---\n');
+    const docs = catalogDocuments(broken, snapshotCatalog, { env: {} });
+    expect(docs.map((d) => d.index)).toEqual([0, 1, 2]);
+    expect(docs[1]!.error).toBeTruthy();
+    expect(docs[2]!.error).toBe('metadata.name is required');
+  });
+
   it('ignores Kubernetes, Argo CD and Helm documents whose kinds share a Console kind name', () => {
     const gitops = [
       'apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: web\n  namespace: shop\n',

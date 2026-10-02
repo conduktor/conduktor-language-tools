@@ -7,6 +7,8 @@ import type { Resource } from './types';
 
 const KIND_LINE = /^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(?:#.*)?$/m;
 const API_VERSION_LINE = /^apiVersion:[ \t]*["']?([\w./-]+)["']?[ \t]*(?:#.*)?$/m;
+const NAMESPACE_LINE = /^[ \t]+namespace:/m;
+const CONSOLE_API_VERSION = /^v\d+$/;
 const SEPARATOR = /^(?:---|\.\.\.)(?:[ \t].*)?\r?$/;
 const BLANK_OR_COMMENT = /^[ \t]*(?:#.*)?\r?$/;
 
@@ -36,10 +38,12 @@ export function parseResourceDocuments(text: string, options: ParseOptions): Res
 }
 
 // Kubernetes, Argo CD and Helm share kind names with Console (ServiceAccount, Application); no Console kind has a
-// namespace or a group-qualified apiVersion.
+// namespace or a group-qualified apiVersion. Validity is not checked here: a broken Console document is kept so the
+// dry run can report what is wrong with it.
 export function catalogDocuments(text: string, catalog: KindCatalog, options: ParseOptions): ResourceDocument[] {
+  const kinds = catalog.kindNames();
   return parseResourceDocuments(text, options).filter(
-    (document) => !document.namespaced && catalog.resolve(document.apiVersion, document.kind) !== undefined,
+    (document) => !document.namespaced && CONSOLE_API_VERSION.test(document.apiVersion) && kinds.has(document.kind),
   );
 }
 
@@ -92,9 +96,10 @@ function sniffIdentity(source: string): Identity | undefined {
     const namespaced = isRecord(raw.metadata) && raw.metadata.namespace !== undefined;
     return { kind: raw.kind, apiVersion: raw.apiVersion, ...(namespaced && { namespaced }) };
   } catch {
-    if (!source.includes('${')) return undefined;
+    if (source.includes('{{')) return undefined;
   }
   const kind = KIND_LINE.exec(source)?.[1];
   const apiVersion = API_VERSION_LINE.exec(source)?.[1];
-  return kind && apiVersion ? { kind, apiVersion } : undefined;
+  if (!kind || !apiVersion) return undefined;
+  return { kind, apiVersion, ...(NAMESPACE_LINE.test(source) && { namespaced: true }) };
 }

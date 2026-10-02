@@ -52,7 +52,10 @@ export class DryRunController implements vscode.Disposable {
     const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env }).filter(
       (d) => index === undefined || d.index === index,
     );
-    if (documents.length === 0) return [];
+    if (documents.length === 0) {
+      void vscode.window.showWarningMessage('No Conduktor resources to dry-run in this file.');
+      return [];
+    }
 
     const folder = vscode.workspace.getWorkspaceFolder(uri);
     const readInclude =
