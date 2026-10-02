@@ -59,6 +59,10 @@ export class ConsoleClient {
     return this.json<UpsertResponse>(await this.send('PUT', target.path, { query, body: resource }));
   }
 
+  async delete(path: string): Promise<void> {
+    await this.send('DELETE', path);
+  }
+
   private async json<T>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type') ?? 'no content type';
     if (!contentType.includes('json')) {

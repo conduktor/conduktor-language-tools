@@ -74,4 +74,20 @@ describe('upsertDocuments', () => {
     const items = await upsertDocuments({ upsert: vi.fn() }, snapshotCatalog, documents, { dryRun: true });
     expect(items[0]?.outcome).toMatchObject({ status: 'error', message: expect.stringMatching(/workspace folder/) });
   });
+
+  it('applies for real when dryRun is false', async () => {
+    const upsert = vi.fn(async (_target: unknown, _resource: unknown, _options: { dryRun: boolean }) => ({
+      resource: {} as never,
+      upsertResult: 'Updated' as const,
+    }));
+    const documents = parseResourceDocuments(
+      'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec: {}\n',
+      {
+        env: {},
+      },
+    );
+    const items = await upsertDocuments({ upsert }, snapshotCatalog, documents, { dryRun: false });
+    expect(items[0]?.outcome).toEqual({ status: 'ok', result: 'Updated' });
+    expect(upsert.mock.calls[0]?.[2]).toEqual({ dryRun: false });
+  });
 });

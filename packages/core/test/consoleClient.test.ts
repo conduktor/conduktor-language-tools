@@ -61,6 +61,26 @@ describe('ConsoleClient', () => {
     expect(init?.headers).toMatchObject({ 'Content-Type': 'application/json' });
   });
 
+  it('applies without dryMode when not dry-running', async () => {
+    const resource = { apiVersion: 'v1', kind: 'Application', metadata: { name: 'shop' } };
+    const { client: c, fetch } = client(() => json({ resource, upsertResult: 'Created' }));
+    await c.upsert({ path: '/public/self-serve/v1/application', query: {} }, resource, { dryRun: false });
+    expect(String(fetch.mock.calls[0]![0])).toBe('http://console:8080/api/public/self-serve/v1/application');
+  });
+
+  it('deletes with the bearer token and ignores the response body', async () => {
+    const { client: c, fetch } = client(() => new Response(null, { status: 204 }));
+    await expect(c.delete('/public/kafka/v2/cluster/local/topic/orders')).resolves.toBeUndefined();
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toBe('http://console:8080/api/public/kafka/v2/cluster/local/topic/orders');
+    expect(init).toMatchObject({ method: 'DELETE', headers: { Authorization: 'Bearer secret' } });
+  });
+
+  it('reports a failed delete', async () => {
+    const { client: c } = client(() => json({ title: 'Topic not found' }, 404));
+    await expect(c.delete('/public/x/y')).rejects.toMatchObject({ status: 404, title: 'Topic not found' });
+  });
+
   it('turns a Console error body into a ConsoleError', async () => {
     const { client: c } = client(() =>
       json({ title: 'Policy violation', msg: '- partitions must be < 10\n- name must start with app-' }, 422),
