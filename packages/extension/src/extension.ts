@@ -18,6 +18,7 @@ import { ConduktorFileSystem } from './liveFs/conduktorFileSystem';
 import { LIVE_SCHEME } from './liveFs/uris';
 import { Output } from './output';
 import { registerYamlSchemas } from './schema/yamlSchemaContributor';
+import { applyAllChanges } from './sync/applyChanges';
 import { registerSyncCommands } from './sync/commands';
 import { SyncFolder } from './sync/syncFolder';
 import { createStatusBar } from './statusBar';
@@ -32,6 +33,7 @@ export interface ExtensionApi {
   newResource: (node?: ExplorerNode) => Promise<vscode.TextDocument | undefined>;
   setConfirm: (confirm: Confirm) => void;
   sync: SyncFolder;
+  applyAllChanges: () => Promise<UpsertItem[] | undefined>;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
@@ -68,6 +70,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     registerClaudeCodeConfigCommand(sessions, context.extensionUri),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
+    vscode.commands.registerCommand('conduktor.applyAllChanges', () =>
+      applyAllChanges(sessions, sync, confirm, output),
+    ),
+    vscode.commands.registerCommand('conduktor.applyLocal', (node: ResourceNode) =>
+      node.local ? resources.apply(vscode.Uri.parse(node.local.uri)) : undefined,
+    ),
     vscode.commands.registerCommand('conduktor.showOnlyChanges', () => explorer.showOnlyChanges(true)),
     vscode.commands.registerCommand('conduktor.showAll', () => explorer.showOnlyChanges(false)),
     vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) =>
@@ -132,6 +140,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       confirmWith = replacement;
     },
     sync,
+    applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output),
   });
 }
 

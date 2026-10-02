@@ -190,6 +190,18 @@
         "title": "Edit Locally",
         "category": "Conduktor",
         "icon": "$(edit)"
+      },
+      {
+        "command": "conduktor.applyAllChanges",
+        "title": "Apply All Changes",
+        "category": "Conduktor",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "conduktor.applyLocal",
+        "title": "Apply",
+        "category": "Conduktor",
+        "icon": "$(cloud-upload)"
       }
     ],
     "viewsContainers": {
@@ -262,6 +274,11 @@
           "command": "conduktor.showAll",
           "when": "view == conduktor.explorer && conduktor.onlyChanges",
           "group": "navigation"
+        },
+        {
+          "command": "conduktor.applyAllChanges",
+          "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == apply",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
@@ -300,6 +317,14 @@
         {
           "command": "conduktor.editLocally",
           "when": "resourceScheme == conduktor"
+        },
+        {
+          "command": "conduktor.applyLocal",
+          "when": "false"
+        },
+        {
+          "command": "conduktor.applyAllChanges",
+          "when": "conduktor.syncFolder && conduktor.mode == apply"
         }
       ],
       "editor/title": [
@@ -363,6 +388,11 @@
         {
           "command": "conduktor.editLocally",
           "when": "view == conduktor.explorer && viewItem == resource && conduktor.syncFolder",
+          "group": "inline"
+        },
+        {
+          "command": "conduktor.applyLocal",
+          "when": "view == conduktor.explorer && viewItem =~ /^resource\\.(new|modified)$/ && conduktor.mode == apply",
           "group": "inline"
         }
       ]

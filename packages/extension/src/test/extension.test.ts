@@ -315,4 +315,78 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       { status: 'synced', drifted: false },
     );
   });
+
+  test('stages a group, an application and its instance as files and applies all changes in order', async () => {
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const kind = (name: string) => state.spec.catalog.latest(name)!;
+    const id = `vscode-staged-${Date.now()}`;
+    const files = [
+      await api.sync.writeNew(
+        kind('ApplicationInstance'),
+        [],
+        stringify({
+          apiVersion: 'v1',
+          kind: 'ApplicationInstance',
+          metadata: { name: `${id}-dev`, application: `${id}-app` },
+          spec: { cluster: 'local-kafka' },
+        }),
+        `${id}-dev`,
+      ),
+      await api.sync.writeNew(
+        kind('Application'),
+        [],
+        stringify({
+          apiVersion: 'v1',
+          kind: 'Application',
+          metadata: { name: `${id}-app` },
+          spec: { title: 'Staged', owner: `${id}-team` },
+        }),
+        `${id}-app`,
+      ),
+      await api.sync.writeNew(
+        kind('Group'),
+        [],
+        stringify({
+          apiVersion: 'v2',
+          kind: 'Group',
+          metadata: { name: `${id}-team` },
+          spec: { displayName: 'Staged team' },
+        }),
+        `${id}-team`,
+      ),
+    ];
+    try {
+      assert.deepStrictEqual(
+        files.map((f) => api.sync.entryAt(f)?.status),
+        ['new', 'new', 'new'],
+      );
+      const applied = await api.applyAllChanges();
+      const mine = applied?.filter((item) => item.document.resource?.metadata.name.startsWith(id));
+      assert.deepStrictEqual(
+        mine?.map((i) => [i.document.kind, i.outcome]),
+        [
+          ['Group', { status: 'ok', result: 'Created' }],
+          ['Application', { status: 'ok', result: 'Created' }],
+          ['ApplicationInstance', { status: 'ok', result: 'Created' }],
+        ],
+      );
+      await api.sync.refresh();
+      assert.deepStrictEqual(
+        files.map((f) => api.sync.entryAt(f)?.status),
+        ['synced', 'synced', 'synced'],
+      );
+    } finally {
+      for (const path of [
+        `/public/self-serve/v1/application-instance/${id}-dev`,
+        `/public/self-serve/v1/application/${id}-app`,
+        `/public/iam/v2/group/${id}-team`,
+      ]) {
+        await state.client.delete(path).catch(() => undefined);
+      }
+      for (const file of files) await Promise.resolve(vscode.workspace.fs.delete(file)).catch(() => undefined);
+    }
+  });
 });

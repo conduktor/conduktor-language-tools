@@ -1,0 +1,112 @@
+import * as vscode from 'vscode';
+import {
+  catalogDocuments,
+  planDocuments,
+  upsertDocuments,
+  type ResourceDocument,
+  type UpsertItem,
+} from '@conduktor/vscode-core';
+import type { Confirm } from '../confirm';
+import type { SessionManager } from '../connections/session';
+import { includeReaderFor } from '../editing/includes';
+import { summarise } from '../editing/summary';
+import type { Output } from '../output';
+import type { LocalEntry, SyncFolder } from './syncFolder';
+
+export async function applyAllChanges(
+  sessions: SessionManager,
+  sync: SyncFolder,
+  confirm: Confirm,
+  output: Output,
+): Promise<UpsertItem[] | undefined> {
+  const state = sessions.current();
+  if (state.status !== 'ready' || state.connection.mode !== 'apply') {
+    void vscode.window.showWarningMessage('Applying needs a connection in apply mode ("Conduktor: Change Mode").');
+    return undefined;
+  }
+  await saveOpenChanges(sync);
+  await sync.refresh({ drift: true });
+  const changed = sync.list().filter((entry) => entry.status !== 'synced');
+  if (changed.length === 0) {
+    void vscode.window.showInformationMessage('No local changes to apply.');
+    return [];
+  }
+
+  const origin = new Map<ResourceDocument, { entry: LocalEntry; text: string }>();
+  for (const entry of changed) {
+    const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
+    for (const document of catalogDocuments(text, state.spec.catalog, { env: process.env })) {
+      origin.set(document, { entry, text });
+    }
+  }
+  const documents = [...origin.keys()];
+  const readInclude = includeReaderFor(changed[0]!.uri);
+  const name = state.connection.name;
+  const fileOf = (item: UpsertItem) => origin.get(item.document)?.entry.path ?? '?';
+
+  const plan = await planDocuments(state.client, state.spec.catalog, documents, { readInclude });
+  const preview = summarise(name, plan);
+  output.info(preview.text);
+  plan.forEach((item) => output.info(`  ${fileOf(item)}: ${describe(item)}`));
+  if (preview.failed > 0) {
+    void vscode.window.showWarningMessage(`${preview.text}. Fix the failures first.`, 'Show Output').then((choice) => {
+      if (choice) output.show();
+    });
+    return plan;
+  }
+
+  const drifted = changed.filter((entry) => entry.drifted).map((entry) => entry.path);
+  const detail = [
+    preview.text,
+    plan.some((item) => item.outcome.status === 'pending') &&
+      'Some can only be checked once the resources before them exist. Resources are applied one at a time, in order, stopping at the first failure.',
+    drifted.length > 0 &&
+      `Changed on the Console since they were synced, and will be overwritten: ${drifted.join(', ')}.`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  if ((await confirm(`Apply ${changed.length} local changes to ${name}?`, detail, 'Apply')) !== 'Apply') return plan;
+
+  const items = await upsertDocuments(state.client, state.spec.catalog, documents, {
+    dryRun: false,
+    readInclude,
+    stopOnError: true,
+  });
+  const result = summarise(name, items, 'Applied to');
+  output.info(result.text);
+  items.forEach((item) => output.info(`  ${fileOf(item)}: ${describe(item)}`));
+
+  for (const { entry, text } of new Set(origin.values())) {
+    const own = items.filter((item) => origin.get(item.document)?.entry === entry);
+    if (own.every((item) => item.outcome.status === 'ok')) await sync.markApplied(entry.uri, text);
+  }
+  if (result.failed > 0) {
+    void vscode.window.showWarningMessage(result.text, 'Show Output').then((choice) => {
+      if (choice) output.show();
+    });
+  } else {
+    void vscode.window.showInformationMessage(result.text);
+  }
+  return items;
+}
+
+async function saveOpenChanges(sync: SyncFolder): Promise<void> {
+  for (const document of vscode.workspace.textDocuments) {
+    if (document.isDirty && sync.contains(document.uri)) await document.save();
+  }
+}
+
+function describe(item: UpsertItem): string {
+  const { outcome } = item;
+  const subject = `${item.document.kind} ${item.document.resource?.metadata.name ?? ''}`.trim();
+  switch (outcome.status) {
+    case 'ok':
+      return `${subject} ${outcome.result}`;
+    case 'pending':
+      return `${subject} checked when applied (waits for ${outcome.waitingFor.join(', ')})`;
+    case 'error':
+      return `${subject} failed: ${outcome.message}`;
+    case 'skipped':
+      return `${subject} skipped after an earlier failure`;
+  }
+}
