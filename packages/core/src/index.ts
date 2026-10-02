@@ -39,3 +39,4 @@ export type { ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';
 export { agentInstructions, conduktorTools, ToolError, type ToolContext, type ToolDefinition } from './tools';
+export { planDocuments } from './plan/planDocuments';

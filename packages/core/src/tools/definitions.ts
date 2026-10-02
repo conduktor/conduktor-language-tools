@@ -4,7 +4,8 @@ import { itemPath, listPath } from '../openapi/paths';
 import { kindSchema } from '../openapi/kindSchema';
 import { PARENT_KINDS } from '../openapi/parents';
 import type { JsonSchema } from '../openapi/types';
-import { upsertDocuments } from '../plan/upsertDocuments';
+import { planDocuments } from '../plan/planDocuments';
+import type { UpsertOutcome } from '../plan/upsertDocuments';
 import { kebabCase } from '../util';
 import { REDACTED, REDACTED_MESSAGE, redactedPaths, redactSecrets } from './redact';
 import { noSuchVersion, resolveKind, resourceDocuments, type BodyKind } from './resolve';
@@ -130,15 +131,14 @@ const dryRun: ToolDefinition = {
       const [path] = resource ? redactedPaths(resource) : [];
       if (path) throw new ToolError(`${resource!.kind} ${resource!.metadata.name} ${path} ${REDACTED_MESSAGE}.`);
     }
-    const items = await upsertDocuments(context.client, context.catalog, documents, {
-      dryRun: true,
+    const items = await planDocuments(context.client, context.catalog, documents, {
       readInclude: context.readInclude,
     });
     const results = items.map(({ document, outcome }) => ({
       index: document.index,
       kind: document.kind,
       name: document.resource?.metadata.name ?? null,
-      ...(outcome.status === 'ok' ? { result: outcome.result } : { error: outcome.message }),
+      ...describeOutcome(outcome),
     }));
     return json({
       console: context.connectionName,
@@ -227,6 +227,22 @@ function describeAjvErrors(errors: readonly ErrorObject[]): { path: string; mess
     described.push({ path, message });
   }
   return described;
+}
+
+function describeOutcome(outcome: UpsertOutcome) {
+  switch (outcome.status) {
+    case 'ok':
+      return { result: outcome.result };
+    case 'pending':
+      return {
+        pending: `Waits for ${outcome.waitingFor.join(', ')}, created earlier in this YAML; checked when applied.`,
+        error: outcome.message,
+      };
+    case 'error':
+      return { error: outcome.message };
+    case 'skipped':
+      return { skipped: true };
+  }
 }
 
 function bodyKind(kind: ReturnType<typeof resolveKind>): BodyKind {

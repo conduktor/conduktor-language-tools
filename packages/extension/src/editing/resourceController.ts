@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   catalogDocuments,
+  planDocuments,
   splitPolicyMessages,
   upsertDocuments,
   type UpsertItem,
@@ -69,8 +70,7 @@ export class ResourceController implements vscode.Disposable {
     const documents = catalogDocuments(text, state.spec.catalog, { env: process.env });
     if (documents.length !== 1) throw new Error('A live document holds exactly one Conduktor resource.');
     const [plan] = await upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: true });
-    if (!plan || plan.outcome.status === 'error')
-      throw new Error(plan?.outcome.status === 'error' ? plan.outcome.message : 'Dry run failed');
+    if (plan?.outcome.status !== 'ok') throw new Error(failureOf(plan?.outcome, 'Dry run failed'));
     if (plan.outcome.result === 'NotChanged') return;
 
     const resource = plan.document.resource!;
@@ -85,8 +85,7 @@ export class ResourceController implements vscode.Disposable {
     if (choice !== 'Apply') throw new Error('Not saved.');
 
     const [result] = await upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: false });
-    if (!result || result.outcome.status === 'error')
-      throw new Error(result?.outcome.status === 'error' ? result.outcome.message : 'Apply failed');
+    if (result?.outcome.status !== 'ok') throw new Error(failureOf(result?.outcome, 'Apply failed'));
     this.output.info(`Applied to ${name}: ${subject} ${result.outcome.result}`);
     void vscode.window.showInformationMessage(`Saved ${subject} to ${name}: ${outcomeLabel(result.outcome)}`);
     this.applied.fire();
@@ -116,7 +115,7 @@ export class ResourceController implements vscode.Disposable {
     const readInclude = includeReaderFor(uri);
     const plan = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: `Dry run on ${name}` },
-      () => upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: true, readInclude }),
+      () => planDocuments(state.client, state.spec.catalog, documents, { readInclude }),
     );
     this.record(document, plan, 'dry run');
     const summary = summarise(name, plan);
@@ -131,12 +130,18 @@ export class ResourceController implements vscode.Disposable {
       void vscode.window.showInformationMessage(`Nothing to apply on ${name}: everything is unchanged.`);
       return plan;
     }
-    const choice = await this.confirm(`Apply to ${name}?`, summary.text, 'Apply');
+    const pending = plan.filter((item) => item.outcome.status === 'pending').length;
+    const detail =
+      pending > 0
+        ? `${summary.text}.\n\n${pending} can only be checked once the resources before them exist. Resources are applied one at a time, in order, stopping at the first failure.`
+        : summary.text;
+    const choice = await this.confirm(`Apply to ${name}?`, detail, 'Apply');
     if (choice !== 'Apply') return plan;
 
     const items = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: `Applying to ${name}` },
-      () => upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: false, readInclude }),
+      () =>
+        upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: false, readInclude, stopOnError: true }),
     );
     this.record(document, items, 'applied');
     const applied = summarise(name, items, 'Applied to');
@@ -188,11 +193,18 @@ export class ResourceController implements vscode.Disposable {
 
     const diagnostics: vscode.Diagnostic[] = [];
     for (const { outcome, start } of byIndex.values()) {
-      if (outcome.status === 'ok') continue;
-      for (const message of splitPolicyMessages(outcome.message)) {
-        const diagnostic = new vscode.Diagnostic(lineAt(document, start), message, vscode.DiagnosticSeverity.Error);
+      const add = (message: string, severity: vscode.DiagnosticSeverity) => {
+        const diagnostic = new vscode.Diagnostic(lineAt(document, start), message, severity);
         diagnostic.source = 'Conduktor';
         diagnostics.push(diagnostic);
+      };
+      if (outcome.status === 'error') {
+        splitPolicyMessages(outcome.message).forEach((message) => add(message, vscode.DiagnosticSeverity.Error));
+      } else if (outcome.status === 'pending') {
+        add(
+          `Checked when applied: waits for ${outcome.waitingFor.join(', ')}, created earlier in this file. The Console says: ${outcome.message}`,
+          vscode.DiagnosticSeverity.Warning,
+        );
       }
     }
     this.diagnostics.set(document.uri, diagnostics);
@@ -216,13 +228,17 @@ export class ResourceController implements vscode.Disposable {
   private paint(editor: vscode.TextEditor): void {
     const byIndex = this.results.get(editor.document.uri.toString());
     const decorations = [...(byIndex?.values() ?? [])]
-      .filter((result) => result.outcome.status === 'ok')
+      .filter((result) => result.outcome.status !== 'error')
       .map((result) => ({
         range: lineAt(editor.document, result.start),
         renderOptions: { after: { contentText: `${outcomeLabel(result.outcome)} (${result.action})` } },
       }));
     editor.setDecorations(this.decoration, decorations);
   }
+}
+
+function failureOf(outcome: UpsertOutcome | undefined, fallback: string): string {
+  return outcome && 'message' in outcome ? outcome.message : fallback;
 }
 
 function lineAt(document: vscode.TextDocument, offset: number): vscode.Range {

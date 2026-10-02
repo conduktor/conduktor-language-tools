@@ -1,6 +1,7 @@
 import Ajv from 'ajv';
 import { describe, expect, it, vi } from 'vitest';
 import { parseAllDocuments } from 'yaml';
+import { ConsoleError } from '../src/client/errors';
 import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import { conduktorTools, ToolError, type ToolContext } from '../src/tools';
 import type { Resource } from '../src/resources/types';
@@ -172,6 +173,29 @@ describe('conduktor_dry_run', () => {
       documents: [{ index: 0, kind: 'Topic', name: 'orders', result: 'Created' }],
     });
     expect(result.note).toMatch(/nothing was changed/i);
+  });
+
+  it('reports resources that wait for earlier ones in the same YAML as pending, not failed', async () => {
+    const { ctx, client } = context();
+    client.upsert.mockImplementation(async (_target: unknown, resource: Resource) => {
+      if (resource.kind === 'Application')
+        throw new ConsoleError(404, 'Group not found', "Group with id 'team-a' not found");
+      return { resource, upsertResult: 'Created' as const };
+    });
+    const yaml =
+      'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec: { title: Shop, owner: team-a }\n---\n' +
+      'apiVersion: v2\nkind: Group\nmetadata: { name: team-a }\nspec: { displayName: A }\n';
+    const result = JSON.parse(await tool('conduktor_dry_run').run({ yaml }, ctx));
+    expect(result.documents).toEqual([
+      { index: 1, kind: 'Group', name: 'team-a', result: 'Created' },
+      {
+        index: 0,
+        kind: 'Application',
+        name: 'shop',
+        pending: 'Waits for team-a, created earlier in this YAML; checked when applied.',
+        error: "Group not found: Group with id 'team-a' not found",
+      },
+    ]);
   });
 
   it('refuses on a read-only connection', async () => {

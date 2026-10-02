@@ -195,4 +195,53 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual(dryRun.documents[0].result, 'Created');
     assert.match(dryRun.note, /Nothing was changed/);
   });
+
+  test('applies a group, an application and its instance from one file, in order', async () => {
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    await until(() => {
+      const current = api.sessions.current();
+      return current.status === 'ready' && current.connection.mode === 'apply';
+    });
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const id = `vscode-chain-${Date.now()}`;
+    const paths = [
+      `/public/self-serve/v1/application-instance/${id}-dev`,
+      `/public/self-serve/v1/application/${id}-app`,
+      `/public/iam/v2/group/${id}-team`,
+    ];
+    const file = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: [
+        { apiVersion: 'v1', kind: 'ApplicationInstance', metadata: { name: `${id}-dev`, application: `${id}-app` }, spec: { cluster: 'local-kafka' } },
+        { apiVersion: 'v1', kind: 'Application', metadata: { name: `${id}-app` }, spec: { title: 'Chain', owner: `${id}-team` } },
+        { apiVersion: 'v2', kind: 'Group', metadata: { name: `${id}-team` }, spec: { displayName: 'Chain team' } },
+      ]
+        .map((resource) => stringify(resource))
+        .join('---\n'),
+    });
+    try {
+      const preview = await api.dryRun(file.uri);
+      assert.deepStrictEqual(
+        preview?.map((i) => [i.document.kind, i.outcome.status]),
+        [
+          ['Group', 'ok'],
+          ['Application', 'pending'],
+          ['ApplicationInstance', 'pending'],
+        ],
+      );
+      const applied = await api.apply(file.uri);
+      assert.deepStrictEqual(
+        applied?.map((i) => [i.document.kind, i.outcome]),
+        [
+          ['Group', { status: 'ok', result: 'Created' }],
+          ['Application', { status: 'ok', result: 'Created' }],
+          ['ApplicationInstance', { status: 'ok', result: 'Created' }],
+        ],
+      );
+    } finally {
+      for (const path of paths) await state.client.delete(path).catch(() => undefined);
+    }
+  });
 });

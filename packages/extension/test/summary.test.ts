@@ -19,6 +19,17 @@ describe('summarise', () => {
     ).toEqual({ text: 'Dry run on local: 1 Created, 2 NotChanged, 1 failed', failed: 1 });
   });
 
+  it('counts pending and skipped resources separately from failures', () => {
+    expect(
+      summarise('local', [
+        item({ status: 'ok', result: 'Created' }),
+        item({ status: 'pending', message: 'x', waitingFor: ['a'] }),
+        item({ status: 'error', message: 'x' }),
+        item({ status: 'skipped' }),
+      ]),
+    ).toEqual({ text: 'Dry run on local: 1 Created, 1 checked when applied, 1 failed, 1 skipped', failed: 1 });
+  });
+
   it('handles a single unchanged resource', () => {
     expect(summarise('local', [item({ status: 'ok', result: 'NotChanged' })])).toEqual({
       text: 'Dry run on local: 1 NotChanged',

@@ -7,7 +7,11 @@ import { sortForApply } from '../resources/ordering';
 import type { ResourceDocument } from '../resources/parseDocuments';
 import type { UpsertResult } from '../resources/types';
 
-export type UpsertOutcome = { status: 'ok'; result: UpsertResult } | { status: 'error'; message: string };
+export type UpsertOutcome =
+  | { status: 'ok'; result: UpsertResult }
+  | { status: 'error'; message: string }
+  | { status: 'pending'; message: string; waitingFor: string[] }
+  | { status: 'skipped' };
 
 export interface UpsertItem {
   document: ResourceDocument;
@@ -16,6 +20,7 @@ export interface UpsertItem {
 
 export interface UpsertOptions {
   dryRun: boolean;
+  stopOnError?: boolean;
   readInclude?: (path: string) => string;
 }
 
@@ -26,13 +31,18 @@ export async function upsertDocuments(
   options: UpsertOptions,
 ): Promise<UpsertItem[]> {
   const items: UpsertItem[] = [];
+  let stopped = false;
   for (const document of sortForApply(documents, catalog)) {
-    items.push({ document, outcome: await dryRunOne(client, catalog, document, options) });
+    const outcome: UpsertOutcome = stopped
+      ? { status: 'skipped' }
+      : await upsertOne(client, catalog, document, options);
+    stopped ||= options.stopOnError === true && outcome.status === 'error';
+    items.push({ document, outcome });
   }
   return items;
 }
 
-async function dryRunOne(
+async function upsertOne(
   client: Pick<ConsoleClient, 'upsert'>,
   catalog: KindCatalog,
   document: ResourceDocument,
