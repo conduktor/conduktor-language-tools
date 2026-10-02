@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { describeError, listPath } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
+import { settleCluster } from './settleCluster';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
@@ -27,8 +28,7 @@ export class ClusterSelection implements vscode.Disposable {
     const state = this.sessions.current();
     if (state.status !== 'ready') return;
     await this.context.globalState.update(key(state.connection.id), cluster);
-    await vscode.commands.executeCommand('setContext', 'conduktor.cluster', cluster);
-    this.changed.fire(cluster);
+    if (this.sessions.current() === state) await this.show(cluster);
   }
 
   async pick(): Promise<string | undefined> {
@@ -49,7 +49,7 @@ export class ClusterSelection implements vscode.Disposable {
       names.map((name) => ({ label: name, description: name === current ? 'selected' : undefined })),
       { title: `Which cluster on ${state.connection.name}?` },
     );
-    if (picked) await this.set(picked.label);
+    if (picked && this.sessions.current() === state) await this.set(picked.label);
     return picked?.label;
   }
 
@@ -58,21 +58,18 @@ export class ClusterSelection implements vscode.Disposable {
     this.changed.dispose();
   }
 
-  // Keeps a remembered cluster only while it exists, and picks the only cluster there is.
-  private async settle(state: Ready): Promise<void> {
-    let names: string[];
-    try {
-      names = await clusterNames(state);
-    } catch {
-      return;
-    }
-    const current = this.current();
-    if (current && names.includes(current)) {
-      await vscode.commands.executeCommand('setContext', 'conduktor.cluster', current);
-      this.changed.fire(current);
-      return;
-    }
-    await this.set(names.length === 1 ? names[0] : undefined);
+  private settle(state: Ready): Promise<void> {
+    return settleCluster(state, () => clusterNames(state), {
+      isCurrent: (candidate) => this.sessions.current() === candidate,
+      remembered: (candidate) => this.context.globalState.get<string>(key(candidate.connection.id)),
+      remember: (candidate, cluster) => this.context.globalState.update(key(candidate.connection.id), cluster),
+      show: (cluster) => this.show(cluster),
+    });
+  }
+
+  private async show(cluster: string | undefined): Promise<void> {
+    await vscode.commands.executeCommand('setContext', 'conduktor.cluster', cluster);
+    this.changed.fire(cluster);
   }
 }
 
