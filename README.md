@@ -76,9 +76,9 @@ CodeLens or by saving a live document.
   `#conduktorValidate`, `#conduktorDryRun` and so on. The Console's own MCP server (topics, consumer groups, lineage,
   insights and more) is offered to VS Code as **Conduktor Console (<connection>)** in the MCP servers list.
 - **Claude Code:** run **Conduktor: Copy MCP Config for Claude Code**, paste it into the project's `.mcp.json`, and
-  `export CONDUKTOR_TOKEN=<personal access token>` before starting `claude`. It adds the same tools (run by
-  `dist/mcp-server.js` from the installed extension) and the Console's MCP server. Copy it again after updating the
-  extension, since the path includes its version.
+  `export CONDUKTOR_TOKEN=<personal access token>` before starting `claude`. It adds the same tools (run by a copy
+  of `dist/mcp-server.js` that the extension keeps in VS Code's global storage, refreshed when the extension updates)
+  and the Console's MCP server.
 - **Any other MCP client:** run `node packages/extension/dist/mcp-server.js` with `CONDUKTOR_URL`, `CONDUKTOR_TOKEN`,
   and optionally `CONDUKTOR_MODE` (`dry-run` by default; `read-only` turns dry runs off) and `CONDUKTOR_NAME`.
 

@@ -2,7 +2,7 @@ import * as assert from 'node:assert';
 import * as vscode from 'vscode';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import type { ExtensionApi } from '../extension';
 import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
@@ -235,6 +235,22 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok(!(await exists()), 'topic deleted');
     } finally {
       if (await exists()) await state.client.delete(`/public/kafka/v2/cluster/${cluster}/topic/${name}`);
+    }
+  });
+
+  test('copies a Claude Code config whose server outlives an extension update', async () => {
+    await activate();
+    const extension = vscode.extensions.getExtension(EXTENSION_ID)!;
+    const clipboard = await vscode.env.clipboard.readText();
+    try {
+      await vscode.commands.executeCommand('conduktor.copyClaudeCodeConfig');
+      const [server] = JSON.parse(await vscode.env.clipboard.readText()).mcpServers.conduktor.args as string[];
+      assert.ok(server && !server.startsWith(extension.extensionUri.fsPath), server);
+      assert.ok(server.endsWith(join('mcp', 'mcp-server.js')), server);
+      await vscode.workspace.fs.stat(vscode.Uri.file(server));
+      await vscode.workspace.fs.stat(vscode.Uri.file(join(dirname(server), 'public-api-doc.yaml')));
+    } finally {
+      await vscode.env.clipboard.writeText(clipboard);
     }
   });
 

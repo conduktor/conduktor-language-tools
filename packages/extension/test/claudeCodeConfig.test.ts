@@ -6,13 +6,13 @@ describe('claudeCodeConfig', () => {
     url: 'http://localhost:8080',
     name: 'local',
     mode: 'dry-run',
-    serverPath: '/ext/dist/mcp-server.js',
+    serverPath: '/storage/mcp/mcp-server.js',
   });
 
   it('runs the bundled server with node and the connection in its environment', () => {
     expect(config.mcpServers.conduktor).toEqual({
       command: 'node',
-      args: ['/ext/dist/mcp-server.js'],
+      args: ['/storage/mcp/mcp-server.js'],
       env: {
         CONDUKTOR_URL: 'http://localhost:8080',
         CONDUKTOR_NAME: 'local',

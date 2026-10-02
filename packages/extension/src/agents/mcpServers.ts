@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
+import { describeError } from '@conduktor/vscode-core';
 import type { ConnectionStore } from '../connections/connectionStore';
 import type { SessionManager, SessionState } from '../connections/session';
 import { claudeCodeConfig } from './claudeCodeConfig';
+import { installMcpServer } from './mcpInstall';
 
 export function registerConsoleMcpServer(sessions: SessionManager, connections: ConnectionStore): vscode.Disposable {
   const changed = new vscode.EventEmitter<void>();
@@ -34,18 +36,38 @@ function mcpUri(state: Extract<SessionState, { status: 'ready' }>): vscode.Uri {
   return vscode.Uri.parse(`${state.client.baseUrl}/api/mcp`);
 }
 
-export function registerClaudeCodeConfigCommand(sessions: SessionManager, extensionUri: vscode.Uri): vscode.Disposable {
+export function registerClaudeCodeConfigCommand(
+  sessions: SessionManager,
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  const install = () =>
+    installMcpServer(
+      vscode.Uri.joinPath(context.extensionUri, 'dist').fsPath,
+      vscode.Uri.joinPath(context.globalStorageUri, 'mcp').fsPath,
+      context.extension.packageJSON.version as string,
+    );
+  // A config copied before an update keeps working: the copy it points at is refreshed when the extension starts.
+  let installing = install().catch(() => undefined);
   return vscode.commands.registerCommand('conduktor.copyClaudeCodeConfig', async () => {
     const state = sessions.current();
     if (state.status !== 'ready') {
       void vscode.window.showWarningMessage('Connect to a Conduktor Console first.');
       return;
     }
+    const installed = installing.then(install);
+    installing = installed.catch(() => undefined);
+    let serverPath: string;
+    try {
+      serverPath = await installed;
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Could not set up the MCP server for Claude Code: ${describeError(error)}`);
+      return;
+    }
     const config = claudeCodeConfig({
       url: state.client.baseUrl,
       name: state.connection.name,
       mode: state.connection.mode,
-      serverPath: vscode.Uri.joinPath(extensionUri, 'dist', 'mcp-server.js').fsPath,
+      serverPath,
     });
     await vscode.env.clipboard.writeText(JSON.stringify(config, null, 2));
     void vscode.window.showInformationMessage(

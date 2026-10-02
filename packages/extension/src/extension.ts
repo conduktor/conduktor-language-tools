@@ -72,7 +72,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     ...registerResourceCommands(sessions, explorer, confirm),
     ...registerLanguageModelTools(sessions),
     registerConsoleMcpServer(sessions, connections),
-    registerClaudeCodeConfigCommand(sessions, context.extensionUri),
+    registerClaudeCodeConfigCommand(sessions, context),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
     vscode.commands.registerCommand('conduktor.applyAllChanges', () =>
