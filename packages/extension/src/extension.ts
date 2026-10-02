@@ -3,6 +3,7 @@ import { registerConnectionCommands } from './connections/commands';
 import { ConnectionStore } from './connections/connectionStore';
 import { SessionManager } from './connections/session';
 import { Output } from './output';
+import { registerYamlSchemas } from './schema/yamlSchemaContributor';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -25,6 +26,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     connections.onDidChange(() => void sessions.reload()),
   );
 
+  void registerYamlSchemas(sessions, output).then((disposable) => context.subscriptions.push(disposable));
   void sessions.snapshotSpec();
   void sessions.reload();
   return { connections, sessions };
