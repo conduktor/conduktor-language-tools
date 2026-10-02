@@ -49,6 +49,20 @@ suite('Conduktor extension', () => {
       assert.ok(commands.includes(id), id);
     }
   });
+
+  test('offers its agent tools to language models', async () => {
+    await activate();
+    const names = vscode.lm.tools.map((tool) => tool.name);
+    for (const name of [
+      'conduktor_list_kinds',
+      'conduktor_get_kind_schema',
+      'conduktor_validate',
+      'conduktor_dry_run',
+      'conduktor_get_resources',
+    ]) {
+      assert.ok(names.includes(name), name);
+    }
+  });
 });
 
 const baseUrl = process.env.CONDUKTOR_SMOKE_URL;
@@ -158,5 +172,27 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     } finally {
       if (await exists()) await state.client.delete(`/public/kafka/v2/cluster/${cluster}/topic/${name}`);
     }
+  });
+
+  test('answers agent tool calls with the live schema and a dry run', async () => {
+    await activate();
+    const call = async (name: string, input: object) => {
+      const result = await vscode.lm.invokeTool(name, { input, toolInvocationToken: undefined });
+      return result.content.map((part) => (part instanceof vscode.LanguageModelTextPart ? part.value : '')).join('');
+    };
+    const kinds = JSON.parse(await call('conduktor_list_kinds', {}));
+    assert.ok(kinds.kinds.some((k: { kind: string }) => k.kind === 'Topic'));
+    assert.match(await call('conduktor_get_kind_schema', { kind: 'Topic' }), /TopicResourceV2/);
+
+    const yaml =
+      'apiVersion: v2\nkind: Topic\nmetadata: { name: vscode-agent-probe, cluster: local-kafka }\nspec: { partitions: three }\n';
+    const validation = JSON.parse(await call('conduktor_validate', { yaml }));
+    assert.ok(validation.documents[0].errors.some((e: { path: string }) => e.path === '/spec/partitions'));
+
+    const dryRun = JSON.parse(
+      await call('conduktor_dry_run', { yaml: yaml.replace('three', '1, replicationFactor: 1') }),
+    );
+    assert.strictEqual(dryRun.documents[0].result, 'Created');
+    assert.match(dryRun.note, /Nothing was changed/);
   });
 });

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { UpsertItem } from '@conduktor/vscode-core';
+import { registerLanguageModelTools } from './agents/languageModelTools';
 import { exposedApi } from './api';
 import { modalConfirm, type Confirm } from './confirm';
 import { registerConnectionCommands } from './connections/commands';
@@ -55,6 +56,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     createStatusBar(sessions),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm),
+    ...registerLanguageModelTools(sessions),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
     vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) => newResource(sessions, node)),

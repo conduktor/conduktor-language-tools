@@ -11,7 +11,7 @@
     "url": "https://github.com/conduktor/vscode-conduktor"
   },
   "engines": {
-    "vscode": "^1.100.0"
+    "vscode": "^1.101.0"
   },
   "categories": [
     "Other"
@@ -107,7 +107,7 @@
       },
       {
         "command": "conduktor.newResource",
-        "title": "New Resource\u2026",
+        "title": "New Resource…",
         "category": "Conduktor",
         "icon": "$(add)"
       },
@@ -130,7 +130,7 @@
       },
       {
         "command": "conduktor.copyToWorkspace",
-        "title": "Copy to Workspace\u2026",
+        "title": "Copy to Workspace…",
         "category": "Conduktor",
         "icon": "$(save-as)"
       },
@@ -249,7 +249,143 @@
           "group": "9_delete"
         }
       ]
-    }
+    },
+    "languageModelTools": [
+      {
+        "name": "conduktor_list_kinds",
+        "displayName": "List Conduktor kinds",
+        "modelDescription": "List the Conduktor Console resource kinds the connected Console accepts (for example Topic, Application, KafkaCluster) with their apiVersions, API group, the metadata fields that name their parents (such as cluster) and the order they are applied in. Call this first when you are not sure which kind to use.",
+        "userDescription": "List Conduktor kinds",
+        "toolReferenceName": "conduktorListKinds",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "conduktor",
+          "kafka"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "conduktor_get_kind_schema",
+        "displayName": "Get Conduktor kind schema",
+        "modelDescription": "Get the JSON Schema and an example YAML for one Conduktor Console resource kind on the connected Console. Call this before writing or editing a resource of that kind and follow it exactly: Conduktor resources look like Kubernetes YAML but their fields are Conduktor-specific.",
+        "userDescription": "Get Conduktor kind schema",
+        "toolReferenceName": "conduktorGetKindSchema",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "conduktor",
+          "kafka"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "description": "The resource kind, for example Topic."
+            },
+            "apiVersion": {
+              "type": "string",
+              "description": "A version such as v2. Defaults to the latest."
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      },
+      {
+        "name": "conduktor_validate",
+        "displayName": "Validate Conduktor YAML",
+        "modelDescription": "Validate Conduktor Console resource YAML against the connected Console's schema, without contacting the Console. Pass the YAML text or a workspace file path. Returns, for each resource, the schema errors with their JSON paths. Run it after writing or changing a resource, fix every error, then use conduktor_dry_run.",
+        "userDescription": "Validate Conduktor YAML",
+        "toolReferenceName": "conduktorValidate",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "conduktor",
+          "kafka"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "yaml": {
+              "type": "string",
+              "description": "Conduktor resource YAML; several resources may be separated by ---."
+            },
+            "path": {
+              "type": "string",
+              "description": "A YAML file in the workspace, relative to its root. Use instead of yaml."
+            }
+          }
+        }
+      },
+      {
+        "name": "conduktor_dry_run",
+        "displayName": "Dry-run Conduktor YAML",
+        "modelDescription": "Dry-run Conduktor Console resource YAML on the connected Console: the Console checks it (ownership, policies, references) and reports whether each resource would be Created, Updated or NotChanged, or why it would fail. Nothing is applied and the Console does not change. Pass the YAML text or a workspace file path. After a clean dry run, tell the user it is ready and that they apply it from the editor; never say it has been applied.",
+        "userDescription": "Dry-run Conduktor YAML",
+        "toolReferenceName": "conduktorDryRun",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "conduktor",
+          "kafka"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "yaml": {
+              "type": "string",
+              "description": "Conduktor resource YAML; several resources may be separated by ---."
+            },
+            "path": {
+              "type": "string",
+              "description": "A YAML file in the workspace, relative to its root. Use instead of yaml."
+            }
+          }
+        }
+      },
+      {
+        "name": "conduktor_get_resources",
+        "displayName": "Get Conduktor resources",
+        "modelDescription": "Read resources that already exist on the connected Console, as YAML: all of one kind, or one by name. Kinds that live in a Kafka cluster need cluster, and connectors also connectCluster. Use it to copy the shape of an existing resource or to check what is there before changing it.",
+        "userDescription": "Get Conduktor resources",
+        "toolReferenceName": "conduktorGetResources",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "conduktor",
+          "kafka"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "description": "The resource kind, for example Topic."
+            },
+            "name": {
+              "type": "string",
+              "description": "One resource by name. Omit to list them."
+            },
+            "cluster": {
+              "type": "string",
+              "description": "The Kafka cluster, for kinds that live in one."
+            },
+            "connectCluster": {
+              "type": "string",
+              "description": "The Kafka Connect cluster, for connectors."
+            },
+            "apiVersion": {
+              "type": "string",
+              "description": "A version such as v2. Defaults to the latest."
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",
@@ -257,7 +393,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --dir test",
     "test:vscode": "node esbuild.mjs --tests && vscode-test",
-    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license --out dist/conduktor-console.vsix"
+    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license --out dist/conduktor-console.vsix",
+    "sync-tools": "node scripts/sync-tool-manifest.mjs"
   },
   "dependencies": {
     "@conduktor/vscode-core": "workspace:*",
@@ -266,7 +403,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
-    "@types/vscode": "~1.100.0",
+    "@types/vscode": "~1.101.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.6.0",
