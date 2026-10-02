@@ -92,9 +92,12 @@ retention. Validate and dry-run it."_
 
 ```sh
 pnpm install
-pnpm package
-code --install-extension packages/extension/dist/conduktor-console.vsix
+pnpm install-local   # packages a fresh .vsix and installs it over any earlier build
 ```
+
+Then run **Developer: Reload Window** in VS Code. Every build is version 0.0.1, so always install through
+`pnpm install-local` (it rebuilds first) rather than an existing `.vsix`. It needs the `code` command on your `PATH`
+(**Shell Command: Install 'code' command in PATH** in VS Code).
 
 ## Getting started
 

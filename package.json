@@ -14,7 +14,8 @@
     "build": "pnpm --filter conduktor-console build",
     "package": "pnpm --filter conduktor-console package",
     "test:vscode": "pnpm --filter conduktor-console test:vscode",
-    "sync-tools": "pnpm --filter conduktor-console sync-tools"
+    "sync-tools": "pnpm --filter conduktor-console sync-tools",
+    "install-local": "pnpm package && code --install-extension packages/extension/dist/conduktor-console.vsix --force"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
