@@ -40,8 +40,8 @@ Stage changes as files before they reach the Console — the first step towards 
   workspace. The choice is remembered per workspace (machine-wide when no folder is open).
 - **Sync Locally** on a resource, a kind or a cluster copies just that; nothing else is copied. A git-ignored
   `.conduktor/` in each connection folder keeps the version last synced or applied (the _base_).
-- From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed on the
-  Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
+- From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed or deleted
+  on the Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
   **Show Only Changes** filters the tree to them.
 - **Saving a resource opened from the tree stages it** whenever it cannot apply straight away (dry-run mode, or once a
   sync folder exists): the edit is written to its file in the sync folder (secrets as placeholders), that file opens

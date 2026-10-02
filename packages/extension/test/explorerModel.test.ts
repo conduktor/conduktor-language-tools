@@ -133,9 +133,9 @@ describe('childrenOf', () => {
 });
 
 describe('childrenOf with a sync folder', () => {
-  const mark = (status: 'new' | 'modified' | 'synced', drifted = false) => ({
+  const mark = (status: 'new' | 'modified' | 'synced', drift?: 'changed' | 'deleted') => ({
     status,
-    drifted,
+    drift,
     uri: `file:///${status}`,
   });
   const local = [
@@ -143,7 +143,7 @@ describe('childrenOf with a sync folder', () => {
     { kind: 'Topic', parents: ['local'], name: 'c', mark: mark('new') },
     { kind: 'Topic', parents: ['staging'], name: 'z', mark: mark('new') },
     { kind: 'Topic', parents: ['local'], name: 'b', mark: mark('synced') },
-    { kind: 'Application', parents: [], name: 'shop', mark: mark('synced', true) },
+    { kind: 'Application', parents: [], name: 'shop', mark: mark('synced', 'deleted') },
   ];
 
   it('merges the selected cluster’s local resources into the live list, with their marks', async () => {
@@ -173,8 +173,8 @@ describe('childrenOf with a sync folder', () => {
       'c',
     ]);
     expect(
-      (await childrenOf(s, kindNode('Application'))).map((n) => n.type === 'resource' && [n.name, n.local?.drifted]),
-    ).toEqual([['shop', true]]);
+      (await childrenOf(s, kindNode('Application'))).map((n) => n.type === 'resource' && [n.name, n.local?.drift]),
+    ).toEqual([['shop', 'deleted']]);
   });
 
   it('leaves out a scope with no changes', async () => {

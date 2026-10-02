@@ -40,12 +40,12 @@ Compared on normalised YAML (identity first, keys sorted), so key order and form
 and its base both hold `${VAR}` placeholders, so they are compared as written and an edited secret is a change; drift
 compares the base with the Console with secret values redacted.
 
-| Status         | Rule                                                           |
-| -------------- | -------------------------------------------------------------- |
-| new            | a local file with no base                                      |
-| modified       | local ≠ base                                                   |
-| in sync        | local = base                                                   |
-| drifted (flag) | live ≠ base, found on **Refresh**; live gone counts as drifted |
+| Status         | Rule                                                               |
+| -------------- | ------------------------------------------------------------------ |
+| new            | a local file with no base                                          |
+| modified       | local ≠ base                                                       |
+| in sync        | local = base                                                       |
+| drifted (flag) | live ≠ base (changed) or live gone (deleted), found on **Refresh** |
 
 ## Behaviour once a connection has a sync folder
 

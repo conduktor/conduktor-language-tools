@@ -49,4 +49,4 @@ export {
 } from './tools';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
-export { isDrifted, syncPath, syncStatus, withSecretPlaceholders, type SyncStatus } from './sync';
+export { driftOf, syncPath, syncStatus, withSecretPlaceholders, type Drift, type SyncStatus } from './sync';

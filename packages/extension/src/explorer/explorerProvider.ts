@@ -10,10 +10,15 @@ const { Collapsed, Expanded, None } = vscode.TreeItemCollapsibleState;
 const BADGES: Record<string, { label: string; color: string; tooltip: string }> = {
   new: { label: 'A', color: 'gitDecoration.addedResourceForeground', tooltip: 'New locally, not on the Console yet' },
   modified: { label: 'M', color: 'gitDecoration.modifiedResourceForeground', tooltip: 'Changed locally, not applied' },
-  drifted: {
+  changed: {
     label: '⚠',
     color: 'gitDecoration.conflictingResourceForeground',
     tooltip: 'Changed on the Console since it was synced',
+  },
+  deleted: {
+    label: '⚠',
+    color: 'gitDecoration.conflictingResourceForeground',
+    tooltip: 'Deleted from the Console since it was synced; applying creates it again',
   },
 };
 
@@ -65,7 +70,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
               kind: entry.kind,
               parents: entry.parents,
               name: entry.name,
-              mark: { status: entry.status, drifted: entry.drifted, uri: entry.uri.toString() },
+              mark: { status: entry.status, drift: entry.drift, uri: entry.uri.toString() },
             })),
           },
           node,
@@ -147,7 +152,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
 }
 
 function badgeFor(mark: LocalMark) {
-  if (mark.drifted) return BADGES.drifted;
+  if (mark.drift) return BADGES[mark.drift];
   return mark.status === 'synced' ? undefined : BADGES[mark.status];
 }
 

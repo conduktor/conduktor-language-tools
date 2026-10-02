@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 import type { Resource } from '../src/resources/types';
-import { isDrifted } from '../src/sync/status';
+import { driftOf } from '../src/sync/status';
 import { withSecretPlaceholders } from '../src/sync/placeholders';
 import { redactedPaths, redactSecrets } from '../src/tools/redact';
 
@@ -83,7 +83,7 @@ describe('secret placeholders and drift follow the same rule', () => {
   });
 
   it('is not drift while only the secrets in a URL differ', () => {
-    expect(isDrifted(stringify(withSecretPlaceholders(connector).resource), connector)).toBe(false);
+    expect(driftOf(stringify(withSecretPlaceholders(connector).resource), connector)).toBeUndefined();
   });
 
   it('placeholders an already placeholdered resource the same way', () => {

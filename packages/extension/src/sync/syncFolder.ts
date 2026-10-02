@@ -3,7 +3,7 @@ import { parse, stringify } from 'yaml';
 import {
   ConsoleError,
   describeError,
-  isDrifted,
+  driftOf,
   isRecord,
   itemPath,
   listPath,
@@ -12,6 +12,7 @@ import {
   syncPath,
   syncStatus,
   withSecretPlaceholders,
+  type Drift,
   type KindVersion,
   type Resource,
   type SyncStatus,
@@ -30,7 +31,7 @@ export interface LocalEntry {
   parents: string[];
   name: string;
   status: SyncStatus;
-  drifted: boolean;
+  drift?: Drift;
 }
 
 interface RefreshOptions {
@@ -42,7 +43,7 @@ const ROOT_KEY = 'conduktor.syncRoot';
 
 export class SyncFolder implements vscode.Disposable {
   private entries: LocalEntry[] = [];
-  private drift = new Set<string>();
+  private drift = new Map<string, Drift>();
   private exists = false;
   private watcher: vscode.FileSystemWatcher | undefined;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -137,7 +138,7 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   changes(): LocalEntry[] {
-    return this.entries.filter((entry) => entry.status !== 'synced' || entry.drifted);
+    return this.entries.filter((entry) => entry.status !== 'synced' || entry.drift);
   }
 
   entryAt(uri: vscode.Uri): LocalEntry | undefined {
@@ -281,7 +282,7 @@ export class SyncFolder implements vscode.Disposable {
     let entries = await this.scan(root, state);
     if (state.status === 'ready' && (await this.relocate(root, entries, state))) entries = await this.scan(root, state);
     if (options.drift && state.status === 'ready') await this.checkDrift(entries, state);
-    this.entries = entries.map((entry) => ({ ...entry, drifted: this.drift.has(entry.uri.toString()) }));
+    this.entries = entries.map((entry) => ({ ...entry, drift: this.drift.get(entry.uri.toString()) }));
     this.changed.fire();
   }
 
@@ -301,7 +302,6 @@ export class SyncFolder implements vscode.Disposable {
         path: uri.path.slice(root.path.length + 1),
         ...identity,
         status: syncStatus(text!, base),
-        drifted: false,
       });
     }
     return entries;
@@ -361,9 +361,10 @@ export class SyncFolder implements vscode.Disposable {
       if (!kind || base === undefined) continue;
       try {
         const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
-        if (isDrifted(base, live)) this.drift.add(entry.uri.toString());
+        const drift = driftOf(base, live);
+        if (drift) this.drift.set(entry.uri.toString(), drift);
       } catch (error) {
-        if (error instanceof ConsoleError && error.status === 404) this.drift.add(entry.uri.toString());
+        if (error instanceof ConsoleError && error.status === 404) this.drift.set(entry.uri.toString(), 'deleted');
         else this.output.warn(`Could not check ${entry.path} against the Console: ${describeError(error)}`);
       }
     }

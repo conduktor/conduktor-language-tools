@@ -4,7 +4,7 @@ import { referencedVariables } from '../src/resources/envVars';
 import type { Resource } from '../src/resources/types';
 import { syncPath } from '../src/sync/paths';
 import { withSecretPlaceholders } from '../src/sync/placeholders';
-import { isDrifted, syncStatus } from '../src/sync/status';
+import { driftOf, syncStatus } from '../src/sync/status';
 import { snapshotCatalog } from './fixtures';
 
 const topic: Resource = {
@@ -75,7 +75,7 @@ apiVersion: v2
   });
 });
 
-describe('isDrifted', () => {
+describe('driftOf', () => {
   const cluster: Resource = {
     apiVersion: 'v2',
     kind: 'KafkaCluster',
@@ -84,15 +84,15 @@ describe('isDrifted', () => {
   };
   const { resource: synced } = withSecretPlaceholders(cluster);
 
-  it('is false while the Console still matches the base, secrets aside', () => {
-    expect(isDrifted(stringify(synced), cluster)).toBe(false);
+  it('is nothing while the Console still matches the base, secrets aside', () => {
+    expect(driftOf(stringify(synced), cluster)).toBeUndefined();
   });
 
-  it('is true when the Console changed or the resource is gone', () => {
+  it('tells a resource changed on the Console from one deleted there', () => {
     expect(
-      isDrifted(stringify(synced), { ...cluster, spec: { ...(cluster.spec as object), bootstrapServers: 'k:9093' } }),
-    ).toBe(true);
-    expect(isDrifted(stringify(synced), undefined)).toBe(true);
+      driftOf(stringify(synced), { ...cluster, spec: { ...(cluster.spec as object), bootstrapServers: 'k:9093' } }),
+    ).toBe('changed');
+    expect(driftOf(stringify(synced), undefined)).toBe('deleted');
   });
 });
 

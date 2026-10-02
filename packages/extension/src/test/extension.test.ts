@@ -391,8 +391,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await api.sync.discard(uri);
     await api.sync.refresh({ drift: true });
     assert.deepStrictEqual(
-      { status: api.sync.entryAt(uri)?.status, drifted: api.sync.entryAt(uri)?.drifted },
-      { status: 'synced', drifted: false },
+      { status: api.sync.entryAt(uri)?.status, drift: api.sync.entryAt(uri)?.drift },
+      { status: 'synced', drift: undefined },
     );
   });
 
@@ -484,8 +484,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok((await api.sync.requiredVariables()).some((v) => v.name === variable));
       await api.sync.refresh({ drift: true });
       assert.deepStrictEqual(
-        { status: api.sync.entryAt(uri)?.status, drifted: api.sync.entryAt(uri)?.drifted },
-        { status: 'synced', drifted: false },
+        { status: api.sync.entryAt(uri)?.status, drift: api.sync.entryAt(uri)?.drift },
+        { status: 'synced', drift: undefined },
       );
     } finally {
       await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);

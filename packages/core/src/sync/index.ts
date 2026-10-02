@@ -1,3 +1,3 @@
 export { syncPath } from './paths';
 export { withSecretPlaceholders } from './placeholders';
-export { isDrifted, syncStatus, type SyncStatus } from './status';
+export { driftOf, syncStatus, type Drift, type SyncStatus } from './status';

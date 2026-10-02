@@ -6,13 +6,14 @@ import {
   PARENT_KINDS,
   type ConsoleClient,
   type KindCatalog,
+  type Drift,
   type KindVersion,
   type SyncStatus,
 } from '@conduktor/vscode-core';
 
 export interface LocalMark {
   status: SyncStatus;
-  drifted: boolean;
+  drift?: Drift;
   uri: string;
 }
 
@@ -144,6 +145,6 @@ export function isInView(
 
 function relevantChanges(source: ExplorerSource): LocalResource[] {
   return (source.local ?? []).filter(
-    (r) => isInView(source.catalog, source.cluster, r) && (r.mark.status !== 'synced' || r.mark.drifted),
+    (r) => isInView(source.catalog, source.cluster, r) && (r.mark.status !== 'synced' || r.mark.drift),
   );
 }

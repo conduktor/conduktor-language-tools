@@ -12,7 +12,7 @@ import { includeReaderFor } from '../editing/includes';
 import { isInView } from '../explorer/explorerModel';
 import { summarise } from '../editing/summary';
 import type { Output } from '../output';
-import { sharedIdentities } from './conflicts';
+import { driftNotes, sharedIdentities } from './conflicts';
 import type { LocalEntry, SyncFolder } from './syncFolder';
 
 export async function applyAllChanges(
@@ -67,7 +67,6 @@ export async function applyAllChanges(
     return plan;
   }
 
-  const drifted = changed.filter((entry) => entry.drifted).map((entry) => entry.path);
   const overwrites = plan
     .filter((item) => item.outcome.status === 'ok' && item.outcome.result === 'Updated')
     .map((item) => origin.get(item.document)?.entry)
@@ -77,8 +76,7 @@ export async function applyAllChanges(
     preview.text,
     plan.some((item) => item.outcome.status === 'pending') &&
       'Some can only be checked once the resources before them exist. Resources are applied one at a time, in order, stopping at the first failure.',
-    drifted.length > 0 &&
-      `Changed on the Console since they were synced, and will be overwritten: ${drifted.join(', ')}.`,
+    ...driftNotes(changed),
     overwrites.length > 0 &&
       `New files for resources that already exist, which they will replace: ${overwrites.join(', ')}.`,
   ]

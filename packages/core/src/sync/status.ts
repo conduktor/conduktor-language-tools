@@ -5,6 +5,7 @@ import { redactSecrets } from '../tools/redact';
 import { isRecord } from '../util';
 
 export type SyncStatus = 'new' | 'modified' | 'synced';
+export type Drift = 'changed' | 'deleted';
 
 export function syncStatus(local: string, base: string | undefined): SyncStatus {
   if (base === undefined) return 'new';
@@ -12,8 +13,9 @@ export function syncStatus(local: string, base: string | undefined): SyncStatus 
 }
 
 // Secrets are compared redacted: the base holds ${VAR} placeholders where the Console holds the values.
-export function isDrifted(base: string, live: Resource | undefined): boolean {
-  return live === undefined || normalised(base, redactedYaml) !== redactedYaml(live);
+export function driftOf(base: string, live: Resource | undefined): Drift | undefined {
+  if (live === undefined) return 'deleted';
+  return normalised(base, redactedYaml) === redactedYaml(live) ? undefined : 'changed';
 }
 
 function normalised(text: string, toText: (resource: Resource) => string): string {
