@@ -18,6 +18,7 @@ import {
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
+import { singleFlight } from './singleFlight';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
@@ -32,6 +33,10 @@ export interface LocalEntry {
   drifted: boolean;
 }
 
+interface RefreshOptions {
+  drift?: boolean;
+}
+
 const STATE_DIR = '.conduktor';
 const ROOT_KEY = 'conduktor.syncRoot';
 
@@ -41,6 +46,10 @@ export class SyncFolder implements vscode.Disposable {
   private exists = false;
   private watcher: vscode.FileSystemWatcher | undefined;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly refreshes = singleFlight<RefreshOptions>(
+    (options) => this.rescan(options),
+    (a, b) => ({ drift: a.drift || b.drift }),
+  );
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
   private readonly sessionListener: vscode.Disposable;
@@ -255,7 +264,11 @@ export class SyncFolder implements vscode.Disposable {
     await this.markApplied(uri, text);
   }
 
-  async refresh(options: { drift?: boolean } = {}): Promise<void> {
+  refresh(options: RefreshOptions = {}): Promise<void> {
+    return this.refreshes(options);
+  }
+
+  private async rescan(options: RefreshOptions): Promise<void> {
     const root = this.root();
     this.exists = !!root && (await fileExists(root));
     await vscode.commands.executeCommand('setContext', 'conduktor.syncFolder', this.exists);
