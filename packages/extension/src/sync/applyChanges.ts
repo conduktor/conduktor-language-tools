@@ -12,6 +12,7 @@ import { includeReaderFor } from '../editing/includes';
 import { isInView } from '../explorer/explorerModel';
 import { summarise } from '../editing/summary';
 import type { Output } from '../output';
+import { sharedIdentities } from './conflicts';
 import type { LocalEntry, SyncFolder } from './syncFolder';
 
 export async function applyAllChanges(
@@ -34,6 +35,13 @@ export async function applyAllChanges(
   if (changed.length === 0) {
     void vscode.window.showInformationMessage('No local changes to apply.');
     return [];
+  }
+  const shared = sharedIdentities(changed);
+  if (shared.length > 0) {
+    void vscode.window.showWarningMessage(
+      `Several files describe the same resource, so nothing was applied. Keep one of each: ${shared.join('; ')}.`,
+    );
+    return undefined;
   }
 
   const origin = new Map<ResourceDocument, { entry: LocalEntry; text: string }>();
@@ -60,12 +68,19 @@ export async function applyAllChanges(
   }
 
   const drifted = changed.filter((entry) => entry.drifted).map((entry) => entry.path);
+  const overwrites = plan
+    .filter((item) => item.outcome.status === 'ok' && item.outcome.result === 'Updated')
+    .map((item) => origin.get(item.document)?.entry)
+    .filter((entry) => entry?.status === 'new')
+    .map((entry) => entry!.path);
   const detail = [
     preview.text,
     plan.some((item) => item.outcome.status === 'pending') &&
       'Some can only be checked once the resources before them exist. Resources are applied one at a time, in order, stopping at the first failure.',
     drifted.length > 0 &&
       `Changed on the Console since they were synced, and will be overwritten: ${drifted.join(', ')}.`,
+    overwrites.length > 0 &&
+      `New files for resources that already exist, which they will replace: ${overwrites.join(', ')}.`,
   ]
     .filter(Boolean)
     .join('\n\n');
