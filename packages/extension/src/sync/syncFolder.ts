@@ -86,6 +86,8 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   async syncResource(kind: KindVersion, parents: readonly string[], name: string): Promise<vscode.Uri> {
+    const staged = this.entryFor(kind.kind, parents, name);
+    if (staged && staged.status !== 'synced') return staged.uri;
     const state = this.ready();
     const live = await state.client.get(itemPath(kind, parentsOf(kind, [...parents]), name));
     const uri = await this.writeSynced(kind, [...parents], live);
@@ -101,7 +103,10 @@ export class SyncFolder implements vscode.Disposable {
     const state = this.ready();
     const resources = await state.client.list(listPath(kind, parentsOf(kind, [...parents])));
     if (!(await proceed(resources.length))) return undefined;
-    for (const resource of resources) await this.writeSynced(kind, [...parents], resource);
+    for (const resource of resources) {
+      const staged = this.entryFor(kind.kind, parents, resource.metadata.name);
+      if (!staged || staged.status === 'synced') await this.writeSynced(kind, [...parents], resource);
+    }
     await this.refresh();
     return resources.length;
   }

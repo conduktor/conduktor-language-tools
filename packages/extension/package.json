@@ -184,6 +184,12 @@
         "title": "Show All Resources",
         "category": "Conduktor",
         "icon": "$(filter-filled)"
+      },
+      {
+        "command": "conduktor.editLocally",
+        "title": "Edit Locally",
+        "category": "Conduktor",
+        "icon": "$(edit)"
       }
     ],
     "viewsContainers": {
@@ -290,6 +296,10 @@
         {
           "command": "conduktor.showRequiredVariables",
           "when": "conduktor.syncFolder"
+        },
+        {
+          "command": "conduktor.editLocally",
+          "when": "resourceScheme == conduktor"
         }
       ],
       "editor/title": [
@@ -306,6 +316,11 @@
         {
           "command": "conduktor.copyToWorkspace",
           "when": "resourceScheme == conduktor",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.editLocally",
+          "when": "resourceScheme == conduktor && conduktor.syncFolder",
           "group": "navigation"
         }
       ],
@@ -344,6 +359,11 @@
           "command": "conduktor.resyncFromConsole",
           "when": "view == conduktor.explorer && viewItem =~ /^resource\\.(modified|synced)/",
           "group": "2_sync"
+        },
+        {
+          "command": "conduktor.editLocally",
+          "when": "view == conduktor.explorer && viewItem == resource && conduktor.syncFolder",
+          "group": "inline"
         }
       ]
     },

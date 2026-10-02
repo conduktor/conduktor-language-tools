@@ -8,12 +8,15 @@ import {
   type KindVersion,
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
+import { parse } from 'yaml';
 import type { ExplorerNode } from '../explorer/explorerModel';
+import type { SyncFolder } from '../sync/syncFolder';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export async function newResource(
   sessions: SessionManager,
+  sync: SyncFolder,
   node?: ExplorerNode,
 ): Promise<vscode.TextDocument | undefined> {
   const state = sessions.current();
@@ -29,10 +32,11 @@ export async function newResource(
     if (!value) return undefined;
     parents = [...parents, value];
   }
-  const document = await vscode.workspace.openTextDocument({
-    language: 'yaml',
-    content: newResourceYaml(kind, parentsOf(kind, parents)),
-  });
+  const content = newResourceYaml(kind, parentsOf(kind, parents));
+  const name = String(parse(content)?.metadata?.name ?? `new-${kind.kind.toLowerCase()}`);
+  const document = sync.root()
+    ? await vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name))
+    : await vscode.workspace.openTextDocument({ language: 'yaml', content });
   await vscode.window.showTextDocument(document);
   return document;
 }

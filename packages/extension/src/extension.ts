@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     codeLenses,
     sync,
     createStatusBar(sessions),
-    ...registerSyncCommands(sync, confirm),
+    ...registerSyncCommands(sync, confirm, sessions),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm),
     ...registerLanguageModelTools(sessions),
@@ -70,7 +70,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
     vscode.commands.registerCommand('conduktor.showOnlyChanges', () => explorer.showOnlyChanges(true)),
     vscode.commands.registerCommand('conduktor.showAll', () => explorer.showOnlyChanges(false)),
-    vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) => newResource(sessions, node)),
+    vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) =>
+      newResource(sessions, sync, node),
+    ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, codeLenses),
     vscode.commands.registerCommand('conduktor.dryRunDocument', (uri: vscode.Uri, index: number) =>
       resources.dryRun(uri, index),
@@ -92,10 +94,18 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     }),
     vscode.workspace.registerFileSystemProvider(
       LIVE_SCHEME,
-      new ConduktorFileSystem(sessions, (text, liveName) => resources.saveLive(text, liveName)),
+      new ConduktorFileSystem(
+        sessions,
+        (text, liveName) => resources.saveLive(text, liveName),
+        () => sync.isActive(),
+      ),
       { isCaseSensitive: true },
     ),
-    resources.onDidApply(() => explorer.refresh()),
+    resources.onDidApply(({ uri, text, items }) => {
+      explorer.refresh();
+      const applied = items.every((item) => item.outcome.status === 'ok');
+      if (uri && text !== undefined && applied && sync.contains(uri)) void sync.markApplied(uri, text);
+    }),
     connections.onDidChange(() => void sessions.reload()),
     sessions.onDidChange((state) => {
       explorerView.description = state.status === 'none' ? undefined : state.connection.name;
@@ -117,7 +127,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     liveUri: (node: ResourceNode) => explorer.liveUri(node),
     dryRun: (uri: vscode.Uri, index?: number) => resources.dryRun(uri, index),
     apply: (uri: vscode.Uri, index?: number) => resources.apply(uri, index),
-    newResource: (node?: ExplorerNode) => newResource(sessions, node),
+    newResource: (node?: ExplorerNode) => newResource(sessions, sync, node),
     setConfirm: (replacement: Confirm) => {
       confirmWith = replacement;
     },

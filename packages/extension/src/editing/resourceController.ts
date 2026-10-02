@@ -25,6 +25,12 @@ export interface LastResult {
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
+export interface AppliedEvent {
+  uri?: vscode.Uri;
+  text?: string;
+  items: readonly UpsertItem[];
+}
+
 export class ResourceController implements vscode.Disposable {
   private readonly diagnostics = vscode.languages.createDiagnosticCollection('conduktor');
   private readonly decoration = vscode.window.createTextEditorDecorationType({
@@ -33,7 +39,7 @@ export class ResourceController implements vscode.Disposable {
   private readonly results = new Map<string, Map<number, LastResult>>();
   private readonly resultsChanged = new vscode.EventEmitter<vscode.Uri>();
   readonly onDidChangeResults = this.resultsChanged.event;
-  private readonly applied = new vscode.EventEmitter<void>();
+  private readonly applied = new vscode.EventEmitter<AppliedEvent>();
   readonly onDidApply = this.applied.event;
   private readonly listeners: vscode.Disposable[];
 
@@ -88,7 +94,7 @@ export class ResourceController implements vscode.Disposable {
     if (result?.outcome.status !== 'ok') throw new Error(failureOf(result?.outcome, 'Apply failed'));
     this.output.info(`Applied to ${name}: ${subject} ${result.outcome.result}`);
     void vscode.window.showInformationMessage(`Saved ${subject} to ${name}: ${outcomeLabel(result.outcome)}`);
-    this.applied.fire();
+    this.applied.fire({ items: [result] });
   }
 
   dispose(): void {
@@ -147,7 +153,7 @@ export class ResourceController implements vscode.Disposable {
     const applied = summarise(name, items, 'Applied to');
     this.output.info(applied.text);
     this.notify(applied.text, applied.failed > 0);
-    this.applied.fire();
+    this.applied.fire({ uri, text: document.getText(), items });
     return items;
   }
 

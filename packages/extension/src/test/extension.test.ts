@@ -131,10 +131,6 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       );
 
     try {
-      const template = await api.newResource({ type: 'parent', kind: topicKind, parents: [cluster] });
-      assert.match(template?.getText() ?? '', /kind: Topic/);
-      assert.match(template?.getText() ?? '', /cluster: local-kafka/);
-
       const draft = await vscode.workspace.openTextDocument({
         language: 'yaml',
         content: stringify({
@@ -294,6 +290,23 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     } finally {
       api.explorer.showOnlyChanges(false);
     }
+
+    const liveUri = api.liveUri({ type: 'resource', kind: topicKind, parents: ['local-kafka'], name });
+    assert.strictEqual(
+      (await vscode.workspace.fs.stat(liveUri)).permissions,
+      vscode.FilePermission.Readonly,
+      'live documents are read-only once changes are staged locally',
+    );
+    await vscode.commands.executeCommand('conduktor.editLocally', liveUri);
+    assert.strictEqual(vscode.window.activeTextEditor?.document.uri.toString(), uri.toString());
+
+    const drafted = await api.newResource({ type: 'parent', kind: topicKind, parents: ['local-kafka'] });
+    assert.ok(drafted && api.sync.contains(drafted.uri), drafted?.uri.toString());
+    assert.match(drafted.getText(), /kind: Topic/);
+    assert.match(drafted.getText(), /cluster: local-kafka/);
+    assert.strictEqual(api.sync.entryAt(drafted.uri)?.status, 'new');
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    await vscode.workspace.fs.delete(drafted.uri);
 
     await api.sync.discard(uri);
     await api.sync.refresh({ drift: true });
