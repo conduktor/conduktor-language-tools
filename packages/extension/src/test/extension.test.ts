@@ -245,7 +245,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     try {
       await vscode.commands.executeCommand('conduktor.copyClaudeCodeConfig');
       const [server] = JSON.parse(await vscode.env.clipboard.readText()).mcpServers.conduktor.args as string[];
-      assert.ok(server && !server.startsWith(extension.extensionUri.fsPath), server);
+      assert.ok(server && !server.startsWith(vscode.Uri.joinPath(extension.extensionUri, 'dist').fsPath), server);
       assert.ok(server.endsWith(join('mcp', 'mcp-server.js')), server);
       await vscode.workspace.fs.stat(vscode.Uri.file(server));
       await vscode.workspace.fs.stat(vscode.Uri.file(join(dirname(server), 'public-api-doc.yaml')));
