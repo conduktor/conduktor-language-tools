@@ -38,7 +38,15 @@ export { comparableYaml, newResourceName, newResourceYaml } from './resources/ya
 export type { ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';
-export { agentInstructions, conduktorTools, ToolError, type ToolContext, type ToolDefinition } from './tools';
+export {
+  agentInstructions,
+  conduktorTools,
+  isInside,
+  ToolError,
+  workspaceFile,
+  type ToolContext,
+  type ToolDefinition,
+} from './tools';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
 export { isDrifted, syncPath, syncStatus, withSecretPlaceholders, type SyncStatus } from './sync';

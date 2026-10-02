@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ConsoleClient, loadSpec, type ConnectionMode, type ToolContext } from '@conduktor/vscode-core';
+import { ConsoleClient, loadSpec, workspaceFile, type ConnectionMode, type ToolContext } from '@conduktor/vscode-core';
 import { createConduktorServer } from './server';
 
 declare const CONDUKTOR_VERSION: string;
@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   });
   const connectionName = process.env.CONDUKTOR_NAME || new URL(client.baseUrl).host;
   const mode = modeFrom(process.env.CONDUKTOR_MODE);
-  const readRelative = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
+  const readRelative = (file: string) => readFileSync(workspaceFile(process.cwd(), file), 'utf8');
 
   let context: Promise<ToolContext> | undefined;
   const loadContext = () =>

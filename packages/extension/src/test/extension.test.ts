@@ -253,6 +253,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     );
     assert.strictEqual(dryRun.documents[0].result, 'Created');
     assert.match(dryRun.note, /Nothing was changed/);
+
+    for (const path of ['../outside.yaml', '/etc/hosts'])
+      assert.match(await call('conduktor_validate', { path }), /outside the workspace|is absolute/, path);
   });
 
   test('applies a group, an application and its instance from one file, in order', async () => {

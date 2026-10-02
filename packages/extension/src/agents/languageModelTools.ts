@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { conduktorTools, describeError, type ToolContext, type ToolDefinition } from '@conduktor/vscode-core';
+import {
+  conduktorTools,
+  describeError,
+  workspaceFile,
+  type ToolContext,
+  type ToolDefinition,
+} from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
@@ -49,9 +54,7 @@ export function toolContext(state: Ready): ToolContext {
 
 // An open document's unsaved text is what the agent and the person are looking at, so it wins over the disk.
 function readWorkspaceFile(file: string): string {
-  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!path.isAbsolute(file) && !root) throw new Error('No workspace folder is open; pass the YAML text instead.');
-  const absolute = path.isAbsolute(file) ? file : path.resolve(root!, file);
+  const absolute = workspaceFile(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, file);
   const open = vscode.workspace.textDocuments.find((d) => d.uri.scheme === 'file' && d.uri.fsPath === absolute);
   return open ? open.getText() : readFileSync(absolute, 'utf8');
 }

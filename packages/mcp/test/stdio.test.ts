@@ -1,7 +1,7 @@
-import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -78,6 +78,19 @@ describe('the bundled MCP server over stdio', () => {
       url: '/api/public/kafka/v2/cluster/local/topic?dryMode=true',
       authorization: 'Bearer secret',
     });
+  });
+
+  it('reads only files inside its working directory', async () => {
+    const outside = join(directory, '..', `${basename(directory)}-outside.yaml`);
+    writeFileSync(outside, 'apiVersion: v2\nkind: Topic\n');
+    try {
+      for (const path of [`../${basename(outside)}`, join(directory, 'topic.yaml')]) {
+        const result = await client.callTool({ name: 'conduktor_validate', arguments: { path } });
+        expect((result.content as { text: string }[])[0]!.text).toMatch(/outside the workspace|is absolute/);
+      }
+    } finally {
+      rmSync(outside);
+    }
   });
 
   it('never expands variables from its environment, which holds the Console token', async () => {
