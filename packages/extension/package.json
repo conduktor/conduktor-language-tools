@@ -156,7 +156,7 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --dir test",
     "test:vscode": "node esbuild.mjs --tests && vscode-test",
     "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license --out dist/conduktor-console.vsix"
   },
@@ -169,7 +169,7 @@
     "@types/node": "^22.0.0",
     "@types/vscode": "~1.100.0",
     "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^2.5.2",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.28.0",
     "vitest": "^5.0.0"

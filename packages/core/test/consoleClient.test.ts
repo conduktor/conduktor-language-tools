@@ -101,6 +101,21 @@ describe('ConsoleClient', () => {
     expect(events[0]).toMatchObject({ method: 'GET', path: '/api/token/v1/whoami', status: 'network-error' });
   });
 
+  it('explains a refused localhost connection, which Node reports as an AggregateError without a message', async () => {
+    const refused = (address: string) =>
+      Object.assign(new Error(`connect ECONNREFUSED ${address}`), { code: 'ECONNREFUSED' });
+    const { client: c } = client(() => {
+      throw new TypeError('fetch failed', {
+        cause: Object.assign(new AggregateError([refused('::1:7070'), refused('127.0.0.1:7070')], ''), {
+          code: 'ECONNREFUSED',
+        }),
+      });
+    });
+    await expect(c.whoami()).rejects.toThrow(
+      'Cannot reach http://console:8080: connect ECONNREFUSED ::1:7070; connect ECONNREFUSED 127.0.0.1:7070',
+    );
+  });
+
   it('reports each request with its status', async () => {
     const events: RequestEvent[] = [];
     const { client: c } = client(

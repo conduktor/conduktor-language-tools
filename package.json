@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r test",
     "build": "pnpm --filter conduktor-console build",
-    "package": "pnpm --filter conduktor-console package"
+    "package": "pnpm --filter conduktor-console package",
+    "test:vscode": "pnpm --filter conduktor-console test:vscode"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",

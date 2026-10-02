@@ -86,5 +86,7 @@ export class ConsoleClient {
 }
 
 function networkReason(error: unknown): string {
-  return error instanceof Error && error.cause instanceof Error ? error.cause.message : describeError(error);
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+  if (cause instanceof AggregateError && !cause.message) return cause.errors.map(describeError).join('; ');
+  return describeError(cause);
 }
