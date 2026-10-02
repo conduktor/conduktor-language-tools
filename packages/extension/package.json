@@ -99,6 +99,46 @@
         "command": "conduktor.dryRunDocument",
         "title": "Dry Run Resource",
         "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.changeMode",
+        "title": "Change Mode",
+        "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.newResource",
+        "title": "New Resource\u2026",
+        "category": "Conduktor",
+        "icon": "$(add)"
+      },
+      {
+        "command": "conduktor.applyFile",
+        "title": "Apply File",
+        "category": "Conduktor",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "conduktor.applyDocument",
+        "title": "Apply Resource",
+        "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.diffWithLive",
+        "title": "Diff with Live",
+        "category": "Conduktor",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "conduktor.copyToWorkspace",
+        "title": "Copy to Workspace\u2026",
+        "category": "Conduktor",
+        "icon": "$(save-as)"
+      },
+      {
+        "command": "conduktor.deleteResource",
+        "title": "Delete from Console",
+        "category": "Conduktor",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -136,19 +176,77 @@
           "command": "conduktor.refreshExplorer",
           "when": "view == conduktor.explorer",
           "group": "navigation"
+        },
+        {
+          "command": "conduktor.newResource",
+          "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.changeMode",
+          "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "1_connection"
         }
       ],
       "commandPalette": [
         {
           "command": "conduktor.dryRunDocument",
           "when": "false"
+        },
+        {
+          "command": "conduktor.applyDocument",
+          "when": "false"
+        },
+        {
+          "command": "conduktor.deleteResource",
+          "when": "false"
+        },
+        {
+          "command": "conduktor.copyToWorkspace",
+          "when": "resourceScheme == conduktor"
+        },
+        {
+          "command": "conduktor.applyFile",
+          "when": "conduktor.mode == apply"
         }
       ],
       "editor/title": [
         {
           "command": "conduktor.dryRunFile",
-          "when": "resourceLangId == yaml",
+          "when": "resourceLangId == yaml && conduktor.mode && conduktor.mode != read-only",
           "group": "navigation"
+        },
+        {
+          "command": "conduktor.applyFile",
+          "when": "resourceLangId == yaml && conduktor.mode == apply",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.copyToWorkspace",
+          "when": "resourceScheme == conduktor",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "conduktor.newResource",
+          "when": "view == conduktor.explorer && viewItem =~ /^(kind|parent)$/",
+          "group": "inline"
+        },
+        {
+          "command": "conduktor.newResource",
+          "when": "view == conduktor.explorer && viewItem =~ /^(kind|parent)$/",
+          "group": "1_new"
+        },
+        {
+          "command": "conduktor.copyToWorkspace",
+          "when": "view == conduktor.explorer && viewItem == resource",
+          "group": "1_copy"
+        },
+        {
+          "command": "conduktor.deleteResource",
+          "when": "view == conduktor.explorer && viewItem == resource && conduktor.mode == apply",
+          "group": "9_delete"
         }
       ]
     }

@@ -22,6 +22,7 @@ export function registerConnectionCommands(store: ConnectionStore, sessions: Ses
     vscode.commands.registerCommand('conduktor.addConnection', () => addConnection(store, sessions)),
     vscode.commands.registerCommand('conduktor.removeConnection', () => removeConnection(store)),
     vscode.commands.registerCommand('conduktor.switchConnection', () => switchConnection(store)),
+    vscode.commands.registerCommand('conduktor.changeMode', () => changeMode(store)),
   ];
 }
 
@@ -82,6 +83,19 @@ async function removeConnection(store: ConnectionStore): Promise<void> {
 async function switchConnection(store: ConnectionStore): Promise<void> {
   const picked = await pickConnection(store, 'Switch to which connection?');
   if (picked) await store.setActive(picked.id);
+}
+
+async function changeMode(store: ConnectionStore): Promise<void> {
+  const connection = store.active();
+  if (!connection) {
+    void vscode.window.showInformationMessage('No Conduktor connections yet.');
+    return;
+  }
+  const items = MODES.map((m) =>
+    m.mode === connection.mode ? { ...m, description: `${m.description} (current)` } : m,
+  );
+  const picked = await vscode.window.showQuickPick(items, { title: `What may ${connection.name} change?` });
+  if (picked && picked.mode !== connection.mode) await store.update({ ...connection, mode: picked.mode });
 }
 
 async function pickConnection(store: ConnectionStore, title: string) {

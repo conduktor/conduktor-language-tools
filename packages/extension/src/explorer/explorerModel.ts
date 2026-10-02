@@ -22,7 +22,7 @@ export interface ExplorerSource {
   client: Pick<ConsoleClient, 'list'>;
 }
 
-const PARENT_KINDS: Readonly<Record<string, string>> = {
+export const PARENT_KINDS: Readonly<Record<string, string>> = {
   cluster: 'KafkaCluster',
   connectCluster: 'KafkaConnectCluster',
 };

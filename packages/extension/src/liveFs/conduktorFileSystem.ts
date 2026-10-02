@@ -8,14 +8,26 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
   private readonly changed = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   readonly onDidChangeFile = this.changed.event;
 
-  constructor(private readonly sessions: SessionManager) {}
+  constructor(
+    private readonly sessions: SessionManager,
+    private readonly save: (text: string, liveName: string) => Promise<void>,
+  ) {}
 
   watch(): vscode.Disposable {
     return new vscode.Disposable(() => undefined);
   }
 
-  stat(): vscode.FileStat {
-    return { type: vscode.FileType.File, ctime: 0, mtime: 0, size: 0, permissions: vscode.FilePermission.Readonly };
+  stat(uri: vscode.Uri): vscode.FileStat {
+    const state = this.sessions.current();
+    const writable =
+      state.status === 'ready' && state.connection.mode === 'apply' && state.connection.id === uri.authority;
+    return {
+      type: vscode.FileType.File,
+      ctime: 0,
+      mtime: 0,
+      size: 0,
+      permissions: writable ? undefined : vscode.FilePermission.Readonly,
+    };
   }
 
   async readFile(uri: vscode.Uri): Promise<Uint8Array> {
@@ -45,8 +57,15 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
     throw vscode.FileSystemError.NoPermissions(uri);
   }
 
-  writeFile(uri: vscode.Uri): void {
-    throw vscode.FileSystemError.NoPermissions(uri);
+  async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
+    const ref = parseLiveUriParts(uri.authority, uri.path);
+    if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
+    try {
+      await this.save(new TextDecoder().decode(content), ref.name);
+    } catch (error) {
+      throw vscode.FileSystemError.Unavailable(describeError(error));
+    }
+    this.changed.fire([{ type: vscode.FileChangeType.Changed, uri }]);
   }
 
   delete(uri: vscode.Uri): void {

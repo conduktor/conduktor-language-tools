@@ -1,6 +1,6 @@
 import { stringify } from 'yaml';
 import type { KindVersion } from '../openapi/kindCatalog';
-import { isRecord } from '../util';
+import { isRecord, kebabCase } from '../util';
 import type { Resource } from './types';
 
 const IDENTITY_KEYS = ['apiVersion', 'kind', 'metadata', 'spec'];
@@ -39,8 +39,4 @@ function sortKeys(value: unknown, compare: (a: string, b: string) => number): un
 
 function byName(a: string, b: string): number {
   return a.localeCompare(b);
-}
-
-function kebabCase(name: string): string {
-  return name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 }

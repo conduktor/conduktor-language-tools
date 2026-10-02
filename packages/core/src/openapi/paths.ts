@@ -35,6 +35,10 @@ export function upsertTarget(kind: KindVersion, resource: Resource): Target {
   };
 }
 
+export function resourcePath(kind: KindVersion, resource: Resource): string {
+  return itemPath(kind, pick(resource, kind.parentPathParams), resource.metadata.name);
+}
+
 function pick(resource: Resource, names: readonly string[]): Record<string, string> {
   const picked: Record<string, string> = {};
   for (const name of names) {

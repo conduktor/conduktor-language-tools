@@ -1,43 +1,52 @@
 import * as vscode from 'vscode';
 import { catalogDocuments } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
+import type { Action, ResourceController } from './resourceController';
+import { outcomeLabel } from './summary';
 
 export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
-  private readonly sessionListener: vscode.Disposable;
+  private readonly listeners: vscode.Disposable[];
 
-  constructor(private readonly sessions: SessionManager) {
-    this.sessionListener = sessions.onDidChange(() => this.changed.fire());
+  constructor(
+    private readonly sessions: SessionManager,
+    private readonly controller: ResourceController,
+  ) {
+    this.listeners = [
+      sessions.onDidChange(() => this.changed.fire()),
+      controller.onDidChangeResults(() => this.changed.fire()),
+    ];
   }
 
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     const state = this.sessions.current();
     if (state.status !== 'ready' || state.connection.mode === 'read-only') return [];
+    const canApply = state.connection.mode === 'apply';
     const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env });
     const lineOf = (offset: number) => document.lineAt(document.positionAt(offset).line).range;
-    const lenses = documents.map(
-      (d) =>
-        new vscode.CodeLens(lineOf(d.start), {
-          title: '$(beaker) Dry run',
-          command: 'conduktor.dryRunDocument',
-          arguments: [document.uri, d.index],
-        }),
-    );
+    const lens = (offset: number, title: string, command: string, ...args: unknown[]) =>
+      new vscode.CodeLens(lineOf(offset), { title, command, arguments: [document.uri, ...args] });
+
+    const lenses: vscode.CodeLens[] = [];
     if (documents.length > 1) {
-      lenses.unshift(
-        new vscode.CodeLens(lineOf(documents[0]!.start), {
-          title: `$(beaker) Dry run all (${documents.length})`,
-          command: 'conduktor.dryRunFile',
-          arguments: [document.uri],
-        }),
-      );
+      const first = documents[0]!.start;
+      lenses.push(lens(first, `$(beaker) Dry run all (${documents.length})`, 'conduktor.dryRunFile'));
+      if (canApply) lenses.push(lens(first, `$(cloud-upload) Apply all (${documents.length})`, 'conduktor.applyFile'));
+    }
+    for (const { index, start } of documents) {
+      const last = this.controller.lastResult(document.uri, index);
+      const suffix = (action: Action) => (last?.action === action ? ` · ${outcomeLabel(last.outcome)}` : '');
+      lenses.push(lens(start, `$(beaker) Dry run${suffix('dry run')}`, 'conduktor.dryRunDocument', index));
+      if (canApply)
+        lenses.push(lens(start, `$(cloud-upload) Apply${suffix('applied')}`, 'conduktor.applyDocument', index));
+      lenses.push(lens(start, '$(diff) Diff with Live', 'conduktor.diffWithLive', index));
     }
     return lenses;
   }
 
   dispose(): void {
-    this.sessionListener.dispose();
+    this.listeners.forEach((listener) => listener.dispose());
     this.changed.dispose();
   }
 }

@@ -1,5 +1,6 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
+import { parse, stringify } from 'yaml';
 import type { ExtensionApi } from '../extension';
 import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
 
@@ -92,5 +93,70 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual(items[0]!.outcome.status, 'error');
     const problems = vscode.languages.getDiagnostics(broken.uri).filter((d) => d.source === 'Conduktor');
     assert.ok(problems.length > 0, 'a Conduktor problem is shown');
+  });
+
+  test('creates, edits, diffs and deletes a topic in apply mode', async () => {
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
+    await until(() => {
+      const current = api.sessions.current();
+      return current.status === 'ready' && current.connection.id === 'smoke-apply';
+    });
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const cluster = 'local-kafka';
+    const name = `vscode-smoke-${Date.now()}`;
+    const node: ResourceNode = { type: 'resource', kind: topicKind, parents: [cluster], name };
+    // The topic list comes from Console's indexer and lags behind writes; the item GET does not.
+    const exists = () =>
+      state.client.get(`/public/kafka/v2/cluster/${cluster}/topic/${name}`).then(
+        () => true,
+        (error: { status?: number }) => (error.status === 404 ? false : Promise.reject(error)),
+      );
+
+    try {
+      const template = await api.newResource({ type: 'parent', kind: topicKind, parents: [cluster] });
+      assert.match(template?.getText() ?? '', /kind: Topic/);
+      assert.match(template?.getText() ?? '', /cluster: local-kafka/);
+
+      const draft = await vscode.workspace.openTextDocument({
+        language: 'yaml',
+        content: stringify({
+          apiVersion: 'v2',
+          kind: 'Topic',
+          metadata: { name, cluster },
+          spec: { partitions: 1, replicationFactor: 1 },
+        }),
+      });
+      assert.deepStrictEqual(
+        (await api.apply(draft.uri))?.map((i) => i.outcome),
+        [{ status: 'ok', result: 'Created' }],
+      );
+      assert.ok(await exists(), 'topic created');
+      assert.deepStrictEqual(
+        (await api.dryRun(draft.uri))?.map((i) => i.outcome),
+        [{ status: 'ok', result: 'NotChanged' }],
+      );
+
+      const live = await vscode.workspace.openTextDocument(api.liveUri(node));
+      const edited = parse(live.getText());
+      edited.metadata.labels = { ...(edited.metadata.labels ?? {}), smoke: 'edited' };
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
+      assert.ok(await vscode.workspace.applyEdit(edit));
+      assert.ok(await live.save(), 'live document saved');
+      const saved = await state.client.get(`/public/kafka/v2/cluster/${cluster}/topic/${name}`);
+      assert.strictEqual((saved.metadata.labels as Record<string, string>).smoke, 'edited');
+
+      await vscode.commands.executeCommand('conduktor.diffWithLive', draft.uri, 0);
+      assert.ok(vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputTextDiff);
+
+      await vscode.commands.executeCommand('conduktor.deleteResource', node);
+      assert.ok(!(await exists()), 'topic deleted');
+    } finally {
+      if (await exists()) await state.client.delete(`/public/kafka/v2/cluster/${cluster}/topic/${name}`);
+    }
   });
 });

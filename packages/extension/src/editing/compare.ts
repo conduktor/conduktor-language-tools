@@ -1,0 +1,88 @@
+import * as vscode from 'vscode';
+import {
+  catalogDocuments,
+  comparableYaml,
+  ConsoleError,
+  describeError,
+  expandIncludes,
+  resourcePath,
+  type Resource,
+} from '@conduktor/vscode-core';
+import type { SessionManager } from '../connections/session';
+import { includeReaderFor } from './includes';
+
+export const COMPARE_SCHEME = 'conduktor-compare';
+
+export class Compare implements vscode.TextDocumentContentProvider, vscode.Disposable {
+  private readonly contents = new Map<string, string>();
+  private readonly registration: vscode.Disposable;
+  private next = 0;
+
+  constructor(private readonly sessions: SessionManager) {
+    this.registration = vscode.workspace.registerTextDocumentContentProvider(COMPARE_SCHEME, this);
+  }
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return this.contents.get(uri.toString()) ?? '';
+  }
+
+  async diffWithLive(uri: vscode.Uri, index?: number): Promise<void> {
+    const state = this.sessions.current();
+    if (state.status !== 'ready') {
+      void vscode.window.showWarningMessage('Connect to a Conduktor Console first.');
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument(uri);
+    const target = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env }).find(
+      (d) => index === undefined || d.index === index,
+    );
+    if (!target) {
+      void vscode.window.showWarningMessage('No Conduktor resource to compare in this file.');
+      return;
+    }
+    if (!target.resource) {
+      void vscode.window.showErrorMessage(`Cannot compare: ${target.error ?? 'not a Conduktor resource'}`);
+      return;
+    }
+    try {
+      await this.diffResource(expandIncludes(target.resource, includeReaderFor(uri)));
+    } catch (error) {
+      void vscode.window.showErrorMessage(`Cannot compare: ${describeError(error)}`);
+    }
+  }
+
+  async diffResource(resource: Resource): Promise<void> {
+    const state = this.sessions.current();
+    if (state.status !== 'ready') throw new Error('Not connected');
+    const kind = state.spec.catalog.resolve(resource.apiVersion, resource.kind);
+    if (!kind) throw new Error(`${resource.kind} ${resource.apiVersion} is not available on ${state.connection.name}`);
+
+    let live = '';
+    let exists = true;
+    try {
+      live = comparableYaml(await state.client.get(resourcePath(kind, resource)));
+    } catch (error) {
+      if (!(error instanceof ConsoleError && error.status === 404)) throw error;
+      exists = false;
+    }
+    const id = ++this.next;
+    const file = `${resource.kind}-${resource.metadata.name}.yaml`;
+    const left = this.put(`/${id}/live/${file}`, live);
+    const right = this.put(`/${id}/local/${file}`, comparableYaml(resource));
+    const subject = `${resource.kind} ${resource.metadata.name}`;
+    const title = exists
+      ? `${subject}: ${state.connection.name} ↔ local`
+      : `${subject}: not on ${state.connection.name} yet`;
+    await vscode.commands.executeCommand('vscode.diff', left, right, title);
+  }
+
+  dispose(): void {
+    this.registration.dispose();
+  }
+
+  private put(path: string, text: string): vscode.Uri {
+    const uri = vscode.Uri.from({ scheme: COMPARE_SCHEME, path });
+    this.contents.set(uri.toString(), text);
+    return uri;
+  }
+}

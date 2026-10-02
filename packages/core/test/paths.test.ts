@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { itemPath, listPath, MissingParentError, parentsOf, upsertTarget } from '../src/openapi/paths';
+import { itemPath, listPath, MissingParentError, parentsOf, resourcePath, upsertTarget } from '../src/openapi/paths';
 import { snapshotCatalog } from './fixtures';
 
 const topic = snapshotCatalog.latest('Topic')!;
@@ -35,5 +35,15 @@ describe('paths', () => {
 
   it('maps a partial parent chain onto param names', () => {
     expect(parentsOf(connector, ['prod'])).toEqual({ cluster: 'prod' });
+  });
+
+  it('finds a resource by the parents in its own metadata', () => {
+    expect(
+      resourcePath(connector, {
+        apiVersion: 'v2',
+        kind: 'Connector',
+        metadata: { name: 'sink a', cluster: 'prod', connectCluster: 'main' },
+      }),
+    ).toBe('/public/kafka/v2/cluster/prod/connect/main/connector/sink%20a');
   });
 });

@@ -41,6 +41,10 @@ export class ConnectionStore implements vscode.Disposable {
     await this.setActive(connection.id);
   }
 
+  async update(connection: Connection): Promise<void> {
+    await this.save(this.all().map((c) => (c.id === connection.id ? connection : c)));
+  }
+
   async remove(id: string): Promise<void> {
     await this.context.secrets.delete(tokenKey(id));
     await this.save(this.all().filter((c) => c.id !== id));

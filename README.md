@@ -24,18 +24,32 @@ Press F5 in this folder to launch an Extension Development Host. Install
 
 1. **Conduktor: Add Connection** — Console URL, a personal access token or an admin API key, a name and a mode.
    The status bar shows the connection, what the token can reach (`admin`, `user`, `app`) and the mode.
-2. The **Conduktor** activity bar view lists resource groups, kinds and resources. Clicking one opens it read-only as YAML.
-3. Any YAML file with a Conduktor `apiVersion` and `kind` gets the connected Console's schema: completion, hover and errors.
-4. **Dry run** CodeLenses above each resource send it with `dryMode=true` and show `Created`, `Updated` or `NotChanged`
-   inline; failures appear as problems on the resource.
+   **Conduktor: Change Mode** switches between `read-only`, `dry-run` and `apply`.
+2. The **Conduktor** activity bar view lists resource groups, kinds and resources. Clicking one opens it as YAML:
+   read-only, or editable in `apply` mode, where **saving dry-runs it, asks, and applies it**.
+3. **New Resource…** (the `+` on a kind or cluster in the tree, or the command palette) opens an untitled document
+   from the kind's published example, with the cluster already filled in.
+4. Any YAML file with a Conduktor `apiVersion` and `kind` gets the connected Console's schema: completion, hover and
+   errors. Kubernetes, Argo CD and Helm documents in the same file are left alone.
+5. CodeLenses above each resource: **Dry run** and, in `apply` mode, **Apply** (a dry run, a confirmation, then the
+   real thing). The last result shows in the lens and at the end of the line; failures appear in Problems.
+   **Diff with Live** compares the resource with what the Console holds.
+6. On a resource in the tree: **Copy to Workspace…** saves it as a file to commit, and in `apply` mode
+   **Delete from Console**.
 
 `${VAR}` and `${VAR:-default}` are expanded from VS Code's environment, as `conduktor apply` does. `spec.schemaFile` and
 the `conduktor.io/descriptionFile` label are read relative to the workspace folder root.
 
+Console's topic list comes from its indexer, so a topic created here can take a minute or two to appear in the tree;
+opening it by name works straight away.
+
 ## Demo script
 
 1. A local Console stack, with Console on `http://localhost:8080`.
-2. F5, then **Conduktor: Add Connection** with an admin's PAT, mode **Dry run**.
-3. Expand **kafka → Topic → local-kafka**, open a topic, show completion by typing under `spec:` in a new file.
-4. Copy the topic YAML into `topics.yaml`, change `partitions`, click **Dry run**: `~ Updated (dry run)`.
-5. Point at the output channel: the same check as `conduktor apply -f topics.yaml --dry-run`.
+2. F5, then **Conduktor: Add Connection** with an admin's PAT, mode **Apply**.
+3. Expand **kafka → Topic → local-kafka** and open a topic. Change a label and save: confirm, and it is applied.
+4. Click `+` on **local-kafka**: a new Topic from the template. Rename it, **Dry run** (`+ Created`), **Diff with
+   Live** (nothing on the Console yet), then **Apply**.
+5. **Copy to Workspace…** on the topic to put it in git; the output channel shows the matching
+   `conduktor apply -f … --dry-run` for CI.
+6. **Delete from Console** to clean up.
