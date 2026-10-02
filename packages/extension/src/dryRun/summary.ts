@@ -1,8 +1,8 @@
-import type { DryRunItem, UpsertResult } from '@conduktor/vscode-core';
+import type { UpsertItem, UpsertResult } from '@conduktor/vscode-core';
 
 const RESULTS: UpsertResult[] = ['Created', 'Updated', 'NotChanged'];
 
-export function summarise(connectionName: string, items: readonly DryRunItem[]): { text: string; failed: number } {
+export function summarise(connectionName: string, items: readonly UpsertItem[]): { text: string; failed: number } {
   const count = (result: UpsertResult) =>
     items.filter((i) => i.outcome.status === 'ok' && i.outcome.result === result).length;
   const failed = items.filter((i) => i.outcome.status === 'error').length;

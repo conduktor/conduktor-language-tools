@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ConsoleError } from '../src/client/errors';
-import { dryRunDocuments } from '../src/plan/dryRun';
+import { upsertDocuments } from '../src/plan/upsertDocuments';
 import { parseResourceDocuments } from '../src/resources/parseDocuments';
 import { snapshotCatalog } from './fixtures';
 
@@ -30,14 +30,17 @@ metadata: { name: orders-value, cluster: local }
 spec: { schemaFile: orders.avsc }
 `;
 
-describe('dryRunDocuments', () => {
+describe('upsertDocuments', () => {
   it('dry-runs in apply order and reports per-document outcomes', async () => {
     const upsert = vi.fn(async (target: { path: string }, _resource: unknown, _options: { dryRun: boolean }) => {
       if (target.path.endsWith('/kafka-cluster')) return { resource: {} as never, upsertResult: 'NotChanged' as const };
       return { resource: {} as never, upsertResult: 'Created' as const };
     });
     const documents = parseResourceDocuments(text, { env: {} });
-    const items = await dryRunDocuments({ upsert }, snapshotCatalog, documents, { readInclude: () => '{}' });
+    const items = await upsertDocuments({ upsert }, snapshotCatalog, documents, {
+      dryRun: true,
+      readInclude: () => '{}',
+    });
 
     expect(items.map((i) => [i.document.resource?.metadata.name, i.outcome])).toEqual([
       ['local', { status: 'ok', result: 'NotChanged' }],
@@ -59,7 +62,7 @@ describe('dryRunDocuments', () => {
         'apiVersion: v2\nkind: Topic\nmetadata: { name: t, cluster: local }\nspec: {}\n',
       { env: {} },
     );
-    const items = await dryRunDocuments({ upsert }, snapshotCatalog, documents);
+    const items = await upsertDocuments({ upsert }, snapshotCatalog, documents, { dryRun: true });
     expect(items.map((i) => i.outcome)).toEqual([
       { status: 'error', message: 'Missing environment variables: C' },
       { status: 'error', message: 'No Ownership: You do not own orders' },
@@ -68,7 +71,7 @@ describe('dryRunDocuments', () => {
 
   it('reports an include that cannot be read without a workspace folder', async () => {
     const documents = parseResourceDocuments(text, { env: {} }).filter((d) => d.kind === 'Subject');
-    const items = await dryRunDocuments({ upsert: vi.fn() }, snapshotCatalog, documents);
+    const items = await upsertDocuments({ upsert: vi.fn() }, snapshotCatalog, documents, { dryRun: true });
     expect(items[0]?.outcome).toMatchObject({ status: 'error', message: expect.stringMatching(/workspace folder/) });
   });
 });

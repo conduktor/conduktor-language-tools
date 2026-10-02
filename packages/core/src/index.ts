@@ -24,5 +24,5 @@ export {
 export { expandIncludes, IncludeError } from './resources/includes';
 export { sortForApply } from './resources/ordering';
 export { buildSpec, loadSpec, type LoadedSpec, type SpecCache, type SpecSource } from './openapi/loadSpec';
-export { dryRunDocuments, type DryRunItem, type DryRunOptions, type DryRunOutcome } from './plan/dryRun';
+export { upsertDocuments, type UpsertItem, type UpsertOptions, type UpsertOutcome } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';

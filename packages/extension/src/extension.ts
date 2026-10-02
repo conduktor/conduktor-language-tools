@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { DryRunItem } from '@conduktor/vscode-core';
+import type { UpsertItem } from '@conduktor/vscode-core';
 import { exposedApi } from './api';
 import { registerConnectionCommands } from './connections/commands';
 import { ConnectionStore } from './connections/connectionStore';
@@ -19,7 +19,7 @@ export interface ExtensionApi {
   sessions: SessionManager;
   explorer: ExplorerProvider;
   liveUri: (node: ResourceNode) => vscode.Uri;
-  dryRun: (uri: vscode.Uri, index?: number) => Promise<DryRunItem[] | undefined>;
+  dryRun: (uri: vscode.Uri, index?: number) => Promise<UpsertItem[] | undefined>;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {

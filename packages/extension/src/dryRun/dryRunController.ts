@@ -3,9 +3,9 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   catalogDocuments,
-  dryRunDocuments,
+  upsertDocuments,
   splitPolicyMessages,
-  type DryRunItem,
+  type UpsertItem,
   type UpsertResult,
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
@@ -38,7 +38,7 @@ export class DryRunController implements vscode.Disposable {
     ];
   }
 
-  async run(uri: vscode.Uri, index?: number): Promise<DryRunItem[] | undefined> {
+  async run(uri: vscode.Uri, index?: number): Promise<UpsertItem[] | undefined> {
     const state = this.sessions.current();
     if (state.status !== 'ready') {
       void vscode.window.showWarningMessage('Connect to a Conduktor Console first.');
@@ -64,7 +64,7 @@ export class DryRunController implements vscode.Disposable {
         : undefined;
     const items = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: `Dry run on ${state.connection.name}` },
-      () => dryRunDocuments(state.client, state.spec.catalog, documents, { readInclude }),
+      () => upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: true, readInclude }),
     );
 
     this.show(document, items);
@@ -91,7 +91,7 @@ export class DryRunController implements vscode.Disposable {
     this.decoration.dispose();
   }
 
-  private show(document: vscode.TextDocument, items: readonly DryRunItem[]): void {
+  private show(document: vscode.TextDocument, items: readonly UpsertItem[]): void {
     const diagnostics: vscode.Diagnostic[] = [];
     const decorations: vscode.DecorationOptions[] = [];
     for (const { document: resourceDocument, outcome } of items) {

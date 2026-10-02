@@ -7,24 +7,25 @@ import { sortForApply } from '../resources/ordering';
 import type { ResourceDocument } from '../resources/parseDocuments';
 import type { UpsertResult } from '../resources/types';
 
-export type DryRunOutcome = { status: 'ok'; result: UpsertResult } | { status: 'error'; message: string };
+export type UpsertOutcome = { status: 'ok'; result: UpsertResult } | { status: 'error'; message: string };
 
-export interface DryRunItem {
+export interface UpsertItem {
   document: ResourceDocument;
-  outcome: DryRunOutcome;
+  outcome: UpsertOutcome;
 }
 
-export interface DryRunOptions {
+export interface UpsertOptions {
+  dryRun: boolean;
   readInclude?: (path: string) => string;
 }
 
-export async function dryRunDocuments(
+export async function upsertDocuments(
   client: Pick<ConsoleClient, 'upsert'>,
   catalog: KindCatalog,
   documents: readonly ResourceDocument[],
-  options: DryRunOptions = {},
-): Promise<DryRunItem[]> {
-  const items: DryRunItem[] = [];
+  options: UpsertOptions,
+): Promise<UpsertItem[]> {
+  const items: UpsertItem[] = [];
   for (const document of sortForApply(documents, catalog)) {
     items.push({ document, outcome: await dryRunOne(client, catalog, document, options) });
   }
@@ -35,8 +36,8 @@ async function dryRunOne(
   client: Pick<ConsoleClient, 'upsert'>,
   catalog: KindCatalog,
   document: ResourceDocument,
-  options: DryRunOptions,
-): Promise<DryRunOutcome> {
+  options: UpsertOptions,
+): Promise<UpsertOutcome> {
   const { resource } = document;
   if (!resource) return { status: 'error', message: document.error ?? 'Not a Conduktor resource' };
   const kind = catalog.resolve(resource.apiVersion, resource.kind);
@@ -44,7 +45,7 @@ async function dryRunOne(
     return { status: 'error', message: `${resource.kind} ${resource.apiVersion} is not available on this Console` };
   try {
     const expanded = expandIncludes(resource, options.readInclude);
-    const response = await client.upsert(upsertTarget(kind, expanded), expanded, { dryRun: true });
+    const response = await client.upsert(upsertTarget(kind, expanded), expanded, { dryRun: options.dryRun });
     return { status: 'ok', result: response.upsertResult };
   } catch (error) {
     return { status: 'error', message: describeError(error) };
