@@ -28,29 +28,42 @@ export function buildResourceSchema(doc: OpenApiDoc, catalog: KindCatalog): Json
   const versionsByKind = new Map<string, string[]>();
   for (const kv of kinds) versionsByKind.set(kv.kind, [...(versionsByKind.get(kv.kind) ?? []), `v${kv.version}`]);
 
+  const apiVersions = [...new Set(kinds.map((kv) => `v${kv.version}`))].sort();
+  const kindNames = [...versionsByKind.keys()].sort();
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     title: 'Conduktor Console resource',
     type: 'object',
-    required: ['apiVersion', 'kind', 'metadata'],
     properties: {
-      apiVersion: { type: 'string', enum: [...new Set(kinds.map((kv) => `v${kv.version}`))].sort() },
-      kind: { type: 'string', enum: [...versionsByKind.keys()].sort() },
-      metadata: { type: 'object' },
+      apiVersion: { type: 'string', examples: apiVersions },
+      kind: { type: 'string', examples: kindNames },
     },
-    allOf: [
-      ...[...versionsByKind].map(([kind, versions]) => ({
-        if: { properties: { kind: { const: kind } }, required: ['kind'] },
-        then: { properties: { apiVersion: { enum: versions } } },
-      })),
-      ...kinds.map((kv) => ({
-        if: {
-          properties: { kind: { const: kv.kind }, apiVersion: { const: `v${kv.version}` } },
-          required: ['kind', 'apiVersion'],
-        },
-        then: { $ref: `#/definitions/${kv.bodySchema}` },
-      })),
-    ],
+    // Mirrors catalogDocuments: other documents in the same file (ConfigMaps, namespaced Kubernetes kinds) pass.
+    if: {
+      properties: {
+        apiVersion: { pattern: '^v\\d+$' },
+        kind: { enum: kindNames },
+        metadata: { not: { required: ['namespace'] } },
+      },
+      required: ['kind'],
+    },
+    then: {
+      required: ['apiVersion', 'kind', 'metadata'],
+      properties: { apiVersion: { enum: apiVersions }, metadata: { type: 'object' } },
+      allOf: [
+        ...[...versionsByKind].map(([kind, versions]) => ({
+          if: { properties: { kind: { const: kind } }, required: ['kind'] },
+          then: { properties: { apiVersion: { enum: versions } } },
+        })),
+        ...kinds.map((kv) => ({
+          if: {
+            properties: { kind: { const: kv.kind }, apiVersion: { const: `v${kv.version}` } },
+            required: ['kind', 'apiVersion'],
+          },
+          then: { $ref: `#/definitions/${kv.bodySchema}` },
+        })),
+      ],
+    },
     definitions,
   };
 }

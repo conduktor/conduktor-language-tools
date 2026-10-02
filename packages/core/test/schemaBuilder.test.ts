@@ -55,8 +55,16 @@ describe('buildResourceSchema', () => {
     expect(validate({ ...topic, apiVersion: 'v9' })).toBe(false);
   });
 
-  it('rejects an unknown kind', () => {
-    expect(validate({ ...topic, kind: 'Topik' })).toBe(false);
+  it('does not judge documents that are not Console resources', () => {
+    expect(validate({ apiVersion: 'v1', kind: 'ConfigMap', metadata: { name: 'cfg' } })).toBe(true);
+    expect(validate({ apiVersion: 'v1', kind: 'ServiceAccount', metadata: { name: 'web', namespace: 'shop' } })).toBe(
+      true,
+    );
+    expect(validate({ apiVersion: 'argoproj.io/v1alpha1', kind: 'Application', metadata: { name: 'a' } })).toBe(true);
+  });
+
+  it('still requires metadata on a Console kind', () => {
+    expect(validate({ apiVersion: 'v1', kind: 'Application', spec: {} })).toBe(false);
   });
 
   it('is draft-07 with every reference resolvable', () => {

@@ -40,6 +40,24 @@ describe('generated schema in yaml-language-server', () => {
     expect(diagnostics.every((d) => d.range.start.line >= 5)).toBe(true);
   });
 
+  it('leaves other documents in a claimed file unvalidated', async () => {
+    const text = [
+      'apiVersion: v2',
+      'kind: Topic',
+      'metadata: { name: ok, cluster: local }',
+      'spec: { partitions: 1, replicationFactor: 1 }',
+      '---',
+      'apiVersion: v1',
+      'kind: ConfigMap',
+      'metadata: { name: cfg }',
+      '---',
+      'apiVersion: v1',
+      'kind: ServiceAccount',
+      'metadata: { name: web, namespace: shop }',
+    ].join('\n');
+    expect(await service.doValidation(doc(text), false)).toEqual([]);
+  });
+
   it('completes spec fields once the kind is known', async () => {
     const text = 'apiVersion: v2\nkind: Topic\nmetadata:\n  name: t\n  cluster: c\nspec:\n  ';
     const completion = await service.doComplete(doc(text), { line: 6, character: 2 }, false);
