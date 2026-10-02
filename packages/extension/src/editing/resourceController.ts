@@ -18,7 +18,7 @@ const RESULT_LABELS: Record<UpsertResult, string> = {
   NotChanged: '= NotChanged',
 };
 
-export class DryRunController implements vscode.Disposable {
+export class ResourceController implements vscode.Disposable {
   private readonly diagnostics = vscode.languages.createDiagnosticCollection('conduktor');
   private readonly decoration = vscode.window.createTextEditorDecorationType({
     after: { margin: '0 0 0 2em', color: new vscode.ThemeColor('editorCodeLens.foreground') },

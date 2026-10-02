@@ -1,6 +1,6 @@
 import type { UpsertItem } from '@conduktor/vscode-core';
 import { describe, expect, it } from 'vitest';
-import { summarise } from '../src/dryRun/summary';
+import { summarise } from '../src/editing/summary';
 
 const item = (outcome: UpsertItem['outcome']): UpsertItem => ({
   document: { index: 0, start: 0, end: 0, kind: 'Topic', apiVersion: 'v2' },

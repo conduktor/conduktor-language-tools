@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { catalogDocuments } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 
-export class DryRunCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
+export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
   private readonly sessionListener: vscode.Disposable;

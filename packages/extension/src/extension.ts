@@ -4,8 +4,8 @@ import { exposedApi } from './api';
 import { registerConnectionCommands } from './connections/commands';
 import { ConnectionStore } from './connections/connectionStore';
 import { SessionManager } from './connections/session';
-import { DryRunCodeLensProvider } from './dryRun/codeLens';
-import { DryRunController } from './dryRun/dryRunController';
+import { ResourceCodeLensProvider } from './editing/codeLens';
+import { ResourceController } from './editing/resourceController';
 import type { ResourceNode } from './explorer/explorerModel';
 import { ExplorerProvider } from './explorer/explorerProvider';
 import { ConduktorFileSystem } from './liveFs/conduktorFileSystem';
@@ -28,8 +28,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const sessions = new SessionManager(context, connections, output);
   const explorer = new ExplorerProvider(sessions);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
-  const dryRun = new DryRunController(sessions, output);
-  const codeLenses = new DryRunCodeLensProvider(sessions);
+  const dryRun = new ResourceController(sessions, output);
+  const codeLenses = new ResourceCodeLensProvider(sessions);
 
   context.subscriptions.push(
     output,
