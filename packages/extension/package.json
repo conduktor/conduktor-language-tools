@@ -81,6 +81,12 @@
         "command": "conduktor.showOutput",
         "title": "Show Output",
         "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.refreshExplorer",
+        "title": "Refresh Explorer",
+        "category": "Conduktor",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {
@@ -111,6 +117,11 @@
       "view/title": [
         {
           "command": "conduktor.addConnection",
+          "when": "view == conduktor.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.refreshExplorer",
           "when": "view == conduktor.explorer",
           "group": "navigation"
         }
