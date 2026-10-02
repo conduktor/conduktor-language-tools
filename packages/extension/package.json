@@ -202,6 +202,12 @@
         "title": "Apply",
         "category": "Conduktor",
         "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "conduktor.selectCluster",
+        "title": "Select Cluster",
+        "category": "Conduktor",
+        "icon": "$(server)"
       }
     ],
     "viewsContainers": {
@@ -230,6 +236,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "conduktor.selectCluster",
+          "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "navigation"
+        },
         {
           "command": "conduktor.addConnection",
           "when": "view == conduktor.explorer",
@@ -393,6 +404,11 @@
         {
           "command": "conduktor.applyLocal",
           "when": "view == conduktor.explorer && viewItem =~ /^resource\\.(new|modified)$/ && conduktor.mode == apply",
+          "group": "inline"
+        },
+        {
+          "command": "conduktor.selectCluster",
+          "when": "view == conduktor.explorer && viewItem == scope.cluster",
           "group": "inline"
         }
       ]

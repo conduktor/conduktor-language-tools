@@ -23,30 +23,49 @@ export interface LocalResource {
   mark: LocalMark;
 }
 
+export type Scope = 'global' | 'cluster';
+
 export type ExplorerNode =
-  | { type: 'group'; group: string }
-  | { type: 'kind'; kind: KindVersion }
+  | { type: 'scope'; scope: Scope; cluster?: string }
+  | { type: 'group'; group: string; scope: Scope }
+  | { type: 'kind'; kind: KindVersion; parents: string[] }
   | { type: 'parent'; kind: KindVersion; parents: string[] }
   | { type: 'resource'; kind: KindVersion; parents: string[]; name: string; local?: LocalMark }
-  | { type: 'message'; text: string; detail?: string; noAccess?: boolean };
+  | { type: 'message'; text: string; detail?: string; noAccess?: boolean; selectCluster?: boolean };
 
 export type ResourceNode = Extract<ExplorerNode, { type: 'resource' }>;
 
 export interface ExplorerSource {
   catalog: KindCatalog;
   client: Pick<ConsoleClient, 'list'>;
+  cluster?: string;
   local?: readonly LocalResource[];
   onlyChanges?: boolean;
 }
 
 export async function childrenOf(source: ExplorerSource, node?: ExplorerNode): Promise<ExplorerNode[]> {
-  const kinds = visibleKinds(source);
-  if (!node) return [...new Set(kinds.map((k) => k.group))].sort().map((group) => ({ type: 'group', group }));
+  if (!node) {
+    const scopes: ExplorerNode[] = [
+      { type: 'scope', scope: 'global' },
+      { type: 'scope', scope: 'cluster', ...(source.cluster && { cluster: source.cluster }) },
+    ];
+    return source.onlyChanges
+      ? scopes.filter((n) => n.type === 'scope' && visibleKinds(source, n.scope).length > 0)
+      : scopes;
+  }
   switch (node.type) {
+    case 'scope':
+      if (node.scope === 'cluster' && !source.cluster) {
+        return [{ type: 'message', text: 'Select a cluster…', selectCluster: true }];
+      }
+      return [...new Set(visibleKinds(source, node.scope).map((k) => k.group))]
+        .sort()
+        .map((group) => ({ type: 'group', group, scope: node.scope }));
     case 'group':
-      return kinds.filter((kind) => kind.group === node.group).map((kind) => ({ type: 'kind', kind }));
+      return visibleKinds(source, node.scope)
+        .filter((kind) => kind.group === node.group)
+        .map((kind) => ({ type: 'kind', kind, parents: node.scope === 'cluster' ? [source.cluster!] : [] }));
     case 'kind':
-      return nextLevel(source, node.kind, []);
     case 'parent':
       return nextLevel(source, node.kind, node.parents);
     default:
@@ -54,16 +73,20 @@ export async function childrenOf(source: ExplorerSource, node?: ExplorerNode): P
   }
 }
 
-function visibleKinds(source: ExplorerSource): KindVersion[] {
-  const changed = source.onlyChanges ? new Set(changes(source).map((r) => r.kind)) : undefined;
+export function scopeOf(kind: KindVersion): Scope {
+  return kind.parentPathParams[0] === 'cluster' ? 'cluster' : 'global';
+}
+
+function visibleKinds(source: ExplorerSource, scope: Scope): KindVersion[] {
+  const changed = source.onlyChanges ? new Set(relevantChanges(source).map((r) => r.kind)) : undefined;
   return [...source.catalog.kindNames()]
-    .filter((name) => !changed || changed.has(name))
     .map((name) => source.catalog.latest(name)!)
+    .filter((kind) => scopeOf(kind) === scope && (!changed || changed.has(kind.kind)))
     .sort((a, b) => a.order - b.order || a.kind.localeCompare(b.kind));
 }
 
 async function nextLevel(source: ExplorerSource, kind: KindVersion, parents: string[]): Promise<ExplorerNode[]> {
-  const locals = (source.onlyChanges ? changes(source) : (source.local ?? [])).filter(
+  const locals = (source.onlyChanges ? relevantChanges(source) : (source.local ?? [])).filter(
     (r) => r.kind === kind.kind && parents.every((parent, i) => r.parents[i] === parent),
   );
   const param = kind.parentPathParams[parents.length];
@@ -109,6 +132,18 @@ async function withLive(
   return nodes.length > 0 ? nodes : [{ type: 'message', text: 'None' }];
 }
 
-function changes(source: ExplorerSource): LocalResource[] {
-  return (source.local ?? []).filter((r) => r.mark.status !== 'synced' || r.mark.drifted);
+// Global resources and the selected cluster: what the tree shows is what Apply All Changes applies.
+export function isInView(
+  catalog: KindCatalog,
+  cluster: string | undefined,
+  resource: { kind: string; parents: readonly string[] },
+): boolean {
+  const kind = catalog.latest(resource.kind);
+  return !!kind && (scopeOf(kind) === 'global' || resource.parents[0] === cluster);
+}
+
+function relevantChanges(source: ExplorerSource): LocalResource[] {
+  return (source.local ?? []).filter(
+    (r) => isInView(source.catalog, source.cluster, r) && (r.mark.status !== 'synced' || r.mark.drifted),
+  );
 }

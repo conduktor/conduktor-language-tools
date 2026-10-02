@@ -43,7 +43,7 @@ export function registerSyncCommands(
           );
           return;
         }
-        const parents = node.type === 'parent' ? node.parents : [];
+        const { parents } = node;
         if (parents.length < node.kind.parentPathParams.length) {
           void vscode.window.showInformationMessage(
             `Open a ${node.kind.parentPathParams[parents.length]} under ${node.kind.kind} and sync from there.`,

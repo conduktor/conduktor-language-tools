@@ -17,6 +17,7 @@ type Ready = Extract<SessionState, { status: 'ready' }>;
 export async function newResource(
   sessions: SessionManager,
   sync: SyncFolder,
+  cluster: string | undefined,
   node?: ExplorerNode,
 ): Promise<vscode.TextDocument | undefined> {
   const state = sessions.current();
@@ -26,7 +27,12 @@ export async function newResource(
   }
   const kind = node?.type === 'kind' || node?.type === 'parent' ? node.kind : await pickKind(state.spec.catalog);
   if (!kind) return undefined;
-  let parents = node?.type === 'parent' ? node.parents : [];
+  let parents =
+    node?.type === 'parent' || node?.type === 'kind'
+      ? node.parents
+      : kind.parentPathParams[0] === 'cluster' && cluster
+        ? [cluster]
+        : [];
   while (parents.length < kind.parentPathParams.length) {
     const value = await pickParent(state, kind, parents);
     if (!value) return undefined;

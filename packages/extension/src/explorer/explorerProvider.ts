@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
+import type { ClusterSelection } from './clusterSelection';
 import { toLiveUriParts } from '../liveFs/uris';
 import { childrenOf, type ExplorerNode, type LocalMark, type ResourceNode } from './explorerModel';
 
-const { Collapsed, None } = vscode.TreeItemCollapsibleState;
+const { Collapsed, Expanded, None } = vscode.TreeItemCollapsibleState;
 
 const BADGES: Record<string, { label: string; color: string; tooltip: string }> = {
   new: { label: 'A', color: 'gitDecoration.addedResourceForeground', tooltip: 'New locally, not on the Console yet' },
@@ -25,8 +26,13 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   constructor(
     private readonly sessions: SessionManager,
     private readonly sync: SyncFolder,
+    private readonly clusters: ClusterSelection,
   ) {
-    this.listeners = [sessions.onDidChange(() => this.refresh()), sync.onDidChange(() => this.refresh())];
+    this.listeners = [
+      sessions.onDidChange(() => this.refresh()),
+      sync.onDidChange(() => this.refresh()),
+      clusters.onDidChange(() => this.refresh()),
+    ];
   }
 
   showOnlyChanges(only: boolean): void {
@@ -53,6 +59,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
           {
             catalog: state.spec.catalog,
             client: state.client,
+            cluster: this.clusters.current(),
             onlyChanges: this.onlyChanges,
             local: this.sync.list().map((entry) => ({
               kind: entry.kind,
@@ -82,6 +89,17 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
 
   getTreeItem(node: ExplorerNode): vscode.TreeItem {
     switch (node.type) {
+      case 'scope': {
+        if (node.scope === 'global') return item('Global', Expanded, 'globe', 'scope.global');
+        const treeItem = item(
+          node.cluster ? `Cluster ${node.cluster}` : 'Cluster',
+          Expanded,
+          'server',
+          'scope.cluster',
+        );
+        treeItem.tooltip = 'Resources that live in a Kafka cluster. Select Cluster switches to another one.';
+        return treeItem;
+      }
       case 'group':
         return item(node.group, Collapsed, 'folder', 'group');
       case 'kind': {
@@ -112,6 +130,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       case 'message': {
         const treeItem = item(node.text, None, node.noAccess ? 'circle-slash' : 'info', 'message');
         treeItem.tooltip = node.detail;
+        if (node.selectCluster) treeItem.command = { command: 'conduktor.selectCluster', title: 'Select Cluster' };
         return treeItem;
       }
     }

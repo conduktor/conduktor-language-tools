@@ -12,6 +12,7 @@ import { Compare } from './editing/compare';
 import { newResource } from './editing/newResource';
 import { ResourceController } from './editing/resourceController';
 import type { ExplorerNode, ResourceNode } from './explorer/explorerModel';
+import { ClusterSelection } from './explorer/clusterSelection';
 import { ExplorerProvider } from './explorer/explorerProvider';
 import { registerResourceCommands } from './explorer/resourceCommands';
 import { ConduktorFileSystem } from './liveFs/conduktorFileSystem';
@@ -33,6 +34,7 @@ export interface ExtensionApi {
   newResource: (node?: ExplorerNode) => Promise<vscode.TextDocument | undefined>;
   setConfirm: (confirm: Confirm) => void;
   sync: SyncFolder;
+  clusters: ClusterSelection;
   applyAllChanges: () => Promise<UpsertItem[] | undefined>;
 }
 
@@ -47,7 +49,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const resources = new ResourceController(sessions, output, compare, confirm);
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
   const sync = new SyncFolder(sessions, output);
-  const explorer = new ExplorerProvider(sessions, sync);
+  const clusters = new ClusterSelection(context, sessions);
+  const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
 
@@ -61,6 +64,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     resources,
     codeLenses,
     sync,
+    clusters,
     createStatusBar(sessions),
     ...registerSyncCommands(sync, confirm, sessions),
     ...registerConnectionCommands(connections, sessions),
@@ -71,15 +75,16 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
     vscode.commands.registerCommand('conduktor.applyAllChanges', () =>
-      applyAllChanges(sessions, sync, confirm, output),
+      applyAllChanges(sessions, sync, confirm, output, clusters.current()),
     ),
     vscode.commands.registerCommand('conduktor.applyLocal', (node: ResourceNode) =>
       node.local ? resources.apply(vscode.Uri.parse(node.local.uri)) : undefined,
     ),
     vscode.commands.registerCommand('conduktor.showOnlyChanges', () => explorer.showOnlyChanges(true)),
     vscode.commands.registerCommand('conduktor.showAll', () => explorer.showOnlyChanges(false)),
+    vscode.commands.registerCommand('conduktor.selectCluster', () => clusters.pick()),
     vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) =>
-      newResource(sessions, sync, node),
+      newResource(sessions, sync, clusters.current(), node),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, codeLenses),
     vscode.commands.registerCommand('conduktor.dryRunDocument', (uri: vscode.Uri, index: number) =>
@@ -115,6 +120,11 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       if (uri && text !== undefined && applied && sync.contains(uri)) void sync.markApplied(uri, text);
     }),
     connections.onDidChange(() => void sessions.reload()),
+    clusters.onDidChange((cluster) => {
+      const state = sessions.current();
+      if (state.status !== 'none')
+        explorerView.description = [state.connection.name, cluster].filter(Boolean).join(' · ');
+    }),
     sessions.onDidChange((state) => {
       explorerView.description = state.status === 'none' ? undefined : state.connection.name;
       void vscode.commands.executeCommand(
@@ -135,12 +145,13 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     liveUri: (node: ResourceNode) => explorer.liveUri(node),
     dryRun: (uri: vscode.Uri, index?: number) => resources.dryRun(uri, index),
     apply: (uri: vscode.Uri, index?: number) => resources.apply(uri, index),
-    newResource: (node?: ExplorerNode) => newResource(sessions, sync, node),
+    newResource: (node?: ExplorerNode) => newResource(sessions, sync, clusters.current(), node),
     setConfirm: (replacement: Confirm) => {
       confirmWith = replacement;
     },
     sync,
-    applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output),
+    applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output, clusters.current()),
+    clusters,
   });
 }
 

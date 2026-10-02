@@ -9,6 +9,7 @@ import {
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import { includeReaderFor } from '../editing/includes';
+import { isInView } from '../explorer/explorerModel';
 import { summarise } from '../editing/summary';
 import type { Output } from '../output';
 import type { LocalEntry, SyncFolder } from './syncFolder';
@@ -18,6 +19,7 @@ export async function applyAllChanges(
   sync: SyncFolder,
   confirm: Confirm,
   output: Output,
+  cluster: string | undefined,
 ): Promise<UpsertItem[] | undefined> {
   const state = sessions.current();
   if (state.status !== 'ready' || state.connection.mode !== 'apply') {
@@ -26,7 +28,9 @@ export async function applyAllChanges(
   }
   await saveOpenChanges(sync);
   await sync.refresh({ drift: true });
-  const changed = sync.list().filter((entry) => entry.status !== 'synced');
+  const changed = sync
+    .list()
+    .filter((entry) => entry.status !== 'synced' && isInView(state.spec.catalog, cluster, entry));
   if (changed.length === 0) {
     void vscode.window.showInformationMessage('No local changes to apply.');
     return [];
@@ -65,7 +69,9 @@ export async function applyAllChanges(
   ]
     .filter(Boolean)
     .join('\n\n');
-  if ((await confirm(`Apply ${changed.length} local changes to ${name}?`, detail, 'Apply')) !== 'Apply') return plan;
+  const scope = cluster ? `global resources and cluster ${cluster}` : 'global resources';
+  if ((await confirm(`Apply ${changed.length} local changes to ${name} (${scope})?`, detail, 'Apply')) !== 'Apply')
+    return plan;
 
   const items = await upsertDocuments(state.client, state.spec.catalog, documents, {
     dryRun: false,

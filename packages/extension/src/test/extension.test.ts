@@ -77,7 +77,15 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     if (state.status !== 'ready') assert.fail(state.status === 'error' ? state.message : state.status);
     assert.strictEqual(state.spec.source, 'live');
 
-    const kafka = (await api.explorer.getChildren()).find((n) => n.type === 'group' && n.group === 'kafka');
+    const roots = await api.explorer.getChildren();
+    assert.deepStrictEqual(
+      roots.map((n) => n.type === 'scope' && n.scope),
+      ['global', 'cluster'],
+    );
+    await api.clusters.set('local-kafka');
+    const clusterScope = (await api.explorer.getChildren()).find((n) => n.type === 'scope' && n.scope === 'cluster');
+    assert.ok(clusterScope?.type === 'scope' && clusterScope.cluster === 'local-kafka', 'cluster selected');
+    const kafka = (await api.explorer.getChildren(clusterScope)).find((n) => n.type === 'group' && n.group === 'kafka');
     assert.ok(kafka, 'kafka group');
     const topicKind = (await api.explorer.getChildren(kafka)).find((n) => n.type === 'kind' && n.kind.kind === 'Topic');
     assert.ok(topicKind, 'Topic kind');
@@ -257,6 +265,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     const topicKind = state.spec.catalog.latest('Topic')!;
+    await api.clusters.set('local-kafka');
     const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
     assert.ok(existing, 'a topic to sync');
     const name = existing.metadata.name;
@@ -275,14 +284,18 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
     api.explorer.showOnlyChanges(true);
     try {
-      const groups = await api.explorer.getChildren();
+      const scopes = await api.explorer.getChildren();
+      assert.deepStrictEqual(
+        scopes.map((n) => n.type === 'scope' && [n.scope, n.cluster]),
+        [['cluster', 'local-kafka']],
+      );
+      const groups = await api.explorer.getChildren(scopes[0]);
       assert.deepStrictEqual(
         groups.map((g) => g.type === 'group' && g.group),
         ['kafka'],
       );
       const [topics] = await api.explorer.getChildren(groups[0]);
-      const [cluster] = await api.explorer.getChildren(topics);
-      const changed = await api.explorer.getChildren(cluster);
+      const changed = await api.explorer.getChildren(topics);
       assert.deepStrictEqual(
         changed.map((n) => n.type === 'resource' && [n.name, n.local?.status]),
         [[name, 'modified']],

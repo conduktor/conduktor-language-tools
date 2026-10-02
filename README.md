@@ -14,18 +14,18 @@ is valid, and what applying it would change. Git comes with VS Code.
 
 ## What it does
 
-|                           |                                                                                                                                                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Connect**               | Add a Console with a personal access token (PAT) or an admin API key. The status bar shows the connection, what the token can reach and the connection's mode.                                                                             |
-| **Browse**                | An Explorer view of every resource kind the Console exposes — grouped as in the API, with clusters and Connect clusters as levels — built from that Console's own OpenAPI, so it always matches its version.                               |
-| **Open and edit**         | Click a resource to open it as YAML. In `apply` mode the document is editable: saving runs a dry run, shows what will change, asks, then applies.                                                                                          |
-| **Create**                | **New Resource…** (the `+` on a kind or cluster) opens a document from the kind's published example with the parents filled in.                                                                                                            |
-| **Validate and complete** | Any YAML file with a Console `apiVersion` and `kind` gets the connected Console's JSON Schema: completion, hover and errors, per document in multi-document files. Kubernetes, Argo CD and Helm documents in the same file are left alone. |
-| **Dry run, apply, diff**  | CodeLenses above every resource: **Dry run**, **Apply** (dry run, confirmation, apply) and **Diff with Live**. The last result shows in the lens and at the end of the line; failures land in Problems.                                    |
-| **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                    |
-| **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                      |
-| **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. See [Local sync folder](#local-sync-folder).                                                           |
-| **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                        |
+|                           |                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Connect**               | Add a Console with a personal access token (PAT) or an admin API key. The status bar shows the connection, what the token can reach and the connection's mode.                                                                                                                                     |
+| **Browse**                | An Explorer view in two parts: **Global** resources (users, groups, applications, policies, clusters…) and the resources of one **Cluster**, picked with **Select Cluster** (connectors keep their Connect cluster level). Built from the Console's own OpenAPI, so it always matches its version. |
+| **Open and edit**         | Click a resource to open it as YAML. In `apply` mode the document is editable: saving runs a dry run, shows what will change, asks, then applies.                                                                                                                                                  |
+| **Create**                | **New Resource…** (the `+` on a kind or cluster) opens a document from the kind's published example with the parents filled in.                                                                                                                                                                    |
+| **Validate and complete** | Any YAML file with a Console `apiVersion` and `kind` gets the connected Console's JSON Schema: completion, hover and errors, per document in multi-document files. Kubernetes, Argo CD and Helm documents in the same file are left alone.                                                         |
+| **Dry run, apply, diff**  | CodeLenses above every resource: **Dry run**, **Apply** (dry run, confirmation, apply) and **Diff with Live**. The last result shows in the lens and at the end of the line; failures land in Problems.                                                                                            |
+| **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                                                                            |
+| **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                                                                              |
+| **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. See [Local sync folder](#local-sync-folder).                                                                                                                   |
+| **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                                                                                |
 
 ## Local sync folder
 
@@ -100,7 +100,8 @@ code --install-extension packages/extension/dist/conduktor-console.vsix
 
 1. Open the **Conduktor** view in the activity bar and choose **Add Connection**: the Console URL (for a local stack,
    `http://localhost:8080`), a token, a name and a mode.
-2. Expand a group and kind — for example **kafka → Topic → local-kafka** — and open a topic.
+2. **Select Cluster** (the server icon on the view's title bar; picked for you when there is only one), then expand
+   **Cluster → kafka → Topic** and open a topic. **Global** holds everything that is not in a cluster.
 3. Use **New Resource…** on a cluster, edit the template, then **Dry run** and **Diff with Live**.
 4. **Conduktor: Change Mode** → **Apply** to let the connection change the Console; **Apply** then appears in the
    CodeLens, live documents become editable, and **Delete from Console** appears in the tree.

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { buildSpec, ConsoleError, type Resource } from '@conduktor/vscode-core';
 import { describe, expect, it } from 'vitest';
-import { childrenOf, type ExplorerNode } from '../src/explorer/explorerModel';
+import { childrenOf, type ExplorerNode, type ExplorerSource } from '../src/explorer/explorerModel';
 
 const { catalog } = buildSpec(
   readFileSync(new URL('../../core/snapshot/public-api-doc.yaml', import.meta.url), 'utf8'),
@@ -9,9 +9,10 @@ const { catalog } = buildSpec(
 );
 const named = (...names: string[]) => names.map((name) => ({ metadata: { name } }) as Resource);
 
-function source(responses: Record<string, Resource[] | Error>) {
+function source(responses: Record<string, Resource[] | Error>, extra: Partial<ExplorerSource> = {}): ExplorerSource {
   return {
     catalog,
+    cluster: 'local',
     client: {
       list: async (path: string) => {
         const response = responses[path];
@@ -20,6 +21,7 @@ function source(responses: Record<string, Resource[] | Error>) {
         return response;
       },
     },
+    ...extra,
   };
 }
 
@@ -28,36 +30,87 @@ const find = (nodes: ExplorerNode[], predicate: (n: ExplorerNode) => boolean) =>
   expect(node).toBeDefined();
   return node!;
 };
+const kindNode = (name: string, parents: string[] = []) =>
+  ({ type: 'kind', kind: catalog.latest(name)!, parents }) as const;
+const kindsUnder = async (s: ExplorerSource, scope: 'global' | 'cluster') =>
+  (await Promise.all((await childrenOf(s, { type: 'scope', scope })).map((group) => childrenOf(s, group))))
+    .flat()
+    .map((n) => n.type === 'kind' && n.kind.kind);
 
 describe('childrenOf', () => {
-  it('groups kinds by resource group in apply order, latest version only', async () => {
-    const roots = await childrenOf(source({}));
-    expect(roots.map((n) => n.type === 'group' && n.group)).toContain('kafka');
-    const monitoring = find(roots, (n) => n.type === 'group' && n.group === 'monitoring');
-    const kinds = await childrenOf(source({}), monitoring);
-    expect(kinds.filter((n) => n.type === 'kind' && n.kind.kind === 'Alert')).toHaveLength(1);
-    expect(kinds.find((n) => n.type === 'kind' && n.kind.kind === 'Alert')).toMatchObject({ kind: { version: 3 } });
+  it('splits the tree into global resources and the selected cluster', async () => {
+    expect(await childrenOf(source({}))).toEqual([
+      { type: 'scope', scope: 'global' },
+      { type: 'scope', scope: 'cluster', cluster: 'local' },
+    ]);
   });
 
-  it('walks cluster then Connect cluster before listing connectors', async () => {
+  it('puts kinds that live in a Kafka cluster under the cluster, and the rest under global', async () => {
+    const global = await kindsUnder(source({}), 'global');
+    const cluster = await kindsUnder(source({}), 'cluster');
+    expect(global).toEqual(
+      expect.arrayContaining(['User', 'Group', 'KafkaCluster', 'Application', 'ApplicationInstance', 'Alert']),
+    );
+    expect(cluster).toEqual(
+      expect.arrayContaining(['Topic', 'Subject', 'Connector', 'KafkaConnectCluster', 'ServiceAccount']),
+    );
+    expect(global.filter((k) => cluster.includes(k))).toEqual([]);
+  });
+
+  it('groups kinds by API group in apply order, latest version only', async () => {
+    const s = source({});
+    const monitoring = find(
+      await childrenOf(s, { type: 'scope', scope: 'global' }),
+      (n) => n.type === 'group' && n.group === 'monitoring',
+    );
+    const kinds = await childrenOf(s, monitoring);
+    expect(kinds.filter((n) => n.type === 'kind' && n.kind.kind === 'Alert')).toEqual([kindNode('Alert')]);
+    expect(catalog.latest('Alert')?.version).toBe(3);
+  });
+
+  it("lists a cluster kind's resources straight from the selected cluster", async () => {
+    const s = source({ '/public/kafka/v2/cluster/local/topic': named('b', 'a') });
+    const kafka = find(
+      await childrenOf(s, { type: 'scope', scope: 'cluster', cluster: 'local' }),
+      (n) => n.type === 'group' && n.group === 'kafka',
+    );
+    const topic = find(await childrenOf(s, kafka), (n) => n.type === 'kind' && n.kind.kind === 'Topic');
+    expect(topic).toEqual(kindNode('Topic', ['local']));
+    expect((await childrenOf(s, topic)).map((n) => n.type === 'resource' && [n.name, n.parents])).toEqual([
+      ['a', ['local']],
+      ['b', ['local']],
+    ]);
+  });
+
+  it('keeps the Connect cluster level for connectors', async () => {
     const s = source({
-      '/public/console/v2/kafka-cluster': named('local'),
       '/public/console/v2/cluster/local/kafka-connect': named('main'),
       '/public/kafka/v2/cluster/local/connect/main/connector': named('sink-b', 'sink-a'),
     });
-    const connector = { type: 'kind', kind: catalog.latest('Connector')! } as const;
-    const clusters = await childrenOf(s, connector);
-    expect(clusters).toEqual([{ type: 'parent', kind: connector.kind, parents: ['local'] }]);
-    const connects = await childrenOf(s, clusters[0]);
-    expect(connects).toEqual([{ type: 'parent', kind: connector.kind, parents: ['local', 'main'] }]);
-    const connectors = await childrenOf(s, connects[0]);
-    expect(connectors.map((n) => n.type === 'resource' && n.name)).toEqual(['sink-a', 'sink-b']);
+    const connects = await childrenOf(s, kindNode('Connector', ['local']));
+    expect(connects).toEqual([{ type: 'parent', kind: catalog.latest('Connector'), parents: ['local', 'main'] }]);
+    expect((await childrenOf(s, connects[0])).map((n) => n.type === 'resource' && n.name)).toEqual([
+      'sink-a',
+      'sink-b',
+    ]);
   });
 
-  it('lists parentless kinds directly', async () => {
+  it('asks for a cluster when none is selected', async () => {
+    const s = source({}, { cluster: undefined });
+    expect(await childrenOf(s)).toEqual([
+      { type: 'scope', scope: 'global' },
+      { type: 'scope', scope: 'cluster' },
+    ]);
+    expect(await childrenOf(s, { type: 'scope', scope: 'cluster' })).toEqual([
+      { type: 'message', text: 'Select a cluster…', selectCluster: true },
+    ]);
+  });
+
+  it('lists global kinds directly', async () => {
     const s = source({ '/public/self-serve/v1/application': named('shop') });
-    const nodes = await childrenOf(s, { type: 'kind', kind: catalog.latest('Application')! });
-    expect(nodes).toEqual([{ type: 'resource', kind: catalog.latest('Application'), parents: [], name: 'shop' }]);
+    expect(await childrenOf(s, kindNode('Application'))).toEqual([
+      { type: 'resource', kind: catalog.latest('Application'), parents: [], name: 'shop' },
+    ]);
   });
 
   it('shows no access for a 403 and the error otherwise', async () => {
@@ -65,24 +118,21 @@ describe('childrenOf', () => {
       '/public/iam/v2/user': new ConsoleError(403, 'Forbidden'),
       '/public/iam/v2/group': new Error('boom'),
     });
-    expect(await childrenOf(s, { type: 'kind', kind: catalog.latest('User')! })).toEqual([
+    expect(await childrenOf(s, kindNode('User'))).toEqual([
       { type: 'message', text: 'No access', detail: 'Forbidden', noAccess: true },
     ]);
-    expect(await childrenOf(s, { type: 'kind', kind: catalog.latest('Group')! })).toEqual([
+    expect(await childrenOf(s, kindNode('Group'))).toEqual([
       { type: 'message', text: 'Failed to load', detail: 'boom' },
     ]);
   });
 
   it('says when a list is empty', async () => {
     const s = source({ '/public/self-serve/v1/application': [] });
-    expect(await childrenOf(s, { type: 'kind', kind: catalog.latest('Application')! })).toEqual([
-      { type: 'message', text: 'None' },
-    ]);
+    expect(await childrenOf(s, kindNode('Application'))).toEqual([{ type: 'message', text: 'None' }]);
   });
 });
 
 describe('childrenOf with a sync folder', () => {
-  const topic = catalog.latest('Topic')!;
   const mark = (status: 'new' | 'modified' | 'synced', drifted = false) => ({
     status,
     drifted,
@@ -96,10 +146,13 @@ describe('childrenOf with a sync folder', () => {
     { kind: 'Application', parents: [], name: 'shop', mark: mark('synced', true) },
   ];
 
-  it('merges local resources into the live list, with their marks', async () => {
-    const s = { ...source({ '/public/kafka/v2/cluster/local/topic': named('a', 'b', 'd') }), local };
-    const nodes = await childrenOf(s, { type: 'parent', kind: topic, parents: ['local'] });
-    expect(nodes.map((n) => n.type === 'resource' && [n.name, n.local?.status ?? 'live'])).toEqual([
+  it('merges the selected cluster’s local resources into the live list, with their marks', async () => {
+    const s = source({ '/public/kafka/v2/cluster/local/topic': named('a', 'b', 'd') }, { local });
+    expect(
+      (await childrenOf(s, kindNode('Topic', ['local']))).map(
+        (n) => n.type === 'resource' && [n.name, n.local?.status ?? 'live'],
+      ),
+    ).toEqual([
       ['a', 'modified'],
       ['b', 'synced'],
       ['c', 'new'],
@@ -107,34 +160,34 @@ describe('childrenOf with a sync folder', () => {
     ]);
   });
 
-  it('lists a cluster that only local resources use', async () => {
-    const s = { ...source({ '/public/console/v2/kafka-cluster': named('local') }), local };
-    const nodes = await childrenOf(s, { type: 'kind', kind: topic });
-    expect(nodes.map((n) => n.type === 'parent' && n.parents)).toEqual([['local'], ['staging']]);
+  it('shows only the changes for global resources and the selected cluster, without asking the Console', async () => {
+    const s = source({}, { local, onlyChanges: true });
+    expect(await childrenOf(s)).toEqual([
+      { type: 'scope', scope: 'global' },
+      { type: 'scope', scope: 'cluster', cluster: 'local' },
+    ]);
+    expect(await kindsUnder(s, 'global')).toEqual(['Application']);
+    expect(await kindsUnder(s, 'cluster')).toEqual(['Topic']);
+    expect((await childrenOf(s, kindNode('Topic', ['local']))).map((n) => n.type === 'resource' && n.name)).toEqual([
+      'a',
+      'c',
+    ]);
+    expect(
+      (await childrenOf(s, kindNode('Application'))).map((n) => n.type === 'resource' && [n.name, n.local?.drifted]),
+    ).toEqual([['shop', true]]);
   });
 
-  it('shows only local changes without asking the Console', async () => {
-    const s = { ...source({}), local, onlyChanges: true };
-    const groups = await childrenOf(s);
-    expect(groups.map((n) => n.type === 'group' && n.group)).toEqual(['kafka', 'self-serve']);
-    const kafka = await childrenOf(s, { type: 'group', group: 'kafka' });
-    expect(kafka.map((n) => n.type === 'kind' && n.kind.kind)).toEqual(['Topic']);
-    const clusters = await childrenOf(s, { type: 'kind', kind: topic });
-    expect(clusters.map((n) => n.type === 'parent' && n.parents)).toEqual([['local'], ['staging']]);
-    const changed = await childrenOf(s, { type: 'parent', kind: topic, parents: ['local'] });
-    expect(changed.map((n) => n.type === 'resource' && n.name)).toEqual(['a', 'c']);
-    const apps = await childrenOf(s, { type: 'kind', kind: catalog.latest('Application')! });
-    expect(apps.map((n) => n.type === 'resource' && [n.name, n.local?.drifted])).toEqual([['shop', true]]);
+  it('leaves out a scope with no changes', async () => {
+    const s = source({}, { local: local.filter((r) => r.kind === 'Topic'), onlyChanges: true, cluster: 'staging' });
+    expect(await childrenOf(s)).toEqual([{ type: 'scope', scope: 'cluster', cluster: 'staging' }]);
   });
 
   it('still shows local work when the Console list fails', async () => {
-    const s = { ...source({ '/public/kafka/v2/cluster/local/topic': new Error('down') }), local };
-    const nodes = await childrenOf(s, { type: 'parent', kind: topic, parents: ['local'] });
-    expect(nodes.map((n) => (n.type === 'resource' ? n.name : n.type === 'message' ? n.text : ''))).toEqual([
-      'Failed to load',
-      'a',
-      'b',
-      'c',
-    ]);
+    const s = source({ '/public/kafka/v2/cluster/local/topic': new Error('down') }, { local });
+    expect(
+      (await childrenOf(s, kindNode('Topic', ['local']))).map((n) =>
+        n.type === 'resource' ? n.name : n.type === 'message' ? n.text : '',
+      ),
+    ).toEqual(['Failed to load', 'a', 'b', 'c']);
   });
 });
