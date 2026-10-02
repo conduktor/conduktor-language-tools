@@ -82,6 +82,15 @@ describe('ConsoleClient', () => {
     await expect(c.get('/public/x')).rejects.toThrow(/^HTTP 502 Bad Gateway$/);
   });
 
+  it('says the URL is not a Console when a JSON call gets a web page back', async () => {
+    const { client: c } = client(
+      () => new Response('<!doctype html><html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } }),
+    );
+    await expect(c.whoami()).rejects.toThrow(
+      'http://console:8080 did not answer like a Conduktor Console (got text/html). Check the URL.',
+    );
+  });
+
   it('copes with an empty error body', async () => {
     const { client: c } = client(() => new Response('', { status: 500 }));
     await expect(c.get('/public/x')).rejects.toMatchObject({ status: 500, message: 'HTTP 500' });

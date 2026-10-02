@@ -43,20 +43,32 @@ export class ConsoleClient {
   }
 
   async whoami(): Promise<TokenInfo> {
-    return (await (await this.send('GET', '/token/v1/whoami')).json()) as TokenInfo;
+    return this.json<TokenInfo>(await this.send('GET', '/token/v1/whoami'));
   }
 
   async list(path: string, query?: Readonly<Record<string, string>>): Promise<Resource[]> {
-    return (await (await this.send('GET', path, { query })).json()) as Resource[];
+    return this.json<Resource[]>(await this.send('GET', path, { query }));
   }
 
   async get(path: string): Promise<Resource> {
-    return (await (await this.send('GET', path)).json()) as Resource;
+    return this.json<Resource>(await this.send('GET', path));
   }
 
   async upsert(target: Target, resource: Resource, options: { dryRun: boolean }): Promise<UpsertResponse> {
     const query = options.dryRun ? { ...target.query, dryMode: 'true' } : target.query;
-    return (await (await this.send('PUT', target.path, { query, body: resource })).json()) as UpsertResponse;
+    return this.json<UpsertResponse>(await this.send('PUT', target.path, { query, body: resource }));
+  }
+
+  private async json<T>(response: Response): Promise<T> {
+    const contentType = response.headers.get('content-type') ?? 'no content type';
+    if (!contentType.includes('json')) {
+      const got = contentType.split(';')[0]!.trim();
+      throw new ConsoleError(
+        response.status,
+        `${this.baseUrl} did not answer like a Conduktor Console (got ${got}). Check the URL.`,
+      );
+    }
+    return (await response.json()) as T;
   }
 
   private async send(method: string, path: string, options: SendOptions = {}): Promise<Response> {
