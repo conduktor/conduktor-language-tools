@@ -139,6 +139,11 @@
         "title": "Delete from Console",
         "category": "Conduktor",
         "icon": "$(trash)"
+      },
+      {
+        "command": "conduktor.copyClaudeCodeConfig",
+        "title": "Copy MCP Config for Claude Code",
+        "category": "Conduktor"
       }
     ],
     "viewsContainers": {
@@ -186,6 +191,11 @@
           "command": "conduktor.changeMode",
           "when": "view == conduktor.explorer && conduktor.mode",
           "group": "1_connection"
+        },
+        {
+          "command": "conduktor.copyClaudeCodeConfig",
+          "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "2_agents"
         }
       ],
       "commandPalette": [
@@ -384,6 +394,12 @@
             "kind"
           ]
         }
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "conduktor.console",
+        "label": "Conduktor Console"
       }
     ]
   },
