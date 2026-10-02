@@ -5,6 +5,7 @@ import type { ExplorerNode } from '../explorer/explorerModel';
 import type { ConnectionStore } from '../connections/connectionStore';
 import type { SessionManager } from '../connections/session';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
+import { inWorkspace } from './folders';
 import { chooseFolder, type SyncFolder } from './syncFolder';
 
 const LARGE_SYNC = 20;
@@ -95,8 +96,8 @@ export function registerSyncCommands(
           if (move === undefined) return;
         }
         await sync.setSyncRoot(root);
-        const inWorkspace = vscode.workspace.workspaceFolders?.some((f) => root.fsPath.startsWith(f.uri.fsPath));
-        if (!inWorkspace) {
+        const folders = vscode.workspace.workspaceFolders?.map((f) => f.uri.fsPath);
+        if (!inWorkspace(root.fsPath, folders)) {
           const add = await vscode.window.showInformationMessage(
             `Sync folder set to ${root.fsPath}. Add it to the workspace so its files show in the Explorer and Source Control?`,
             'Add to Workspace',
