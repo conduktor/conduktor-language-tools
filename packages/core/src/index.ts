@@ -41,12 +41,4 @@ export { kindSchema } from './openapi/kindSchema';
 export { agentInstructions, conduktorTools, ToolError, type ToolContext, type ToolDefinition } from './tools';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
-export {
-  isDrifted,
-  syncPath,
-  syncStatus,
-  withSecretPlaceholders,
-  type SyncIndex,
-  type SyncIndexEntry,
-  type SyncStatus,
-} from './sync';
+export { isDrifted, syncPath, syncStatus, withSecretPlaceholders, type SyncStatus } from './sync';

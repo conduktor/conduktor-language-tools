@@ -1,0 +1,304 @@
+import * as vscode from 'vscode';
+import { parse, stringify } from 'yaml';
+import {
+  ConsoleError,
+  describeError,
+  isDrifted,
+  isRecord,
+  itemPath,
+  listPath,
+  parentsOf,
+  referencedVariables,
+  syncPath,
+  syncStatus,
+  withSecretPlaceholders,
+  type KindVersion,
+  type Resource,
+  type SyncStatus,
+} from '@conduktor/vscode-core';
+import type { SessionManager, SessionState } from '../connections/session';
+import type { Output } from '../output';
+
+type Ready = Extract<SessionState, { status: 'ready' }>;
+
+export interface LocalEntry {
+  uri: vscode.Uri;
+  path: string;
+  kind: string;
+  apiVersion: string;
+  parents: string[];
+  name: string;
+  status: SyncStatus;
+  drifted: boolean;
+}
+
+const STATE_DIR = '.conduktor';
+
+export class SyncFolder implements vscode.Disposable {
+  private entries: LocalEntry[] = [];
+  private drift = new Set<string>();
+  private exists = false;
+  private watcher: vscode.FileSystemWatcher | undefined;
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly changed = new vscode.EventEmitter<void>();
+  readonly onDidChange = this.changed.event;
+  private readonly sessionListener: vscode.Disposable;
+
+  constructor(
+    private readonly sessions: SessionManager,
+    private readonly output: Output,
+  ) {
+    this.sessionListener = sessions.onDidChange(() => void this.rebind());
+  }
+
+  root(): vscode.Uri | undefined {
+    const state = this.sessions.current();
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (state.status !== 'ready' || !folder) return undefined;
+    return vscode.Uri.joinPath(folder.uri, 'conduktor', folderName(state.connection.name));
+  }
+
+  isActive(): boolean {
+    return this.exists;
+  }
+
+  list(): readonly LocalEntry[] {
+    return this.entries;
+  }
+
+  changes(): LocalEntry[] {
+    return this.entries.filter((entry) => entry.status !== 'synced' || entry.drifted);
+  }
+
+  entryAt(uri: vscode.Uri): LocalEntry | undefined {
+    return this.entries.find((entry) => entry.uri.toString() === uri.toString());
+  }
+
+  entryFor(kind: string, parents: readonly string[], name: string): LocalEntry | undefined {
+    return this.entries.find(
+      (entry) => entry.kind === kind && entry.name === name && entry.parents.join('/') === parents.join('/'),
+    );
+  }
+
+  contains(uri: vscode.Uri): boolean {
+    const root = this.root();
+    return !!root && uri.scheme === root.scheme && uri.path.startsWith(`${root.path}/`);
+  }
+
+  async syncResource(kind: KindVersion, parents: readonly string[], name: string): Promise<vscode.Uri> {
+    const state = this.ready();
+    const live = await state.client.get(itemPath(kind, parentsOf(kind, [...parents]), name));
+    const uri = await this.writeSynced(kind, [...parents], live);
+    await this.refresh();
+    return uri;
+  }
+
+  async syncAll(
+    kind: KindVersion,
+    parents: readonly string[],
+    proceed: (total: number) => Promise<boolean> = async () => true,
+  ): Promise<number | undefined> {
+    const state = this.ready();
+    const resources = await state.client.list(listPath(kind, parentsOf(kind, [...parents])));
+    if (!(await proceed(resources.length))) return undefined;
+    for (const resource of resources) await this.writeSynced(kind, [...parents], resource);
+    await this.refresh();
+    return resources.length;
+  }
+
+  async writeNew(kind: KindVersion, parents: readonly string[], text: string, name: string): Promise<vscode.Uri> {
+    const root = this.requireRoot();
+    let uri = vscode.Uri.joinPath(root, syncPath(kind, parents, name));
+    for (let n = 2; await fileExists(uri); n++)
+      uri = vscode.Uri.joinPath(root, syncPath(kind, parents, `${name}-${n}`));
+    await this.ensureStateDir();
+    await write(uri, text);
+    await this.refresh();
+    return uri;
+  }
+
+  async markApplied(uri: vscode.Uri, text: string): Promise<void> {
+    await write(this.baseOf(uri), text);
+    this.drift.delete(uri.toString());
+    await this.refresh();
+  }
+
+  async discard(uri: vscode.Uri): Promise<void> {
+    const base = await read(this.baseOf(uri));
+    if (base === undefined) throw new Error('This file is new, so there is nothing to go back to.');
+    await write(uri, base);
+    await this.refresh();
+  }
+
+  async resync(uri: vscode.Uri): Promise<void> {
+    const entry = this.entryAt(uri);
+    const state = this.ready();
+    const kind = entry && state.spec.catalog.resolve(entry.apiVersion, entry.kind);
+    if (!entry || !kind) throw new Error('Not a Conduktor resource in the sync folder.');
+    const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
+    const text = stringify(withSecretPlaceholders(live).resource);
+    await write(uri, text);
+    await this.markApplied(uri, text);
+  }
+
+  async refresh(options: { drift?: boolean } = {}): Promise<void> {
+    const root = this.root();
+    this.exists = !!root && (await fileExists(root));
+    await vscode.commands.executeCommand('setContext', 'conduktor.syncFolder', this.exists);
+    if (!root || !this.exists) {
+      this.entries = [];
+      this.changed.fire();
+      return;
+    }
+    const state = this.sessions.current();
+    const files = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(root, '**/*.{yaml,yml}'),
+      new vscode.RelativePattern(root, `${STATE_DIR}/**`),
+    );
+    const entries: LocalEntry[] = [];
+    for (const uri of files) {
+      const text = await read(uri);
+      const identity = text === undefined || state.status !== 'ready' ? undefined : identify(text, state);
+      if (!identity) continue;
+      const base = await read(this.baseOf(uri));
+      entries.push({
+        uri,
+        path: uri.path.slice(root.path.length + 1),
+        ...identity,
+        status: syncStatus(text!, base),
+        drifted: false,
+      });
+    }
+    if (options.drift && state.status === 'ready') await this.checkDrift(entries, state);
+    this.entries = entries.map((entry) => ({ ...entry, drifted: this.drift.has(entry.uri.toString()) }));
+    this.changed.fire();
+  }
+
+  async requiredVariables(): Promise<{ name: string; set: boolean }[]> {
+    const names = new Set<string>();
+    for (const entry of this.entries) referencedVariables((await read(entry.uri)) ?? '').forEach((n) => names.add(n));
+    return [...names].map((name) => ({ name, set: process.env[name] !== undefined }));
+  }
+
+  dispose(): void {
+    this.sessionListener.dispose();
+    this.watcher?.dispose();
+    this.changed.dispose();
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+  }
+
+  private async checkDrift(entries: readonly LocalEntry[], state: Ready): Promise<void> {
+    this.drift.clear();
+    for (const entry of entries) {
+      if (entry.status === 'new') continue;
+      const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
+      const base = await read(this.baseOf(entry.uri));
+      if (!kind || base === undefined) continue;
+      try {
+        const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
+        if (isDrifted(base, live)) this.drift.add(entry.uri.toString());
+      } catch (error) {
+        if (error instanceof ConsoleError && error.status === 404) this.drift.add(entry.uri.toString());
+        else this.output.warn(`Could not check ${entry.path} against the Console: ${describeError(error)}`);
+      }
+    }
+  }
+
+  private async writeSynced(kind: KindVersion, parents: string[], live: Resource): Promise<vscode.Uri> {
+    const root = this.requireRoot();
+    const uri = vscode.Uri.joinPath(root, syncPath(kind, parents, live.metadata.name));
+    const { resource, variables } = withSecretPlaceholders(live);
+    if (variables.length > 0) {
+      this.output.info(
+        `${live.kind} ${live.metadata.name}: secrets replaced with ${variables.map((v) => `\${${v}}`).join(', ')}`,
+      );
+    }
+    const text = stringify(resource);
+    await this.ensureStateDir();
+    await write(uri, text);
+    await write(this.baseOf(uri), text);
+    return uri;
+  }
+
+  private async ensureStateDir(): Promise<void> {
+    const ignore = vscode.Uri.joinPath(this.requireRoot(), STATE_DIR, '.gitignore');
+    if (!(await fileExists(ignore))) await write(ignore, '*\n');
+  }
+
+  private baseOf(uri: vscode.Uri): vscode.Uri {
+    const root = this.requireRoot();
+    return vscode.Uri.joinPath(root, STATE_DIR, 'base', uri.path.slice(root.path.length + 1));
+  }
+
+  private requireRoot(): vscode.Uri {
+    const root = this.root();
+    if (!root) throw new Error('Open a workspace folder and connect to a Console to use a sync folder.');
+    return root;
+  }
+
+  private ready(): Ready {
+    const state = this.sessions.current();
+    if (state.status !== 'ready') throw new Error('Connect to a Conduktor Console first.');
+    return state;
+  }
+
+  private async rebind(): Promise<void> {
+    this.watcher?.dispose();
+    this.watcher = undefined;
+    const root = this.root();
+    if (root) {
+      this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
+      const schedule = () => {
+        if (this.refreshTimer) clearTimeout(this.refreshTimer);
+        this.refreshTimer = setTimeout(() => void this.refresh(), 300);
+      };
+      this.watcher.onDidCreate(schedule);
+      this.watcher.onDidChange(schedule);
+      this.watcher.onDidDelete(schedule);
+    }
+    await this.refresh();
+  }
+}
+
+function identify(text: string, state: Ready) {
+  let value: unknown;
+  try {
+    value = parse(text);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(value) || typeof value.kind !== 'string' || typeof value.apiVersion !== 'string') return undefined;
+  const metadata = isRecord(value.metadata) ? value.metadata : {};
+  const kind = state.spec.catalog.resolve(value.apiVersion, value.kind);
+  if (!kind || typeof metadata.name !== 'string') return undefined;
+  const parents = kind.parentPathParams.map((param) =>
+    typeof metadata[param] === 'string' ? (metadata[param] as string) : '',
+  );
+  return { kind: kind.kind, apiVersion: value.apiVersion, parents, name: metadata.name };
+}
+
+function folderName(connectionName: string): string {
+  return connectionName.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'console';
+}
+
+async function fileExists(uri: vscode.Uri): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.stat(uri);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function read(uri: vscode.Uri): Promise<string | undefined> {
+  try {
+    return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+  } catch {
+    return undefined;
+  }
+}
+
+async function write(uri: vscode.Uri, text: string): Promise<void> {
+  await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
+  await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
+}

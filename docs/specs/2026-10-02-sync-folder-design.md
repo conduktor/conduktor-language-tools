@@ -25,9 +25,11 @@ cleanly. Observed errors name the missing resource: `Group with id '<name>' not 
 <workspace>/conduktor/<connection>/
   <group>/<kind>/[<cluster>/[<connectCluster>/]]<name>.yaml
   .conduktor/.gitignore             *
-  .conduktor/index.json             path → kind, apiVersion, parents, name, syncedAt
   .conduktor/base/<same path>       the version last synced or applied
 ```
+
+A resource's identity comes from its file (kind, apiVersion, metadata); it counts as synced when a base copy exists at
+the same path, so there is no separate index to disagree with the files.
 
 Nothing is copied unless asked: **Sync Locally** on a resource, a kind or a cluster node.
 

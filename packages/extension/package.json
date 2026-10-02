@@ -144,6 +144,34 @@
         "command": "conduktor.copyClaudeCodeConfig",
         "title": "Copy MCP Config for Claude Code",
         "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.syncLocally",
+        "title": "Sync Locally",
+        "category": "Conduktor",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "conduktor.refreshSync",
+        "title": "Refresh Local Changes",
+        "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.discardChanges",
+        "title": "Discard Local Changes",
+        "category": "Conduktor",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "conduktor.resyncFromConsole",
+        "title": "Re-sync from Console",
+        "category": "Conduktor",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "conduktor.showRequiredVariables",
+        "title": "Show Required Variables",
+        "category": "Conduktor"
       }
     ],
     "viewsContainers": {
@@ -196,6 +224,16 @@
           "command": "conduktor.copyClaudeCodeConfig",
           "when": "view == conduktor.explorer && conduktor.mode",
           "group": "2_agents"
+        },
+        {
+          "command": "conduktor.refreshSync",
+          "when": "view == conduktor.explorer && conduktor.syncFolder",
+          "group": "3_sync"
+        },
+        {
+          "command": "conduktor.showRequiredVariables",
+          "when": "view == conduktor.explorer && conduktor.syncFolder",
+          "group": "3_sync"
         }
       ],
       "commandPalette": [
@@ -218,6 +256,18 @@
         {
           "command": "conduktor.applyFile",
           "when": "conduktor.mode == apply"
+        },
+        {
+          "command": "conduktor.syncLocally",
+          "when": "false"
+        },
+        {
+          "command": "conduktor.refreshSync",
+          "when": "conduktor.syncFolder"
+        },
+        {
+          "command": "conduktor.showRequiredVariables",
+          "when": "conduktor.syncFolder"
         }
       ],
       "editor/title": [
@@ -257,6 +307,21 @@
           "command": "conduktor.deleteResource",
           "when": "view == conduktor.explorer && viewItem == resource && conduktor.mode == apply",
           "group": "9_delete"
+        },
+        {
+          "command": "conduktor.syncLocally",
+          "when": "view == conduktor.explorer && viewItem =~ /^(kind|parent|resource)/",
+          "group": "2_sync"
+        },
+        {
+          "command": "conduktor.discardChanges",
+          "when": "view == conduktor.explorer && viewItem == resource.modified",
+          "group": "2_sync"
+        },
+        {
+          "command": "conduktor.resyncFromConsole",
+          "when": "view == conduktor.explorer && viewItem =~ /^resource\\.(modified|synced)/",
+          "group": "2_sync"
         }
       ]
     },

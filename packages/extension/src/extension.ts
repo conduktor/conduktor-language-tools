@@ -18,6 +18,8 @@ import { ConduktorFileSystem } from './liveFs/conduktorFileSystem';
 import { LIVE_SCHEME } from './liveFs/uris';
 import { Output } from './output';
 import { registerYamlSchemas } from './schema/yamlSchemaContributor';
+import { registerSyncCommands } from './sync/commands';
+import { SyncFolder } from './sync/syncFolder';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -29,6 +31,7 @@ export interface ExtensionApi {
   apply: (uri: vscode.Uri, index?: number) => Promise<UpsertItem[] | undefined>;
   newResource: (node?: ExplorerNode) => Promise<vscode.TextDocument | undefined>;
   setConfirm: (confirm: Confirm) => void;
+  sync: SyncFolder;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
@@ -43,6 +46,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const compare = new Compare(sessions);
   const resources = new ResourceController(sessions, output, compare, confirm);
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
+  const sync = new SyncFolder(sessions, output);
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
 
   context.subscriptions.push(
@@ -54,7 +58,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     compare,
     resources,
     codeLenses,
+    sync,
     createStatusBar(sessions),
+    ...registerSyncCommands(sync, confirm),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm),
     ...registerLanguageModelTools(sessions),
@@ -113,6 +119,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     setConfirm: (replacement: Confirm) => {
       confirmWith = replacement;
     },
+    sync,
   });
 }
 

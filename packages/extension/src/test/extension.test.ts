@@ -254,4 +254,34 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       for (const path of paths) await state.client.delete(path).catch(() => undefined);
     }
   });
+
+  test('syncs a topic into the folder and tracks local changes against it', async () => {
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+    assert.ok(existing, 'a topic to sync');
+    const name = existing.metadata.name;
+
+    const uri = await api.sync.syncResource(topicKind, ['local-kafka'], name);
+    assert.ok(uri.path.endsWith(`/conduktor/${state.connection.name}/kafka/Topic/local-kafka/${name}.yaml`), uri.path);
+    assert.ok(api.sync.isActive());
+    assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
+
+    const synced = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    const edited = parse(synced);
+    edited.metadata.labels = { ...(edited.metadata.labels ?? {}), staged: 'yes' };
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(stringify(edited)));
+    await api.sync.refresh();
+    assert.strictEqual(api.sync.entryAt(uri)?.status, 'modified');
+
+    await api.sync.discard(uri);
+    await api.sync.refresh({ drift: true });
+    assert.deepStrictEqual(
+      { status: api.sync.entryAt(uri)?.status, drifted: api.sync.entryAt(uri)?.drifted },
+      { status: 'synced', drifted: false },
+    );
+  });
 });
