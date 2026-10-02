@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { summarise } from '../src/dryRun/summary';
 
 const item = (outcome: DryRunItem['outcome']): DryRunItem => ({
-  document: { index: 0, start: 0, end: 0, kind: 'Topic' },
+  document: { index: 0, start: 0, end: 0, kind: 'Topic', apiVersion: 'v2' },
   outcome,
 });
 

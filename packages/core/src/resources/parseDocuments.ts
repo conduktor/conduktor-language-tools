@@ -6,6 +6,7 @@ import { expandEnvVars } from './envVars';
 import type { Resource } from './types';
 
 const KIND_LINE = /^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(?:#.*)?$/m;
+const API_VERSION_LINE = /^apiVersion:[ \t]*["']?([\w./-]+)["']?[ \t]*(?:#.*)?$/m;
 const SEPARATOR = /^(?:---|\.\.\.)(?:[ \t].*)?\r?$/;
 const BLANK_OR_COMMENT = /^[ \t]*(?:#.*)?\r?$/;
 
@@ -14,6 +15,8 @@ export interface ResourceDocument {
   start: number;
   end: number;
   kind: string;
+  apiVersion: string;
+  namespaced?: boolean;
   resource?: Resource;
   error?: string;
 }
@@ -26,15 +29,18 @@ export function parseResourceDocuments(text: string, options: ParseOptions): Res
   const documents: ResourceDocument[] = [];
   for (const { start, end } of splitDocuments(text)) {
     const source = text.slice(start, end);
-    const kind = sniffKind(source);
-    if (kind) documents.push({ index: documents.length, start, end, kind, ...toResource(source, options) });
+    const identity = sniffIdentity(source);
+    if (identity) documents.push({ index: documents.length, start, end, ...identity, ...toResource(source, options) });
   }
   return documents;
 }
 
+// Kubernetes, Argo CD and Helm share kind names with Console (ServiceAccount, Application); no Console kind has a
+// namespace or a group-qualified apiVersion.
 export function catalogDocuments(text: string, catalog: KindCatalog, options: ParseOptions): ResourceDocument[] {
-  const kinds = catalog.kindNames();
-  return parseResourceDocuments(text, options).filter((document) => kinds.has(document.kind));
+  return parseResourceDocuments(text, options).filter(
+    (document) => !document.namespaced && catalog.resolve(document.apiVersion, document.kind) !== undefined,
+  );
 }
 
 function toResource(source: string, options: ParseOptions): Pick<ResourceDocument, 'resource' | 'error'> {
@@ -77,12 +83,18 @@ function splitDocuments(text: string): { start: number; end: number }[] {
   return documents;
 }
 
-function sniffKind(source: string): string | undefined {
+type Identity = Pick<ResourceDocument, 'kind' | 'apiVersion' | 'namespaced'>;
+
+function sniffIdentity(source: string): Identity | undefined {
   try {
     const raw: unknown = parse(source);
-    if (isRecord(raw)) return typeof raw.apiVersion === 'string' && typeof raw.kind === 'string' ? raw.kind : undefined;
+    if (!isRecord(raw) || typeof raw.apiVersion !== 'string' || typeof raw.kind !== 'string') return undefined;
+    const namespaced = isRecord(raw.metadata) && raw.metadata.namespace !== undefined;
+    return { kind: raw.kind, apiVersion: raw.apiVersion, ...(namespaced && { namespaced }) };
   } catch {
-    // unparseable until variables are expanded; fall back to the kind line
+    if (!source.includes('${')) return undefined;
   }
-  return KIND_LINE.exec(source)?.[1];
+  const kind = KIND_LINE.exec(source)?.[1];
+  const apiVersion = API_VERSION_LINE.exec(source)?.[1];
+  return kind && apiVersion ? { kind, apiVersion } : undefined;
 }

@@ -38,6 +38,7 @@ describe('KindCatalog', () => {
     expect(snapshotCatalog.resolve('v3', 'Alert')?.listPath).toBe('/public/monitoring/v3/alert');
     expect(snapshotCatalog.resolve('v9', 'Topic')).toBeUndefined();
     expect(snapshotCatalog.resolve('kafka', 'Topic')).toBeUndefined();
+    expect(snapshotCatalog.resolve('argoproj.io/v1alpha1', 'Application')).toBeUndefined();
   });
 
   it('lists kinds in apply order', () => {

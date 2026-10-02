@@ -68,7 +68,7 @@ export class KindCatalog {
   }
 
   resolve(apiVersion: string, kind: string): KindVersion | undefined {
-    const match = /v(\d+)/.exec(apiVersion);
+    const match = /^v(\d+)$/.exec(apiVersion);
     return match ? this.versions(kind).find((v) => v.version === Number(match[1])) : undefined;
   }
 

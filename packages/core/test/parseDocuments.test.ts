@@ -52,11 +52,17 @@ describe('parseResourceDocuments', () => {
     expect(docs[3]!.resource?.metadata.name).toBe('shop');
   });
 
-  it('reports a YAML syntax error on a resource-like document', () => {
-    const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n', { env: {} });
+  it('reports a document that is still invalid YAML after expanding variables', () => {
+    const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: { name: ${N}, labels: [unclosed }\n', {
+      env: { N: 't' },
+    });
     expect(docs).toHaveLength(1);
-    expect(docs[0]).toMatchObject({ kind: 'Topic' });
+    expect(docs[0]).toMatchObject({ kind: 'Topic', apiVersion: 'v2' });
     expect(docs[0]!.error).toBeTruthy();
+  });
+
+  it('leaves other invalid YAML to the YAML extension', () => {
+    expect(parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n', { env: {} })).toEqual([]);
   });
 
   it('expands variables before parsing, as ctl does, so they work inside flow mappings', () => {
@@ -89,6 +95,17 @@ describe('parseResourceDocuments', () => {
 });
 
 describe('catalogDocuments', () => {
+  it('ignores Kubernetes, Argo CD and Helm documents whose kinds share a Console kind name', () => {
+    const gitops = [
+      'apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: web\n  namespace: shop\n',
+      'apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: shop\n  namespace: argocd\nspec: {}\n',
+      'apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: {{ include "web.fullname" . }}\n  namespace: {{ .Release.Namespace }}\n',
+      'apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: payments\n  cluster: local\nspec: {}\n',
+    ].join('---\n');
+    const docs = catalogDocuments(gitops, snapshotCatalog, { env: {} });
+    expect(docs.map((d) => [d.index, d.kind, d.resource?.metadata.name])).toEqual([[3, 'ServiceAccount', 'payments']]);
+  });
+
   it('drops kinds the Console does not know, including Kubernetes look-alikes', () => {
     const docs = catalogDocuments(file, snapshotCatalog, { env: { CLUSTER: 'local' } });
     expect(docs.map((d) => [d.index, d.kind])).toEqual([
