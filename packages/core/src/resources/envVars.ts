@@ -22,3 +22,11 @@ export function expandEnvVars(input: string, env: Readonly<Record<string, string
   });
   return { text, missing };
 }
+
+export function referencedVariables(text: string): string[] {
+  const names = new Set<string>();
+  for (const [, dollars, body] of text.matchAll(ENV_VAR)) {
+    if (dollars === '$') names.add(body!.split(':-')[0]!);
+  }
+  return [...names];
+}

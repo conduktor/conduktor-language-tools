@@ -8,22 +8,28 @@ export const REDACTED_MESSAGE = 'is a redacted secret; leave it out or use a ${V
 const SECRET_KEY = /password|passwd|secret|token|jaas|credential|private.?key|api.?key|access.?key/i;
 const PRIVATE_KEY_PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 
-export function redactSecrets(value: unknown): { value: unknown; redacted: number } {
-  let redacted = 0;
-  const walk = (node: unknown, key?: string): unknown => {
-    if (key !== undefined && SECRET_KEY.test(key) && node !== null && node !== '') {
-      redacted++;
-      return REDACTED;
-    }
-    if (Array.isArray(node)) return node.map((item) => walk(item));
-    if (isRecord(node)) return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, walk(v, k)]));
-    if (typeof node === 'string' && PRIVATE_KEY_PEM.test(node)) {
-      redacted++;
-      return REDACTED;
-    }
+export function isSecret(key: string | undefined, value: unknown): boolean {
+  if (key !== undefined && SECRET_KEY.test(key) && value !== null && value !== '') return true;
+  return typeof value === 'string' && PRIVATE_KEY_PEM.test(value);
+}
+
+export function replaceSecrets(value: unknown, replacement: (path: readonly string[]) => unknown): unknown {
+  const walk = (node: unknown, path: readonly string[]): unknown => {
+    if (isSecret(path.at(-1), node)) return replacement(path);
+    if (Array.isArray(node)) return node.map((item, i) => walk(item, [...path, String(i)]));
+    if (isRecord(node)) return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, walk(v, [...path, k])]));
     return node;
   };
-  return { value: walk(value), redacted };
+  return walk(value, []);
+}
+
+export function redactSecrets(value: unknown): { value: unknown; redacted: number } {
+  let redacted = 0;
+  const result = replaceSecrets(value, () => {
+    redacted++;
+    return REDACTED;
+  });
+  return { value: result, redacted };
 }
 
 export function redactedPaths(value: unknown, path = ''): string[] {

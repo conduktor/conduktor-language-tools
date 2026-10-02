@@ -214,8 +214,18 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const file = await vscode.workspace.openTextDocument({
       language: 'yaml',
       content: [
-        { apiVersion: 'v1', kind: 'ApplicationInstance', metadata: { name: `${id}-dev`, application: `${id}-app` }, spec: { cluster: 'local-kafka' } },
-        { apiVersion: 'v1', kind: 'Application', metadata: { name: `${id}-app` }, spec: { title: 'Chain', owner: `${id}-team` } },
+        {
+          apiVersion: 'v1',
+          kind: 'ApplicationInstance',
+          metadata: { name: `${id}-dev`, application: `${id}-app` },
+          spec: { cluster: 'local-kafka' },
+        },
+        {
+          apiVersion: 'v1',
+          kind: 'Application',
+          metadata: { name: `${id}-app` },
+          spec: { title: 'Chain', owner: `${id}-team` },
+        },
         { apiVersion: 'v2', kind: 'Group', metadata: { name: `${id}-team` }, spec: { displayName: 'Chain team' } },
       ]
         .map((resource) => stringify(resource))
