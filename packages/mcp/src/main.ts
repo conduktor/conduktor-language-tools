@@ -36,7 +36,6 @@ async function main(): Promise<void> {
         catalog: spec.catalog,
         schema: spec.schema,
         client,
-        env: process.env,
         readFile: readRelative,
         readInclude: readRelative,
       };

@@ -28,7 +28,6 @@ function context(overrides: Partial<ToolContext> = {}) {
     catalog: snapshotCatalog,
     schema,
     client,
-    env: {},
     ...overrides,
   };
   return { ctx, client };
@@ -124,6 +123,14 @@ describe('conduktor_validate', () => {
       path: '/metadata',
       message: "must have required property 'cluster'",
     });
+  });
+
+  it('leaves ${VAR} references for the user to set, without expanding or rejecting them', async () => {
+    const { ctx } = context();
+    const yaml = topic('{ partitions: "${PARTITIONS}", replicationFactor: 1, configs: { a: "${A:-x}" } }');
+    const result = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
+    expect(result.documents[0]).toMatchObject({ valid: true, errors: [], variables: ['PARTITIONS', 'A'] });
+    expect(result.note).toMatch(/set by the user when applying/);
   });
 
   it('says which versions exist when the apiVersion is wrong', async () => {

@@ -10,7 +10,6 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
     mode: 'dry-run',
     catalog: spec.catalog,
     schema: spec.schema,
-    env: {},
     client: {
       list: async () => [],
       get: async () => ({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x' } }),

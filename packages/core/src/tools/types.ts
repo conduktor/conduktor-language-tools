@@ -9,7 +9,6 @@ export interface ToolContext {
   catalog: KindCatalog;
   schema: JsonSchema;
   client: Pick<ConsoleClient, 'list' | 'get' | 'upsert'>;
-  env: Readonly<Record<string, string | undefined>>;
   readFile?: (path: string) => string;
   readInclude?: (path: string) => string;
 }

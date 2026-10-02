@@ -6,7 +6,8 @@ import { PARENT_KINDS } from '../openapi/parents';
 import type { JsonSchema } from '../openapi/types';
 import { planDocuments } from '../plan/planDocuments';
 import type { UpsertOutcome } from '../plan/upsertDocuments';
-import { kebabCase } from '../util';
+import { referencedVariables } from '../resources/envVars';
+import { isRecord, kebabCase } from '../util';
 import { REDACTED, REDACTED_MESSAGE, redactedPaths, redactSecrets } from './redact';
 import { noSuchVersion, resolveKind, resourceDocuments, type BodyKind } from './resolve';
 import { ToolError, type ToolContext, type ToolDefinition } from './types';
@@ -103,11 +104,17 @@ const validate: ToolDefinition = {
         ? [{ path: '/', message: document.error ?? 'Not a Conduktor resource' }]
         : [
             ...redactedPaths(resource).map((path) => ({ path, message: REDACTED_MESSAGE })),
-            ...schemaErrors(context, resource.kind, resource.apiVersion, resource),
+            ...schemaErrors(context, resource.kind, resource.apiVersion, resource).filter(
+              (error) => !isVariable(valueAt(resource, error.path)),
+            ),
           ];
-      return { ...identity, valid: errors.length === 0, errors };
+      return { ...identity, valid: errors.length === 0, errors, ...withVariables(document.variables) };
     });
-    return json({ console: context.connectionName, documents });
+    return json({
+      console: context.connectionName,
+      documents,
+      ...(documents.some((d) => d.variables) && { note: VARIABLES_NOTE }),
+    });
   },
 };
 
@@ -134,16 +141,20 @@ const dryRun: ToolDefinition = {
     const items = await planDocuments(context.client, context.catalog, documents, {
       readInclude: context.readInclude,
     });
+    const variablesOf = new Map(documents.map((d) => [d.index, d.variables]));
     const results = items.map(({ document, outcome }) => ({
       index: document.index,
       kind: document.kind,
       name: document.resource?.metadata.name ?? null,
       ...describeOutcome(outcome),
+      ...withVariables(variablesOf.get(document.index) ?? []),
     }));
+    const note =
+      'Nothing was changed: this was a dry run. The user applies from the editor (the Apply CodeLens, or by saving a live document).';
     return json({
       console: context.connectionName,
       documents: results,
-      note: 'Nothing was changed: this was a dry run. The user applies from the editor (the Apply CodeLens, or by saving a live document).',
+      note: results.some((r) => r.variables) ? `${note} ${VARIABLES_NOTE}` : note,
     });
   },
 };
@@ -195,6 +206,32 @@ const getResources: ToolDefinition = {
 };
 
 export const conduktorTools: readonly ToolDefinition[] = [listKinds, getKindSchema, validate, dryRun, getResources];
+
+const VARIABLES_NOTE =
+  '${VAR} references are set by the user when applying; they are left unexpanded here, so a dry run sends them as written.';
+
+function withVariables(variables: readonly string[]) {
+  return variables.length > 0 ? { variables } : {};
+}
+
+function isVariable(value: unknown): boolean {
+  return typeof value === 'string' && referencedVariables(value).length > 0;
+}
+
+function valueAt(value: unknown, pointer: string): unknown {
+  return pointer
+    .split('/')
+    .slice(1)
+    .reduce<unknown>(
+      (node, key) =>
+        isRecord(node) || Array.isArray(node) ? (node as Record<string, unknown>)[unescapePointer(key)] : undefined,
+      value,
+    );
+}
+
+function unescapePointer(key: string): string {
+  return key.replace(/~1/g, '/').replace(/~0/g, '~');
+}
 
 const ajv = new Ajv({ strict: false, validateFormats: false, allErrors: true });
 const validators = new WeakMap<JsonSchema, Map<string, ValidateFunction>>();

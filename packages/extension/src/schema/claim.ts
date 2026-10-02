@@ -7,5 +7,5 @@ export function schemaUriFor(spec: LoadedSpec): string {
 }
 
 export function claimsDocument(text: string, spec: LoadedSpec): boolean {
-  return catalogDocuments(text, spec.catalog, { env: {} }).length > 0;
+  return catalogDocuments(text, spec.catalog).length > 0;
 }

@@ -1,5 +1,6 @@
 import { describeError } from '../client/errors';
 import type { KindVersion } from '../openapi/kindCatalog';
+import { referencedVariables } from '../resources/envVars';
 import { catalogDocuments, type ResourceDocument } from '../resources/parseDocuments';
 import { ToolError, type ToolContext } from './types';
 
@@ -20,8 +21,17 @@ export function noSuchVersion(context: ToolContext, kind: string, apiVersion: st
   return `${kind} has no ${apiVersion} on ${context.connectionName}; it has ${versions.join(', ')}.`;
 }
 
-export function resourceDocuments(input: Record<string, unknown>, context: ToolContext): ResourceDocument[] {
-  const documents = catalogDocuments(sourceText(input, context), context.catalog, { env: context.env });
+export interface SourceDocument extends ResourceDocument {
+  variables: string[];
+}
+
+// Variables are never expanded for an agent: the process environment holds the Console token and other credentials.
+export function resourceDocuments(input: Record<string, unknown>, context: ToolContext): SourceDocument[] {
+  const text = sourceText(input, context);
+  const documents = catalogDocuments(text, context.catalog).map((document) => ({
+    ...document,
+    variables: referencedVariables(text.slice(document.start, document.end)),
+  }));
   if (documents.length === 0) {
     throw new ToolError(
       'No Conduktor resources found: each document needs an apiVersion such as v2 and a Console kind. ' +

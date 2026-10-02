@@ -24,10 +24,11 @@ export interface ResourceDocument {
 }
 
 export interface ParseOptions {
-  env: Readonly<Record<string, string | undefined>>;
+  // Without env, ${VAR} references are left as written.
+  env?: Readonly<Record<string, string | undefined>>;
 }
 
-export function parseResourceDocuments(text: string, options: ParseOptions): ResourceDocument[] {
+export function parseResourceDocuments(text: string, options: ParseOptions = {}): ResourceDocument[] {
   const documents: ResourceDocument[] = [];
   for (const { start, end } of splitDocuments(text)) {
     const source = text.slice(start, end);
@@ -40,7 +41,7 @@ export function parseResourceDocuments(text: string, options: ParseOptions): Res
 // Kubernetes, Argo CD and Helm share kind names with Console (ServiceAccount, Application); no Console kind has a
 // namespace or a group-qualified apiVersion. Validity is not checked here: a broken Console document is kept so the
 // dry run can report what is wrong with it.
-export function catalogDocuments(text: string, catalog: KindCatalog, options: ParseOptions): ResourceDocument[] {
+export function catalogDocuments(text: string, catalog: KindCatalog, options: ParseOptions = {}): ResourceDocument[] {
   const kinds = catalog.kindNames();
   return parseResourceDocuments(text, options).filter(
     (document) => !document.namespaced && CONSOLE_API_VERSION.test(document.apiVersion) && kinds.has(document.kind),
@@ -48,7 +49,7 @@ export function catalogDocuments(text: string, catalog: KindCatalog, options: Pa
 }
 
 function toResource(source: string, options: ParseOptions): Pick<ResourceDocument, 'resource' | 'error'> {
-  const { text, missing } = expandEnvVars(source, options.env);
+  const { text, missing } = options.env ? expandEnvVars(source, options.env) : { text: source, missing: [] };
   if (missing.length > 0) return { error: `Missing environment variables: ${missing.join(', ')}` };
   let value: unknown;
   try {

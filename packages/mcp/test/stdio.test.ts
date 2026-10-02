@@ -80,6 +80,14 @@ describe('the bundled MCP server over stdio', () => {
     });
   });
 
+  it('never expands variables from its environment, which holds the Console token', async () => {
+    const yaml = 'apiVersion: v2\nkind: Topic\nmetadata: { name: "${CONDUKTOR_TOKEN}", cluster: local }\n';
+    const result = await client.callTool({ name: 'conduktor_validate', arguments: { yaml } });
+    const text = (result.content as { text: string }[])[0]!.text;
+    expect(text).not.toContain('secret');
+    expect(JSON.parse(text).documents[0].variables).toEqual(['CONDUKTOR_TOKEN']);
+  });
+
   it('loaded the schema from the Console', async () => {
     expect(requests.some((r) => r.url === '/api/public/docs/docs.yaml' && r.authorization === undefined)).toBe(true);
   });

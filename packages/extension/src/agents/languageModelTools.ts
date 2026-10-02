@@ -42,7 +42,6 @@ export function toolContext(state: Ready): ToolContext {
     catalog: state.spec.catalog,
     schema: state.spec.schema,
     client: state.client,
-    env: process.env,
     readFile: readWorkspaceFile,
     readInclude: readWorkspaceFile,
   };
