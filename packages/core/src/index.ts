@@ -15,3 +15,11 @@ export {
   type TokenInfo,
 } from './client/tokenInfo';
 export { ConsoleClient, normaliseBaseUrl, type ConsoleClientOptions, type RequestEvent } from './client/consoleClient';
+export {
+  catalogDocuments,
+  parseResourceDocuments,
+  type ParseOptions,
+  type ResourceDocument,
+} from './resources/parseDocuments';
+export { expandIncludes, IncludeError } from './resources/includes';
+export { sortForApply } from './resources/ordering';
