@@ -130,10 +130,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
         { isCaseSensitive: true, isReadonly: !editable },
       ),
     ),
-    resources.onDidApply(({ uri, text, items }) => {
+    resources.onDidApply(({ uri, appliedText }) => {
       explorer.refresh();
-      const applied = items.every((item) => item.outcome.status === 'ok');
-      if (uri && text !== undefined && applied && sync.contains(uri)) void sync.markApplied(uri, text);
+      if (uri && appliedText !== undefined && sync.contains(uri)) void sync.markApplied(uri, appliedText);
     }),
     connections.onDidChange(() => void sessions.reload()),
     clusters.onDidChange((cluster) => {

@@ -615,6 +615,67 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('keeps what was applied as the base, never text typed meanwhile or a file applied in part', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    assert.strictEqual(state.connection.mode, 'apply');
+    await useWorkspaceSyncRoot(api);
+    const root = api.sync.root()!;
+    const id = `vscode-base-${Date.now()}`;
+    const names = [id, `${id}-a`, `${id}-b`];
+    const topic = (name: string, labels?: Record<string, string>) =>
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name, cluster: 'local-kafka', ...(labels && { labels }) },
+        spec: { partitions: 1, replicationFactor: 1 },
+      });
+    const folder = vscode.Uri.joinPath(root, 'clusters/local-kafka/kafka/Topic');
+    const single = vscode.Uri.joinPath(folder, `${id}.yaml`);
+    const pair = vscode.Uri.joinPath(folder, `${id}-pair.yaml`);
+    const baseOf = (uri: vscode.Uri) =>
+      vscode.Uri.joinPath(root, '.conduktor/base', uri.path.slice(root.path.length + 1));
+    const read = async (uri: vscode.Uri) => new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    try {
+      await api.sync.writeNew(state.spec.catalog.latest('Topic')!, ['local-kafka'], topic(id), id);
+      const document = await vscode.workspace.openTextDocument(single);
+      api.setConfirm(async (_message, _detail, ...actions) => {
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(single, new vscode.Range(0, 0, document.lineCount, 0), topic(id, { typed: 'meanwhile' }));
+        await vscode.workspace.applyEdit(edit);
+        return actions[0];
+      });
+      assert.deepStrictEqual(
+        (await api.apply(single))?.map((i) => i.outcome),
+        [{ status: 'ok', result: 'Created' }],
+      );
+      await until(() => api.sync.entryAt(single)?.status === 'synced', 10_000);
+      assert.strictEqual(await read(baseOf(single)), topic(id));
+      await vscode.commands.executeCommand('workbench.action.files.revert', single);
+
+      api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+      await vscode.workspace.fs.writeFile(
+        pair,
+        new TextEncoder().encode(`${topic(names[1]!)}---\n${topic(names[2]!)}`),
+      );
+      assert.deepStrictEqual(
+        (await api.apply(pair, 1))?.map((i) => i.outcome),
+        [{ status: 'ok', result: 'Created' }],
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await assert.rejects(Promise.resolve(vscode.workspace.fs.stat(baseOf(pair))), 'no base after one of two');
+      await api.apply(pair);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.strictEqual(await read(baseOf(pair)), await read(pair));
+    } finally {
+      for (const name of names)
+        await state.client.delete(`/public/kafka/v2/cluster/local-kafka/topic/${name}`).catch(() => undefined);
+      for (const uri of [single, pair, baseOf(single), baseOf(pair)])
+        await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);
+    }
+  });
+
   test("reads each file's includes next to it when the sync folder is outside the workspace", async () => {
     const api = await activate();
     api.setConfirm(async () => undefined);

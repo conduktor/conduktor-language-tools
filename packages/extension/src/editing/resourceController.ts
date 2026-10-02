@@ -12,6 +12,7 @@ import type { Confirm } from '../confirm';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
 import type { Compare } from './compare';
+import { appliedText } from './applied';
 import { includeReaderFor } from './includes';
 import { outcomeLabel, summarise } from './summary';
 
@@ -27,7 +28,7 @@ type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export interface AppliedEvent {
   uri?: vscode.Uri;
-  text?: string;
+  appliedText?: string;
   items: readonly UpsertItem[];
 }
 
@@ -109,9 +110,9 @@ export class ResourceController implements vscode.Disposable {
     const state = this.ready(apply);
     if (!state) return undefined;
     const document = await vscode.workspace.openTextDocument(uri);
-    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env }).filter(
-      (d) => index === undefined || d.index === index,
-    );
+    const text = document.getText();
+    const inFile = catalogDocuments(text, state.spec.catalog, { env: process.env });
+    const documents = inFile.filter((d) => index === undefined || d.index === index);
     if (documents.length === 0) {
       void vscode.window.showWarningMessage(`No Conduktor resources to ${apply ? 'apply' : 'dry-run'} in this file.`);
       return [];
@@ -153,7 +154,7 @@ export class ResourceController implements vscode.Disposable {
     const applied = summarise(name, items, 'Applied to');
     this.output.info(applied.text);
     this.notify(applied.text, applied.failed > 0);
-    this.applied.fire({ uri, text: document.getText(), items });
+    this.applied.fire({ uri, appliedText: appliedText(text, inFile.length, items), items });
     return items;
   }
 
