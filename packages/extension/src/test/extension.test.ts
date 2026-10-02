@@ -1,5 +1,8 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import type { ExtensionApi } from '../extension';
 import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
@@ -12,6 +15,12 @@ async function activate(): Promise<ExtensionApi> {
   const api = await extension.activate();
   assert.ok(api, 'the API is exported in test mode');
   return api;
+}
+
+async function useWorkspaceSyncRoot(api: ExtensionApi): Promise<void> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  assert.ok(folder, 'the smoke test runs in a workspace folder');
+  await api.sync.setSyncRoot(vscode.Uri.joinPath(folder.uri, 'conduktor'));
 }
 
 async function until(condition: () => boolean, timeoutMs = 30_000): Promise<void> {
@@ -276,6 +285,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     const topicKind = state.spec.catalog.latest('Topic')!;
+    await useWorkspaceSyncRoot(api);
     await api.clusters.set('local-kafka');
     const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
     assert.ok(existing, 'a topic to sync');
@@ -345,6 +355,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
     const kind = (name: string) => state.spec.catalog.latest(name)!;
     const id = `vscode-staged-${Date.now()}`;
     const files = [
@@ -418,6 +429,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const api = await activate();
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
     const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
     try {
       const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
@@ -431,6 +443,25 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       );
     } finally {
       await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);
+    }
+  });
+
+  test('keeps local copies under the chosen root, one folder per connection', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const elsewhere = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-root-')));
+    await api.sync.setSyncRoot(elsewhere);
+    try {
+      assert.ok(api.sync.isRootChosen());
+      const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
+      assert.strictEqual(
+        uri.fsPath,
+        join(elsewhere.fsPath, state.connection.name, 'console', 'KafkaCluster', 'local-gateway.yaml'),
+      );
+      assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
+    } finally {
+      await useWorkspaceSyncRoot(api);
     }
   });
 });

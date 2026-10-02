@@ -2,16 +2,19 @@ import * as vscode from 'vscode';
 import { describeError, type KindVersion } from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { ExplorerNode } from '../explorer/explorerModel';
+import type { ConnectionStore } from '../connections/connectionStore';
 import type { SessionManager } from '../connections/session';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
-import type { SyncFolder } from './syncFolder';
+import { chooseFolder, type SyncFolder } from './syncFolder';
 
 const LARGE_SYNC = 20;
+const inform = (message: string) => void vscode.window.showInformationMessage(message);
 
 export function registerSyncCommands(
   sync: SyncFolder,
   confirm: Confirm,
   sessions: SessionManager,
+  connections: ConnectionStore,
 ): vscode.Disposable[] {
   const guarded =
     <A extends unknown[]>(run: (...args: A) => Promise<unknown>) =>
@@ -71,6 +74,38 @@ export function registerSyncCommands(
         const resource = resourceToEdit(sessions, target);
         if (!resource) throw new Error('Open a Console resource to edit it locally.');
         await vscode.window.showTextDocument(await sync.syncResource(resource.kind, resource.parents, resource.name));
+      }),
+    ),
+    vscode.commands.registerCommand(
+      'conduktor.setSyncFolder',
+      guarded(async () => {
+        const previous = sync.syncRoot();
+        const root = await chooseFolder(previous);
+        if (!root) return;
+        if (previous && previous.toString() !== root.toString()) {
+          const names = connections.all().map((c) => c.name);
+          const move = await confirm(
+            'Move the existing connection folders?',
+            `From ${previous.fsPath} to ${root.fsPath}. Without moving, files already synced stay where they are and are no longer tracked.`,
+            'Move',
+            'Leave Them',
+          );
+          if (move === 'Move')
+            inform(`Moved ${await sync.moveConnectionFolders(previous, root, names)} connection folders.`);
+          if (move === undefined) return;
+        }
+        await sync.setSyncRoot(root);
+        const inWorkspace = vscode.workspace.workspaceFolders?.some((f) => root.fsPath.startsWith(f.uri.fsPath));
+        if (!inWorkspace) {
+          const add = await vscode.window.showInformationMessage(
+            `Sync folder set to ${root.fsPath}. Add it to the workspace so its files show in the Explorer and Source Control?`,
+            'Add to Workspace',
+          );
+          if (add)
+            vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri: root });
+        } else {
+          void vscode.window.showInformationMessage(`Sync folder set to ${vscode.workspace.asRelativePath(root)}.`);
+        }
       }),
     ),
     vscode.commands.registerCommand(

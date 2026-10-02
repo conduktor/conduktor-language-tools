@@ -33,6 +33,7 @@ export interface LocalEntry {
 }
 
 const STATE_DIR = '.conduktor';
+const ROOT_KEY = 'conduktor.syncRoot';
 
 export class SyncFolder implements vscode.Disposable {
   private entries: LocalEntry[] = [];
@@ -45,17 +46,77 @@ export class SyncFolder implements vscode.Disposable {
   private readonly sessionListener: vscode.Disposable;
 
   constructor(
+    private readonly context: vscode.ExtensionContext,
     private readonly sessions: SessionManager,
     private readonly output: Output,
   ) {
     this.sessionListener = sessions.onDidChange(() => void this.rebind());
   }
 
+  /** The folder the user picked for all connections, or `<workspace>/conduktor` until they pick one. */
+  syncRoot(): vscode.Uri | undefined {
+    const chosen = this.memory().get<string>(ROOT_KEY);
+    if (chosen) return vscode.Uri.parse(chosen);
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    return folder && vscode.Uri.joinPath(folder.uri, 'conduktor');
+  }
+
+  isRootChosen(): boolean {
+    return this.memory().get<string>(ROOT_KEY) !== undefined;
+  }
+
+  async setSyncRoot(root: vscode.Uri): Promise<void> {
+    await this.memory().update(ROOT_KEY, root.toString());
+    this.output.info(`Sync folder: ${root.fsPath}`);
+    await this.rebind();
+  }
+
+  /** Asks once where to put the files, the first time anything is written. */
+  async ensureChosen(): Promise<boolean> {
+    if (this.isRootChosen()) return true;
+    const suggested = this.syncRoot();
+    const picks = [
+      ...(suggested
+        ? [
+            {
+              label: `Use ${vscode.workspace.asRelativePath(suggested)}`,
+              description: suggested.fsPath,
+              root: suggested,
+            },
+          ]
+        : []),
+      { label: 'Choose a folder…', description: 'for example a GitOps repository', root: undefined },
+    ];
+    const picked = await vscode.window.showQuickPick(picks, {
+      title: 'Where should Conduktor keep local copies? Each connection gets its own folder inside.',
+      ignoreFocusOut: true,
+    });
+    if (!picked) return false;
+    const root = picked.root ?? (await chooseFolder(suggested));
+    if (!root) return false;
+    await this.setSyncRoot(root);
+    return true;
+  }
+
+  async moveConnectionFolders(from: vscode.Uri, to: vscode.Uri, connectionNames: readonly string[]): Promise<number> {
+    let moved = 0;
+    for (const name of connectionNames) {
+      const source = vscode.Uri.joinPath(from, folderName(name));
+      const target = vscode.Uri.joinPath(to, folderName(name));
+      if ((await fileExists(source)) && !(await fileExists(target))) {
+        await vscode.workspace.fs.createDirectory(to);
+        await vscode.workspace.fs.rename(source, target);
+        moved++;
+      }
+    }
+    return moved;
+  }
+
   root(): vscode.Uri | undefined {
     const state = this.sessions.current();
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (state.status !== 'ready' || !folder) return undefined;
-    return vscode.Uri.joinPath(folder.uri, 'conduktor', folderName(state.connection.name));
+    const syncRoot = this.syncRoot();
+    if (state.status !== 'ready' || !syncRoot) return undefined;
+    return vscode.Uri.joinPath(syncRoot, folderName(state.connection.name));
   }
 
   isActive(): boolean {
@@ -88,6 +149,7 @@ export class SyncFolder implements vscode.Disposable {
   async syncResource(kind: KindVersion, parents: readonly string[], name: string): Promise<vscode.Uri> {
     const staged = this.entryFor(kind.kind, parents, name);
     if (staged && staged.status !== 'synced') return staged.uri;
+    await this.requireChosen();
     const state = this.ready();
     const live = await state.client.get(itemPath(kind, parentsOf(kind, [...parents]), name));
     const uri = await this.writeSynced(kind, [...parents], live);
@@ -100,6 +162,7 @@ export class SyncFolder implements vscode.Disposable {
     parents: readonly string[],
     proceed: (total: number) => Promise<boolean> = async () => true,
   ): Promise<number | undefined> {
+    await this.requireChosen();
     const state = this.ready();
     const resources = await state.client.list(listPath(kind, parentsOf(kind, [...parents])));
     if (!(await proceed(resources.length))) return undefined;
@@ -112,6 +175,7 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   async writeNew(kind: KindVersion, parents: readonly string[], text: string, name: string): Promise<vscode.Uri> {
+    await this.requireChosen();
     const root = this.requireRoot();
     let uri = vscode.Uri.joinPath(root, syncPath(kind, parents, name));
     for (let n = 2; await fileExists(uri); n++)
@@ -237,8 +301,17 @@ export class SyncFolder implements vscode.Disposable {
 
   private requireRoot(): vscode.Uri {
     const root = this.root();
-    if (!root) throw new Error('Open a workspace folder and connect to a Console to use a sync folder.');
+    if (!root) throw new Error('Choose a sync folder (Conduktor: Set Sync Folder…) and connect to a Console.');
     return root;
+  }
+
+  private async requireChosen(): Promise<void> {
+    if (!(await this.ensureChosen())) throw new Error('No sync folder chosen, so nothing was written.');
+  }
+
+  // Per workspace, so each repository can bind its own folder; machine-wide when no folder is open.
+  private memory(): vscode.Memento {
+    return vscode.workspace.workspaceFolders?.length ? this.context.workspaceState : this.context.globalState;
   }
 
   private ready(): Ready {
@@ -280,6 +353,19 @@ function identify(text: string, state: Ready) {
     typeof metadata[param] === 'string' ? (metadata[param] as string) : '',
   );
   return { kind: kind.kind, apiVersion: value.apiVersion, parents, name: metadata.name };
+}
+
+export async function chooseFolder(suggested: vscode.Uri | undefined): Promise<vscode.Uri | undefined> {
+  const [folder] =
+    (await vscode.window.showOpenDialog({
+      title: 'Sync folder for Conduktor resources',
+      openLabel: 'Use as Sync Folder',
+      canSelectFolders: true,
+      canSelectFiles: false,
+      canSelectMany: false,
+      defaultUri: suggested,
+    })) ?? [];
+  return folder;
 }
 
 function folderName(connectionName: string): string {

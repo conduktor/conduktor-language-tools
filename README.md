@@ -31,9 +31,13 @@ is valid, and what applying it would change. Git comes with VS Code.
 
 Stage changes as files before they reach the Console — the first step towards git sync.
 
-- **Sync Locally** on a resource, a kind or a cluster copies just that into
-  `<workspace>/conduktor/<connection>/<group>/<kind>/[<cluster>/]<name>.yaml`, mirroring the Explorer. Nothing else is
-  copied. A git-ignored `.conduktor/` beside it keeps the version last synced or applied (the _base_).
+- **Where:** one sync folder holds every connection, each in its own subfolder:
+  `<sync folder>/<connection>/<group>/<kind>/[<cluster>/]<name>.yaml`, mirroring the Explorer. You are asked the
+  first time anything is written (`<workspace>/conduktor` is offered), and **Set Sync Folder…** changes it — for
+  example to a GitOps repository — offering to move the existing connection folders and to add the folder to the
+  workspace. The choice is remembered per workspace (machine-wide when no folder is open).
+- **Sync Locally** on a resource, a kind or a cluster copies just that; nothing else is copied. A git-ignored
+  `.conduktor/` in each connection folder keeps the version last synced or applied (the _base_).
 - From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed on the
   Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
   **Show Only Changes** filters the tree to them.

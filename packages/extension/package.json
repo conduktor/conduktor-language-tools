@@ -210,6 +210,12 @@
         "title": "Select Cluster",
         "category": "Conduktor",
         "icon": "$(server)"
+      },
+      {
+        "command": "conduktor.setSyncFolder",
+        "title": "Set Sync Folder\u2026",
+        "category": "Conduktor",
+        "icon": "$(folder-opened)"
       }
     ],
     "viewsContainers": {
@@ -292,6 +298,11 @@
           "command": "conduktor.applyAllChanges",
           "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == apply",
           "group": "navigation"
+        },
+        {
+          "command": "conduktor.setSyncFolder",
+          "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "3_sync"
         }
       ],
       "commandPalette": [

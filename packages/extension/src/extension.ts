@@ -48,7 +48,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const compare = new Compare(sessions);
   const resources = new ResourceController(sessions, output, compare, confirm);
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
-  const sync = new SyncFolder(sessions, output);
+  const sync = new SyncFolder(context, sessions, output);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     sync,
     clusters,
     createStatusBar(sessions),
-    ...registerSyncCommands(sync, confirm, sessions),
+    ...registerSyncCommands(sync, confirm, sessions, connections),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm),
     ...registerLanguageModelTools(sessions),

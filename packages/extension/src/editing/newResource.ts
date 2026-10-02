@@ -40,7 +40,7 @@ export async function newResource(
   }
   const content = newResourceYaml(kind, parentsOf(kind, parents));
   const name = String(parse(content)?.metadata?.name ?? `new-${kind.kind.toLowerCase()}`);
-  const document = sync.root()
+  const document = (await sync.ensureChosen())
     ? await vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name))
     : await vscode.workspace.openTextDocument({ language: 'yaml', content });
   await vscode.window.showTextDocument(document);
