@@ -6,3 +6,12 @@ export { COMPONENT_REF, DEFAULT_ORDER, KindCatalog, type KindVersion } from './o
 export { itemPath, listPath, MissingParentError, parentsOf, upsertTarget, type Target } from './openapi/paths';
 export type { Resource, UpsertResponse, UpsertResult } from './resources/types';
 export { buildResourceSchema } from './openapi/schemaBuilder';
+export { ConsoleError, describeError, NetworkError } from './client/errors';
+export {
+  capabilityOf,
+  describeToken,
+  UnsupportedTokenError,
+  type Capability,
+  type TokenInfo,
+} from './client/tokenInfo';
+export { ConsoleClient, normaliseBaseUrl, type ConsoleClientOptions, type RequestEvent } from './client/consoleClient';
