@@ -22,6 +22,7 @@ import { registerYamlSchemas } from './schema/yamlSchemaContributor';
 import { applyAllChanges } from './sync/applyChanges';
 import { registerSyncCommands } from './sync/commands';
 import { LocalChangesError, SyncFolder } from './sync/syncFolder';
+import { MatchLensProvider } from './intel/matchLenses';
 import { Names } from './intel/names';
 import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
@@ -55,6 +56,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
   const sync = new SyncFolder(context, sessions, output);
   const names = new Names(sessions, sync);
+  const matchLenses = new MatchLensProvider(sessions, names);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
@@ -71,6 +73,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     codeLenses,
     sync,
     names,
+    matchLenses,
     new ReferenceDiagnostics(sessions, names),
     clusters,
     createStatusBar(sessions),
@@ -101,6 +104,21 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerCompletionItemProvider(
       { language: 'yaml' },
       new ReferenceCompletionProvider(sessions, names),
+    ),
+    vscode.languages.registerCodeLensProvider({ language: 'yaml' }, matchLenses),
+    vscode.commands.registerCommand(
+      'conduktor.showMatches',
+      async (kindName: string, parents: string[], matched: string[]) => {
+        const state = sessions.current();
+        const kind = state.status === 'ready' ? state.spec.catalog.latest(kindName) : undefined;
+        if (!kind) return;
+        const picked = await vscode.window.showQuickPick(matched, { title: `${matched.length} ${kindName} resources` });
+        if (!picked) return;
+        const local = sync.entryFor(kindName, parents, picked);
+        await vscode.window.showTextDocument(
+          local?.uri ?? explorer.liveUri({ type: 'resource', kind, parents, name: picked }),
+        );
+      },
     ),
     vscode.languages.registerDefinitionProvider(
       { language: 'yaml' },

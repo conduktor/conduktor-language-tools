@@ -148,6 +148,11 @@
         "category": "Conduktor"
       },
       {
+        "command": "conduktor.showMatches",
+        "title": "Show Matches",
+        "category": "Conduktor"
+      },
+      {
         "command": "conduktor.syncEverything",
         "title": "Sync Everything",
         "category": "Conduktor",
@@ -317,6 +322,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "conduktor.showMatches",
+          "when": "false"
+        },
         {
           "command": "conduktor.syncEverything",
           "when": "conduktor.mode"

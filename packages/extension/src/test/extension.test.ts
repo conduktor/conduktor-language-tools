@@ -1155,6 +1155,32 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.ok(uris.includes(local.toString()), uris.join(', '));
   });
 
+  test('counts what a pattern matches in a CodeLens', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    api.names.clear();
+    const topics = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+    const prefix = topics[0]!.metadata.name.slice(0, 2);
+    const expected = topics.filter((t) => t.metadata.name.startsWith(prefix)).length;
+    const doc = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: stringify({
+        apiVersion: 'v1',
+        kind: 'ApplicationInstance',
+        metadata: { name: 'vscode-lens', application: 'x' },
+        spec: { cluster: 'local-kafka', resources: [{ type: 'TOPIC', name: prefix, patternType: 'PREFIXED' }] },
+      }),
+    });
+    let titles: string[] = [];
+    await until(() => {
+      void vscode.commands
+        .executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', doc.uri)
+        .then((lenses) => (titles = lenses.map((l) => l.command?.title ?? '')));
+      return titles.includes(`$(search) matches ${expected} Topic resources`);
+    });
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();
