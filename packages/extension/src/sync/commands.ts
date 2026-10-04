@@ -86,13 +86,12 @@ export function registerSyncCommands(
         if (previous && previous.toString() !== root.toString()) {
           const names = connections.all().map((c) => c.name);
           const move = await confirm(
-            'Move the existing connection folders?',
+            'Move the existing environments?',
             `From ${previous.fsPath} to ${root.fsPath}. Without moving, files already synced stay where they are and are no longer tracked.`,
             'Move',
             'Leave Them',
           );
-          if (move === 'Move')
-            inform(`Moved ${await sync.moveConnectionFolders(previous, root, names)} connection folders.`);
+          if (move === 'Move') inform(`Moved ${await sync.moveConnectionFolders(previous, root, names)} environments.`);
           if (move === undefined) return;
         }
         await sync.setSyncRoot(root);

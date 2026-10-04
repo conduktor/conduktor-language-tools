@@ -31,15 +31,18 @@ is valid, and what applying it would change. Git comes with VS Code.
 
 Stage changes as files before they reach the Console — the first step towards git sync.
 
-- **Where:** one sync folder holds every connection, each in its own subfolder:
-  `<sync folder>/<connection>/global/<group>/<kind>/<name>.yaml` and
-  `<sync folder>/<connection>/clusters/<cluster>/<group>/<kind>/[<connect cluster>/]<name>.yaml`, mirroring the Explorer.
+- **Where:** one sync folder holds every connection, each as an environment:
+  `<sync folder>/environments/<connection>/global/<group>/<kind>/<name>.yaml` and
+  `<sync folder>/environments/<connection>/clusters/<cluster>/<group>/<kind>/[<connect cluster>/]<name>.yaml`,
+  mirroring the Explorer. `conduktor apply -f environments/<env> -r` applies exactly the environment's resources.
   Files are kept at `<name>.yaml`: rename a resource in its file and the file follows. You are asked the
   first time anything is written (`<workspace>/conduktor` is offered), and **Set Sync Folder…** changes it — for
-  example to a GitOps repository — offering to move the existing connection folders and to add the folder to the
+  example to a GitOps repository — offering to move the existing environments and to add the folder to the
   workspace. The choice is remembered per workspace (machine-wide when no folder is open).
 - **Sync Locally** on a resource, a kind or a cluster copies just that; nothing else is copied. A git-ignored
-  `.conduktor/` in each connection folder keeps the version last synced or applied (the _base_).
+  `.conduktor/base/<env>/` at the root of the sync folder keeps the version last synced or applied (the _base_),
+  outside the environment so the CLI never applies it. Folders from the older `<sync folder>/<connection>/` layout
+  move into `environments/` on first use.
 - From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed or deleted
   on the Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
   **Show Only Changes** filters the tree to them.

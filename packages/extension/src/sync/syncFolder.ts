@@ -1,14 +1,22 @@
 import * as vscode from 'vscode';
 import { parse, stringify } from 'yaml';
 import {
+  baseDir,
   ConsoleError,
   describeError,
   driftOf,
+  environmentDir,
+  environmentFor,
+  environmentName,
   isRecord,
   itemPath,
   listPath,
+  migrationPaths,
   parentsOf,
+  planMigration,
   referencedVariables,
+  REPO_CONFIG,
+  STATE_DIR,
   syncPath,
   syncStatus,
   withSecretPlaceholders,
@@ -38,13 +46,13 @@ interface RefreshOptions {
   drift?: boolean;
 }
 
-const STATE_DIR = '.conduktor';
 const ROOT_KEY = 'conduktor.syncRoot';
 
 export class SyncFolder implements vscode.Disposable {
   private entries: LocalEntry[] = [];
   private drift = new Map<string, Drift>();
   private exists = false;
+  private boundEnvironment: string | undefined;
   private watcher: vscode.FileSystemWatcher | undefined;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly refreshes = singleFlight<RefreshOptions>(
@@ -98,7 +106,7 @@ export class SyncFolder implements vscode.Disposable {
       { label: 'Choose a folder…', description: 'for example a GitOps repository', root: undefined },
     ];
     const picked = await vscode.window.showQuickPick(picks, {
-      title: 'Where should Conduktor keep local copies? Each connection gets its own folder inside.',
+      title: 'Where should Conduktor keep its repository? Each connection gets environments/<name> inside.',
       ignoreFocusOut: true,
     });
     if (!picked) return false;
@@ -111,22 +119,32 @@ export class SyncFolder implements vscode.Disposable {
   async moveConnectionFolders(from: vscode.Uri, to: vscode.Uri, connectionNames: readonly string[]): Promise<number> {
     let moved = 0;
     for (const name of connectionNames) {
-      const source = vscode.Uri.joinPath(from, folderName(name));
-      const target = vscode.Uri.joinPath(to, folderName(name));
-      if ((await fileExists(source)) && !(await fileExists(target))) {
-        await vscode.workspace.fs.createDirectory(to);
-        await vscode.workspace.fs.rename(source, target);
-        moved++;
+      const env = environmentName(name);
+      let any = false;
+      for (const path of [environmentDir(env), baseDir(env)]) {
+        const source = vscode.Uri.joinPath(from, path);
+        const target = vscode.Uri.joinPath(to, path);
+        if ((await fileExists(source)) && !(await fileExists(target))) {
+          await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(target, '..'));
+          await vscode.workspace.fs.rename(source, target);
+          any = true;
+        }
       }
+      if (any) moved++;
     }
     return moved;
   }
 
-  root(): vscode.Uri | undefined {
+  /** The environment the current connection is bound to: by its Console URL in conduktor.yaml, else its name. */
+  environment(): string | undefined {
     const state = this.sessions.current();
+    return state.status === 'ready' ? (this.boundEnvironment ?? environmentName(state.connection.name)) : undefined;
+  }
+
+  root(): vscode.Uri | undefined {
     const syncRoot = this.syncRoot();
-    if (state.status !== 'ready' || !syncRoot) return undefined;
-    return vscode.Uri.joinPath(syncRoot, folderName(state.connection.name));
+    const env = this.environment();
+    return syncRoot && env ? vscode.Uri.joinPath(syncRoot, environmentDir(env)) : undefined;
   }
 
   isActive(): boolean {
@@ -390,13 +408,23 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   private async ensureStateDir(): Promise<void> {
-    const ignore = vscode.Uri.joinPath(this.requireRoot(), STATE_DIR, '.gitignore');
+    const ignore = vscode.Uri.joinPath(this.requireSyncRoot(), STATE_DIR, '.gitignore');
     if (!(await fileExists(ignore))) await write(ignore, '*\n');
   }
 
   private baseOf(uri: vscode.Uri): vscode.Uri {
     const root = this.requireRoot();
-    return vscode.Uri.joinPath(root, STATE_DIR, 'base', uri.path.slice(root.path.length + 1));
+    return vscode.Uri.joinPath(
+      this.requireSyncRoot(),
+      baseDir(this.environment()!),
+      uri.path.slice(root.path.length + 1),
+    );
+  }
+
+  private requireSyncRoot(): vscode.Uri {
+    const syncRoot = this.syncRoot();
+    if (!syncRoot) throw new Error('Choose a sync folder (Conduktor: Set Sync Folder…) first.');
+    return syncRoot;
   }
 
   private requireRoot(): vscode.Uri {
@@ -423,6 +451,8 @@ export class SyncFolder implements vscode.Disposable {
   private async rebind(): Promise<void> {
     this.watcher?.dispose();
     this.watcher = undefined;
+    this.boundEnvironment = await this.environmentInRepo();
+    await this.migrate();
     const root = this.root();
     if (root) {
       this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
@@ -435,6 +465,40 @@ export class SyncFolder implements vscode.Disposable {
       this.watcher.onDidDelete(schedule);
     }
     await this.refresh();
+  }
+
+  private async environmentInRepo(): Promise<string | undefined> {
+    const state = this.sessions.current();
+    const syncRoot = this.syncRoot();
+    if (state.status !== 'ready' || !syncRoot) return undefined;
+    try {
+      return environmentFor(await read(vscode.Uri.joinPath(syncRoot, REPO_CONFIG)), state.client.baseUrl);
+    } catch (error) {
+      this.output.warn(`${describeError(error)}; using the connection name as the environment.`);
+      return undefined;
+    }
+  }
+
+  private async migrate(): Promise<void> {
+    const syncRoot = this.syncRoot();
+    const env = this.environment();
+    if (!syncRoot || !env) return;
+    const existing = new Set<string>();
+    for (const path of migrationPaths(env))
+      if (await fileExists(vscode.Uri.joinPath(syncRoot, path))) existing.add(path);
+    const { moves, refused } = planMigration(env, existing);
+    for (const move of refused)
+      this.output.warn(`Not moving ${move.from} to ${move.to}: ${move.to} already exists. Move it by hand.`);
+    for (const move of moves) {
+      const to = vscode.Uri.joinPath(syncRoot, move.to);
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(to, '..'));
+      await vscode.workspace.fs.rename(vscode.Uri.joinPath(syncRoot, move.from), to);
+      this.output.info(`Moved ${move.from} to ${move.to}`);
+    }
+    // Once the base has moved out, the old state folder holds only its .gitignore.
+    const leftover = vscode.Uri.joinPath(syncRoot, environmentDir(env), STATE_DIR);
+    if (moves.length > 0 && (await fileExists(leftover)))
+      await vscode.workspace.fs.delete(leftover, { recursive: true });
   }
 }
 
@@ -493,10 +557,6 @@ export async function chooseFolder(suggested: vscode.Uri | undefined): Promise<v
       defaultUri: suggested,
     })) ?? [];
   return folder;
-}
-
-function folderName(connectionName: string): string {
-  return connectionName.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'console';
 }
 
 async function fileExists(uri: vscode.Uri): Promise<boolean> {

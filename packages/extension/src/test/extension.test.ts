@@ -1,6 +1,6 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
@@ -140,6 +140,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const local = vscode.Uri.joinPath(
       vscode.workspace.workspaceFolders![0]!.uri,
       'conduktor',
+      'environments',
       state.connection.name,
       'clusters/local-kafka/kafka/Topic',
       `${name}.yaml`,
@@ -352,7 +353,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
     const uri = await api.sync.syncResource(topicKind, ['local-kafka'], name);
     assert.ok(
-      uri.path.endsWith(`/conduktor/${state.connection.name}/clusters/local-kafka/kafka/Topic/${name}.yaml`),
+      uri.path.endsWith(
+        `/conduktor/environments/${state.connection.name}/clusters/local-kafka/kafka/Topic/${name}.yaml`,
+      ),
       uri.path,
     );
     assert.ok(api.sync.isActive());
@@ -656,7 +659,12 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const single = vscode.Uri.joinPath(folder, `${id}.yaml`);
     const pair = vscode.Uri.joinPath(folder, `${id}-pair.yaml`);
     const baseOf = (uri: vscode.Uri) =>
-      vscode.Uri.joinPath(root, '.conduktor/base', uri.path.slice(root.path.length + 1));
+      vscode.Uri.joinPath(
+        api.sync.syncRoot()!,
+        '.conduktor/base',
+        api.sync.environment()!,
+        uri.path.slice(root.path.length + 1),
+      );
     const read = async (uri: vscode.Uri) => new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
     try {
       await api.sync.writeNew(state.spec.catalog.latest('Topic')!, ['local-kafka'], topic(id), id);
@@ -750,11 +758,39 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     try {
       assert.ok(api.sync.isRootChosen());
       const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
-      assert.strictEqual(
-        uri.fsPath,
-        join(elsewhere.fsPath, state.connection.name, 'global', 'console', 'KafkaCluster', 'local-gateway.yaml'),
-      );
+      const file = join('global', 'console', 'KafkaCluster', 'local-gateway.yaml');
+      assert.strictEqual(uri.fsPath, join(elsewhere.fsPath, 'environments', state.connection.name, file));
       assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
+      await vscode.workspace.fs.stat(
+        vscode.Uri.file(join(elsewhere.fsPath, '.conduktor', 'base', state.connection.name, file)),
+      );
+      assert.ok(!existsSync(join(elsewhere.fsPath, 'environments', state.connection.name, '.conduktor')));
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-legacy-')));
+    const env = state.connection.name;
+    const file = 'global/console/KafkaCluster/legacy.yaml';
+    const text = stringify({ apiVersion: 'v2', kind: 'KafkaCluster', metadata: { name: 'legacy' }, spec: {} });
+    const put = (path: string) =>
+      vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, path), new TextEncoder().encode(text));
+    await put(`${env}/${file}`);
+    await put(`${env}/.conduktor/base/${file}`);
+    await put(`${env}/.conduktor/.gitignore`);
+    try {
+      await api.sync.setSyncRoot(root);
+      const moved = api.sync.entryFor('KafkaCluster', [], 'legacy');
+      assert.strictEqual(moved?.uri.fsPath, join(root.fsPath, 'environments', env, file));
+      assert.strictEqual(moved?.status, 'synced', 'the base came along');
+      await vscode.workspace.fs.stat(vscode.Uri.joinPath(root, '.conduktor', 'base', env, file));
+      assert.ok(!existsSync(join(root.fsPath, env)), 'the old folder is gone');
+      assert.ok(!existsSync(join(root.fsPath, 'environments', env, '.conduktor')), 'nothing but resources is left');
     } finally {
       await useWorkspaceSyncRoot(api);
     }
