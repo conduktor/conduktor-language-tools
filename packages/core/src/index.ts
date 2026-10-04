@@ -55,4 +55,19 @@ export {
 } from './tools';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
-export { driftOf, syncPath, syncStatus, withSecretPlaceholders, type Drift, type SyncStatus } from './sync';
+export {
+  baseDir,
+  driftOf,
+  environmentDir,
+  environmentName,
+  ENVIRONMENTS_DIR,
+  migrationPaths,
+  planMigration,
+  STATE_DIR,
+  syncPath,
+  syncStatus,
+  withSecretPlaceholders,
+  type Drift,
+  type Move,
+  type SyncStatus,
+} from './sync';
