@@ -1,4 +1,5 @@
 export { findReferences, referenceAt, type Reference } from './extract';
+export { describeSources, NameIndex, type NameSource } from './nameIndex';
 export {
   collides,
   matcher,

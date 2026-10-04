@@ -91,14 +91,17 @@ export {
 } from './sync';
 export {
   collides,
+  describeSources,
   findReferences,
   matcher,
+  NameIndex,
   overlapsOf,
   patternTraps,
   patternTypeOf,
   referenceAt,
   REFERENCE_RULES,
   type Instance,
+  type NameSource,
   type OwnedResource,
   type PatternReading,
   type PatternType,
