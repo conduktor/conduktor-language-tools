@@ -1,7 +1,16 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
@@ -936,6 +945,102 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await state.client
         .delete(itemPath(kindOf('ServiceAccount'), { cluster: SASL_CLUSTER }, account))
         .catch(() => undefined);
+    }
+  });
+
+  test("binds environments only to safe folder names that are not another Console's", async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const parent = mkdtempSync(join(tmpdir(), 'conduktor-bind-'));
+    const repo = vscode.Uri.file(join(parent, 'repo'));
+    const configure = (text: string) => {
+      mkdirSync(repo.fsPath, { recursive: true });
+      writeFileSync(join(repo.fsPath, 'conduktor.yaml'), text);
+    };
+    try {
+      configure(`environments:\n  "../escape": { console: ${state.client.baseUrl} }\n`);
+      await api.sync.setSyncRoot(repo);
+      assert.strictEqual(api.sync.environment(), undefined);
+      await assert.rejects(api.sync.syncEverything(['Group']), /not a folder name/);
+      assert.ok(!existsSync(join(parent, 'escape')), 'nothing is written outside the repository');
+
+      configure(`environments:\n  ${state.connection.name}: { console: https://another.example }\n`);
+      await api.sync.setSyncRoot(vscode.Uri.file(parent));
+      await api.sync.setSyncRoot(repo);
+      await assert.rejects(api.sync.syncEverything(['Group']), /belongs to https:\/\/another.example/);
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('moves environments to a new root whole, with conduktor.yaml', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const env = state.connection.name;
+    const file = 'global/iam/Group/team.yaml';
+    const put = (root: string, path: string) => {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), 'apiVersion: v2\nkind: Group\nmetadata: { name: team }\nspec: {}\n');
+    };
+    const from = mkdtempSync(join(tmpdir(), 'conduktor-from-'));
+    const blocked = mkdtempSync(join(tmpdir(), 'conduktor-blocked-'));
+    const to = mkdtempSync(join(tmpdir(), 'conduktor-to-'));
+    for (const path of [`environments/${env}/${file}`, `.conduktor/base/${env}/${file}`, 'conduktor.yaml'])
+      put(from, path);
+    put(blocked, `.conduktor/base/${env}/${file}`);
+    const moved = (root: string) => existsSync(join(root, 'environments', env, file));
+
+    assert.strictEqual(await api.sync.moveConnectionFolders(vscode.Uri.file(from), vscode.Uri.file(blocked), [env]), 0);
+    assert.ok(moved(from) && !moved(blocked), 'an environment never moves without its base copies');
+
+    assert.strictEqual(await api.sync.moveConnectionFolders(vscode.Uri.file(from), vscode.Uri.file(to), [env]), 1);
+    assert.ok(
+      moved(to) && existsSync(join(to, '.conduktor', 'base', env, file)) && existsSync(join(to, 'conduktor.yaml')),
+    );
+  });
+
+  test('reports a file it could not write as skipped, with why, not as a local change', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const repo = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-readonly-')));
+    await api.sync.setSyncRoot(repo);
+    const folder = join(api.sync.root()!.fsPath, 'global', 'iam', 'Group');
+    try {
+      await api.sync.syncEverything(['Group']);
+      const [first] = readdirSync(folder);
+      rmSync(join(folder, first!));
+      chmodSync(folder, 0o555);
+      const result = await api.sync.syncEverything(['Group']);
+      assert.deepStrictEqual(result.conflicts, []);
+      assert.ok(
+        result.skipped.some((s) => /EACCES|permission/i.test(s.reason)),
+        JSON.stringify(result.skipped),
+      );
+    } finally {
+      chmodSync(folder, 0o755);
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('stops writing when the connection changes during Sync Everything', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const repo = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-switch-')));
+    await api.sync.setSyncRoot(repo);
+    try {
+      const running = api.sync.syncEverything(await api.sync.managedKinds());
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await api.sessions.reload();
+      const result = await running;
+      assert.strictEqual(result.cancelled, true);
+      assert.deepStrictEqual(result.written, {});
+    } finally {
+      await until(() => api.sessions.current().status === 'ready');
+      await useWorkspaceSyncRoot(api);
     }
   });
 

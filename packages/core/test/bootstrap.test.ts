@@ -61,10 +61,12 @@ describe('collectResources', () => {
     ]);
   });
 
-  it('lists each parent once and at most four lists at a time', async () => {
-    const fake = console_(responses);
+  it('lists each parent once and at most four lists at a time, parents included', async () => {
+    const clusters = Array.from({ length: 10 }, (_, i) => `c${i}`);
+    const fake = console_({ '/public/console/v2/kafka-cluster': named(...clusters) });
     await collectResources(fake.client, snapshotCatalog, ['Topic', 'Connector', 'KafkaCluster']);
     expect(fake.calls.filter((c) => c === '/public/console/v2/kafka-cluster')).toHaveLength(1);
+    expect(fake.calls.filter((c) => c.endsWith('/kafka-connect'))).toHaveLength(10);
     expect(fake.maxInFlight()).toBeLessThanOrEqual(4);
   });
 
@@ -75,11 +77,10 @@ describe('collectResources', () => {
         { metadata: { name: 'mine' } },
       ] as Resource[],
     });
-    const { fetched, skipped } = await collectResources(client, snapshotCatalog, ['DataQualityRule']);
+    const { fetched, skipped, builtIn } = await collectResources(client, snapshotCatalog, ['DataQualityRule']);
     expect(fetched.map((f) => f.resource.metadata.name)).toEqual(['mine']);
-    expect(skipped).toEqual([
-      { kind: 'DataQualityRule', parents: [], name: 'enforce_avro', reason: 'Built in, managed by the Console' },
-    ]);
+    expect(builtIn).toEqual(['DataQualityRule enforce_avro']);
+    expect(skipped).toEqual([]);
   });
 
   it('skips a kind this Console does not have', async () => {
@@ -107,18 +108,16 @@ describe('describeBootstrap', () => {
       written: { Topic: 3, Group: 1 },
       unchanged: 5,
       conflicts: ['clusters/local/kafka/Topic/orders.yaml'],
-      skipped: [
-        { kind: 'Topic', parents: ['prod'], reason: 'No access' },
-        { kind: 'DataQualityRule', parents: [], name: 'enforce_avro', reason: 'Built in, managed by the Console' },
-      ],
+      skipped: [{ kind: 'Topic', parents: ['prod'], reason: 'No access' }],
+      builtIn: ['DataQualityRule enforce_avro'],
       cancelled: false,
     });
-    expect(summary.headline).toBe('dev: 4 written, 5 unchanged, 1 left alone, 2 skipped.');
+    expect(summary.headline).toBe('dev: 4 written, 5 unchanged, 1 left alone, 1 skipped, 1 built in left out.');
     expect(summary.details).toEqual([
       'Written: Topic 3, Group 1',
       'Left alone (local changes or not a synced copy): clusters/local/kafka/Topic/orders.yaml',
       'Skipped Topic in prod: No access',
-      'Skipped DataQualityRule enforce_avro: Built in, managed by the Console',
+      'Left out, built in and managed by the Console: DataQualityRule enforce_avro',
     ]);
   });
 });

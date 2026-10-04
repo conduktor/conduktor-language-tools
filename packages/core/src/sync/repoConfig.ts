@@ -1,5 +1,6 @@
 import { isMap, parseDocument, type Document } from 'yaml';
 import type { KindCatalog } from '../openapi/kindCatalog';
+import { environmentName } from './layout';
 import { isRecord } from '../util';
 
 export const REPO_CONFIG = 'conduktor.yaml';
@@ -27,8 +28,28 @@ export function environments(text: string | undefined): Record<string, Environme
   );
 }
 
-export function environmentFor(text: string | undefined, consoleUrl: string): string | undefined {
-  return Object.entries(environments(text)).find(([, env]) => sameConsole(env.console, consoleUrl))?.[0];
+// An environment name becomes a folder, so a name bound in a cloned repository's conduktor.yaml must be one safe
+// segment; and naming an environment after its connection must not take over one bound to another Console.
+export function resolveEnvironment(
+  text: string | undefined,
+  consoleUrl: string,
+  connectionName: string,
+): { environment?: string; problem?: string } {
+  const envs = environments(text);
+  const bound = Object.entries(envs).find(([, env]) => sameConsole(env.console, consoleUrl))?.[0];
+  if (bound !== undefined) {
+    return environmentName(bound) === bound
+      ? { environment: bound }
+      : { problem: `${REPO_CONFIG}: "${bound}" is not a folder name; use letters, digits, ".", "_" and "-".` };
+  }
+  const fallback = environmentName(connectionName);
+  const owner = envs[fallback]?.console;
+  if (owner !== undefined && !sameConsole(owner, consoleUrl)) {
+    return {
+      problem: `environments/${fallback} belongs to ${owner} in ${REPO_CONFIG}; bind this Console to an environment of its own there.`,
+    };
+  }
+  return { environment: fallback };
 }
 
 export function withEnvironment(text: string | undefined, name: string, config: EnvironmentConfig): string {

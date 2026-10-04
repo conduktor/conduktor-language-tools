@@ -13,7 +13,7 @@ import {
   ENV_EXAMPLE,
   envExample,
   environmentDir,
-  environmentFor,
+  resolveEnvironment,
   environmentName,
   environments,
   ENVIRONMENTS_DIR,
@@ -23,8 +23,10 @@ import {
   migrationPaths,
   parentsOf,
   planMigration,
+  planRootMove,
   referencedVariables,
   REPO_CONFIG,
+  rootMovePaths,
   STATE_DIR,
   syncPath,
   syncStatus,
@@ -65,7 +67,7 @@ export class SyncFolder implements vscode.Disposable {
   private bootstrapping = false;
   private drift = new Map<string, Drift>();
   private exists = false;
-  private boundEnvironment: string | undefined;
+  private binding: { environment?: string; problem?: string } = {};
   private watcher: vscode.FileSystemWatcher | undefined;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly refreshes = singleFlight<RefreshOptions>(
@@ -130,28 +132,40 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   async moveConnectionFolders(from: vscode.Uri, to: vscode.Uri, connectionNames: readonly string[]): Promise<number> {
-    let moved = 0;
-    for (const name of connectionNames) {
-      const env = environmentName(name);
-      let any = false;
-      for (const path of [environmentDir(env), baseDir(env)]) {
-        const source = vscode.Uri.joinPath(from, path);
-        const target = vscode.Uri.joinPath(to, path);
-        if ((await fileExists(source)) && !(await fileExists(target))) {
-          await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(target, '..'));
-          await vscode.workspace.fs.rename(source, target);
-          any = true;
-        }
-      }
-      if (any) moved++;
+    let bound: string[] = [];
+    try {
+      bound = Object.keys(environments(await read(vscode.Uri.joinPath(from, REPO_CONFIG))));
+    } catch (error) {
+      this.output.warn(describeError(error));
     }
-    return moved;
+    const envs = [...new Set([...connectionNames.map(environmentName), ...bound])].filter(
+      (env) => environmentName(env) === env,
+    );
+    const paths = rootMovePaths(envs);
+    const present = async (root: vscode.Uri) => {
+      const found = new Set<string>();
+      for (const path of paths) if (await fileExists(vscode.Uri.joinPath(root, path))) found.add(path);
+      return found;
+    };
+    const { moves, refused } = planRootMove(envs, await present(from), await present(to));
+    for (const move of refused) this.output.warn(`Not moving ${move.from}: it already exists in ${to.fsPath}.`);
+    for (const move of moves) {
+      const target = vscode.Uri.joinPath(to, move.to);
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(target, '..'));
+      await vscode.workspace.fs.rename(vscode.Uri.joinPath(from, move.from), target);
+    }
+    return envs.filter((env) => moves.some((move) => move.from === environmentDir(env))).length;
   }
 
   /** The environment the current connection is bound to: by its Console URL in conduktor.yaml, else its name. */
   environment(): string | undefined {
-    const state = this.sessions.current();
-    return state.status === 'ready' ? (this.boundEnvironment ?? environmentName(state.connection.name)) : undefined;
+    return this.sessions.current().status === 'ready' ? this.binding.environment : undefined;
+  }
+
+  private requireEnvironment(): string {
+    const env = this.environment();
+    if (!env) throw new Error(this.binding.problem ?? 'Connect to a Conduktor Console first.');
+    return env;
   }
 
   root(): vscode.Uri | undefined {
@@ -205,13 +219,15 @@ export class SyncFolder implements vscode.Disposable {
   ): Promise<number | undefined> {
     await this.requireChosen();
     const state = this.ready();
+    const place = this.place();
     const resources = await state.client.list(listPath(kind, parentsOf(kind, [...parents])));
     if (!(await proceed(resources.length))) return undefined;
     for (const resource of resources) {
+      if (this.sessions.current() !== state) break;
       const staged = this.entryFor(kind.kind, parents, resource.metadata.name);
       if (staged && staged.status !== 'synced') continue;
       try {
-        await this.writeSynced(kind, [...parents], resource);
+        await this.writeSynced(kind, [...parents], resource, place);
       } catch (error) {
         this.output.warn(describeError(error));
       }
@@ -224,7 +240,7 @@ export class SyncFolder implements vscode.Disposable {
   async managedKinds(): Promise<string[]> {
     const state = this.ready();
     const config = await read(vscode.Uri.joinPath(this.requireSyncRoot(), REPO_CONFIG));
-    return environments(config)[this.environment()!]?.kinds ?? defaultKinds(state.spec.catalog);
+    return environments(config)[this.requireEnvironment()]?.kinds ?? defaultKinds(state.spec.catalog);
   }
 
   /** Bootstraps the environment: every chosen kind, globally and in every cluster, under the never-overwrite rules. */
@@ -235,8 +251,11 @@ export class SyncFolder implements vscode.Disposable {
     await this.requireChosen();
     const state = this.ready();
     const syncRoot = this.requireSyncRoot();
+    // Everything is written where this connection's environment was when the run started; a switch stops it.
+    const place = this.place();
+    const switched = () => this.sessions.current() !== state;
     const configUri = vscode.Uri.joinPath(syncRoot, REPO_CONFIG);
-    const config = withEnvironment(await read(configUri), this.environment()!, {
+    const config = withEnvironment(await read(configUri), this.requireEnvironment(), {
       console: state.client.baseUrl,
       kinds: [...kinds],
     });
@@ -244,31 +263,51 @@ export class SyncFolder implements vscode.Disposable {
     await this.ensureIgnored(['.env', `${ENVIRONMENTS_DIR}/*/.env`]);
     await this.refresh();
 
-    const { fetched, skipped, cancelled } = await collectResources(state.client, state.spec.catalog, kinds, {
+    const { fetched, skipped, builtIn, cancelled } = await collectResources(state.client, state.spec.catalog, kinds, {
       concurrency: 4,
-      ...options,
+      onProgress: options.onProgress,
+      cancelled: () => switched() || (options.cancelled?.() ?? false),
     });
-    const result: BootstrapResult = { written: {}, unchanged: 0, conflicts: [], skipped, cancelled };
+    const result: BootstrapResult = {
+      written: {},
+      unchanged: 0,
+      conflicts: [],
+      skipped,
+      builtIn,
+      cancelled: cancelled || switched(),
+    };
+    if (result.cancelled) return result;
     // Thousands of files are written; the watcher's rescans would re-read the folder after every one.
     this.bootstrapping = true;
     try {
       await this.ensureStateDir();
       await eachLimit(fetched, 8, async ({ kind, parents, resource }) => {
+        if (switched()) {
+          result.cancelled = true;
+          return;
+        }
         try {
-          const { written } = await this.writeSynced(kind, parents, resource);
+          const { written } = await this.writeSynced(kind, parents, resource, place);
           if (written) result.written[kind.kind] = (result.written[kind.kind] ?? 0) + 1;
           else result.unchanged++;
-        } catch {
-          result.conflicts.push(syncPath(kind, parents, resource.metadata.name));
+        } catch (error) {
+          if (error instanceof NotSyncedCopyError) result.conflicts.push(error.path);
+          else
+            result.skipped.push({
+              kind: kind.kind,
+              parents,
+              reason: `${syncPath(kind, parents, resource.metadata.name)}: ${describeError(error)}`,
+            });
         }
       });
       result.conflicts.sort();
     } finally {
       this.bootstrapping = false;
     }
+    if (switched()) return result;
     await this.refresh();
     const texts = await Promise.all(this.entries.map(async (entry) => (await read(entry.uri)) ?? ''));
-    await write(vscode.Uri.joinPath(this.requireRoot(), ENV_EXAMPLE), envExample(texts));
+    await write(vscode.Uri.joinPath(place.root, ENV_EXAMPLE), envExample(texts));
     return result;
   }
 
@@ -461,16 +500,16 @@ export class SyncFolder implements vscode.Disposable {
     kind: KindVersion,
     parents: string[],
     live: Resource,
+    place: Place = this.place(),
   ): Promise<{ uri: vscode.Uri; written: boolean }> {
-    const root = this.requireRoot();
     const path = syncPath(kind, parents, live.metadata.name);
-    const uri = vscode.Uri.joinPath(root, path);
+    const uri = vscode.Uri.joinPath(place.root, path);
     const exists = await fileExists(uri);
-    if (exists && this.entryAt(uri)?.status !== 'synced')
-      throw new Error(`${path} is not a synced copy of ${live.kind} ${live.metadata.name}, so it is left as it is.`);
+    if (exists && this.entryAt(uri)?.status !== 'synced') throw new NotSyncedCopyError(path, live);
     const { resource, variables } = withSecretPlaceholders(live);
     const text = stringify(resource);
-    if (exists && (await read(uri)) === text && (await read(this.baseOf(uri))) === text) return { uri, written: false };
+    const base = this.baseOf(uri, place);
+    if (exists && (await read(uri)) === text && (await read(base)) === text) return { uri, written: false };
     if (variables.length > 0) {
       this.output.info(
         `${live.kind} ${live.metadata.name}: secrets replaced with ${variables.map((v) => `\${${v}}`).join(', ')}`,
@@ -478,7 +517,7 @@ export class SyncFolder implements vscode.Disposable {
     }
     if (!this.bootstrapping) await this.ensureStateDir();
     await write(uri, text);
-    await write(this.baseOf(uri), text);
+    await write(base, text);
     return { uri, written: true };
   }
 
@@ -496,13 +535,13 @@ export class SyncFolder implements vscode.Disposable {
     if (!(await fileExists(ignore))) await write(ignore, '*\n');
   }
 
-  private baseOf(uri: vscode.Uri): vscode.Uri {
-    const root = this.requireRoot();
-    return vscode.Uri.joinPath(
-      this.requireSyncRoot(),
-      baseDir(this.environment()!),
-      uri.path.slice(root.path.length + 1),
-    );
+  private place(): Place {
+    const env = this.requireEnvironment();
+    return { root: this.requireRoot(), base: vscode.Uri.joinPath(this.requireSyncRoot(), baseDir(env)) };
+  }
+
+  private baseOf(uri: vscode.Uri, place: Place = this.place()): vscode.Uri {
+    return vscode.Uri.joinPath(place.base, uri.path.slice(place.root.path.length + 1));
   }
 
   private requireSyncRoot(): vscode.Uri {
@@ -535,8 +574,13 @@ export class SyncFolder implements vscode.Disposable {
   private async rebind(): Promise<void> {
     this.watcher?.dispose();
     this.watcher = undefined;
-    this.boundEnvironment = await this.environmentInRepo();
-    await this.migrate();
+    this.binding = await this.bindEnvironment();
+    if (this.binding.problem) this.output.warn(this.binding.problem);
+    try {
+      await this.migrate();
+    } catch (error) {
+      this.output.error(`Could not move the sync folder into environments/: ${describeError(error)}`);
+    }
     const root = this.root();
     if (root) {
       this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
@@ -552,15 +596,15 @@ export class SyncFolder implements vscode.Disposable {
     await this.refresh();
   }
 
-  private async environmentInRepo(): Promise<string | undefined> {
+  private async bindEnvironment(): Promise<{ environment?: string; problem?: string }> {
     const state = this.sessions.current();
     const syncRoot = this.syncRoot();
-    if (state.status !== 'ready' || !syncRoot) return undefined;
+    if (state.status !== 'ready' || !syncRoot) return {};
     try {
-      return environmentFor(await read(vscode.Uri.joinPath(syncRoot, REPO_CONFIG)), state.client.baseUrl);
+      const config = await read(vscode.Uri.joinPath(syncRoot, REPO_CONFIG));
+      return resolveEnvironment(config, state.client.baseUrl, state.connection.name);
     } catch (error) {
-      this.output.warn(`${describeError(error)}; using the connection name as the environment.`);
-      return undefined;
+      return { problem: describeError(error) };
     }
   }
 
@@ -580,10 +624,29 @@ export class SyncFolder implements vscode.Disposable {
       await vscode.workspace.fs.rename(vscode.Uri.joinPath(syncRoot, move.from), to);
       this.output.info(`Moved ${move.from} to ${move.to}`);
     }
-    // Once the base has moved out, the old state folder holds only its .gitignore.
+    // Once the base has moved out, the old state folder should hold only the .gitignore the extension wrote; anything
+    // else in it is left for the user.
     const leftover = vscode.Uri.joinPath(syncRoot, environmentDir(env), STATE_DIR);
-    if (moves.length > 0 && (await fileExists(leftover)))
-      await vscode.workspace.fs.delete(leftover, { recursive: true });
+    if (moves.length > 0 && (await fileExists(leftover))) {
+      await Promise.resolve(vscode.workspace.fs.delete(vscode.Uri.joinPath(leftover, '.gitignore'))).catch(
+        () => undefined,
+      );
+      await Promise.resolve(vscode.workspace.fs.delete(leftover)).catch(() => undefined);
+    }
+  }
+}
+
+interface Place {
+  root: vscode.Uri;
+  base: vscode.Uri;
+}
+
+class NotSyncedCopyError extends Error {
+  constructor(
+    readonly path: string,
+    live: Resource,
+  ) {
+    super(`${path} is not a synced copy of ${live.kind} ${live.metadata.name}, so it is left as it is.`);
   }
 }
 

@@ -14,7 +14,6 @@ export interface Fetched {
 export interface Skipped {
   kind: string;
   parents: string[];
-  name?: string;
   reason: string;
 }
 
@@ -29,23 +28,32 @@ export interface BootstrapResult {
   unchanged: number;
   conflicts: string[];
   skipped: Skipped[];
+  builtIn: string[];
   cancelled: boolean;
 }
-
-const BUILT_IN = 'Built in, managed by the Console';
 
 export async function collectResources(
   client: Pick<ConsoleClient, 'list'>,
   catalog: KindCatalog,
   kinds: readonly string[],
   options: CollectOptions = {},
-): Promise<{ fetched: Fetched[]; skipped: Skipped[]; cancelled: boolean }> {
+): Promise<{ fetched: Fetched[]; skipped: Skipped[]; builtIn: string[]; cancelled: boolean }> {
   const cancelled = options.cancelled ?? (() => false);
+  const limit = limiter(options.concurrency ?? 4);
   const skipped: Skipped[] = [];
+  let stopped = false;
   // Parents (clusters, Connect clusters) are listed once, whether as a parent or as a kind of their own.
   const lists = new Map<string, Promise<Resource[]>>();
   const list = (path: string) => {
-    const resources = lists.get(path) ?? client.list(path);
+    const resources =
+      lists.get(path) ??
+      limit(async () => {
+        if (cancelled()) {
+          stopped = true;
+          return [];
+        }
+        return client.list(path);
+      });
     lists.set(path, resources);
     return resources;
   };
@@ -79,24 +87,21 @@ export async function collectResources(
   }
 
   const fetched: Fetched[] = [];
+  const builtIn: string[] = [];
   let done = 0;
-  let stopped = false;
-  await eachLimit(targets, options.concurrency ?? 4, async ({ kind, parents }) => {
-    if (cancelled()) {
-      stopped = true;
-      return;
-    }
-    try {
-      for (const resource of await list(listPath(kind, parentsOf(kind, parents)))) {
-        if (resource.metadata.builtIn === true)
-          skipped.push({ kind: kind.kind, parents, name: resource.metadata.name, reason: BUILT_IN });
-        else fetched.push({ kind, parents, resource });
+  await Promise.all(
+    targets.map(async ({ kind, parents }) => {
+      try {
+        for (const resource of await list(listPath(kind, parentsOf(kind, parents)))) {
+          if (resource.metadata.builtIn === true) builtIn.push(`${kind.kind} ${resource.metadata.name}`);
+          else fetched.push({ kind, parents, resource });
+        }
+      } catch (error) {
+        skipped.push({ kind: kind.kind, parents, reason: reasonOf(error) });
       }
-    } catch (error) {
-      skipped.push({ kind: kind.kind, parents, reason: reasonOf(error) });
-    }
-    options.onProgress?.(++done, targets.length);
-  });
+      options.onProgress?.(++done, targets.length);
+    }),
+  );
 
   const key = (f: Fetched) => [...f.parents, f.resource.metadata.name].join('\0');
   fetched.sort(
@@ -105,7 +110,7 @@ export async function collectResources(
       a.kind.kind.localeCompare(b.kind.kind) ||
       key(a).localeCompare(key(b)),
   );
-  return { fetched, skipped, cancelled: stopped };
+  return { fetched, skipped, builtIn: builtIn.sort(), cancelled: stopped };
 }
 
 export function describeBootstrap(
@@ -118,6 +123,7 @@ export function describeBootstrap(
     `${result.unchanged} unchanged`,
     result.conflicts.length > 0 && `${result.conflicts.length} left alone`,
     result.skipped.length > 0 && `${result.skipped.length} skipped`,
+    result.builtIn.length > 0 && `${result.builtIn.length} built in left out`,
   ].filter(Boolean);
   const headline = `${environment}: ${parts.join(', ')}${result.cancelled ? ' — cancelled before the end' : ''}.`;
   const details = [
@@ -127,15 +133,30 @@ export function describeBootstrap(
         .join(', ')}`,
     result.conflicts.length > 0 && `Left alone (local changes or not a synced copy): ${result.conflicts.join(', ')}`,
     ...result.skipped.map(
-      (s) =>
-        `Skipped ${s.kind}${s.name ? ` ${s.name}` : ''}${s.parents.length > 0 ? ` in ${s.parents.join(' / ')}` : ''}: ${s.reason}`,
+      (s) => `Skipped ${s.kind}${s.parents.length > 0 ? ` in ${s.parents.join(' / ')}` : ''}: ${s.reason}`,
     ),
+    result.builtIn.length > 0 && `Left out, built in and managed by the Console: ${result.builtIn.join(', ')}`,
   ].filter((line): line is string => typeof line === 'string');
   return { headline, details };
 }
 
 function reasonOf(error: unknown): string {
   return error instanceof ConsoleError && error.status === 403 ? 'No access' : describeError(error);
+}
+
+function limiter(slots: number): <T>(run: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const waiting: (() => void)[] = [];
+  return async (run) => {
+    while (active >= slots) await new Promise<void>((resolve) => waiting.push(resolve));
+    active++;
+    try {
+      return await run();
+    } finally {
+      active--;
+      waiting.shift()?.();
+    }
+  };
 }
 
 export async function eachLimit<T>(items: readonly T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultKinds, environmentFor, environments, withEnvironment } from '../src/sync/repoConfig';
+import { defaultKinds, environments, resolveEnvironment, withEnvironment } from '../src/sync/repoConfig';
 import { snapshotCatalog } from './fixtures';
 
 const config = `# Conduktor environments
@@ -11,11 +11,25 @@ owner: platform-team
 `;
 
 describe('conduktor.yaml', () => {
-  it('reads environments and finds the one bound to a Console', () => {
+  it('reads environments and finds the one bound to a Console, else names it after the connection', () => {
     expect(environments(config)).toEqual({ dev: { console: 'http://localhost:8080/', kinds: ['Topic', 'Group'] } });
-    expect(environmentFor(config, 'http://localhost:8080')).toBe('dev');
-    expect(environmentFor(config, 'http://localhost:9090')).toBeUndefined();
-    expect(environmentFor(undefined, 'http://localhost:8080')).toBeUndefined();
+    expect(resolveEnvironment(config, 'http://localhost:8080', 'local')).toEqual({ environment: 'dev' });
+    expect(resolveEnvironment(config, 'http://localhost:9090', 'staging')).toEqual({ environment: 'staging' });
+    expect(resolveEnvironment(undefined, 'http://localhost:8080', 'local:8080')).toEqual({ environment: 'local-8080' });
+  });
+
+  it('refuses a bound name that is not a single safe folder', () => {
+    for (const name of ['../../Documents', 'team/dev', '..']) {
+      const text = `environments:\n  "${name}": { console: http://localhost:8080 }\n`;
+      expect(resolveEnvironment(text, 'http://localhost:8080', 'local').problem).toMatch(/not a folder name/);
+    }
+  });
+
+  it("will not fall back onto another Console's environment", () => {
+    const text = 'environments:\n  prod: { console: https://prod.example }\n';
+    const resolved = resolveEnvironment(text, 'https://staging.example', 'prod');
+    expect(resolved.environment).toBeUndefined();
+    expect(resolved.problem).toMatch(/environments\/prod belongs to https:\/\/prod.example/);
   });
 
   it('updates one environment and keeps comments and other keys', () => {

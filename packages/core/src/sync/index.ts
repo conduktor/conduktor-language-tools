@@ -5,6 +5,8 @@ export {
   ENVIRONMENTS_DIR,
   migrationPaths,
   planMigration,
+  planRootMove,
+  rootMovePaths,
   STATE_DIR,
   type Move,
 } from './layout';
@@ -21,9 +23,9 @@ export { ENV_EXAMPLE, envExample } from './envExample';
 export { syncPath } from './paths';
 export {
   defaultKinds,
-  environmentFor,
   environments,
   REPO_CONFIG,
+  resolveEnvironment,
   withEnvironment,
   type EnvironmentConfig,
 } from './repoConfig';
