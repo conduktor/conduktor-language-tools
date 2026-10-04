@@ -1,6 +1,6 @@
 # Conduktor for VS Code — references and insights
 
-Status: approved 2026-10-04 · editor intelligence, slice 1 (hovers, docs links and templates are slice 2) · builds on
+Status: implemented 2026-10-04 · editor intelligence, slice 1 (hovers, docs links and templates are slice 2) · builds on
 [slice (a)](2026-10-02-slice-a-design.md) and [local GitOps](2026-10-04-gitops-design.md).
 
 ## Intent

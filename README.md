@@ -25,6 +25,7 @@ is valid, and what applying it would change. Git comes with VS Code.
 | **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                                                                            |
 | **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                                                                              |
 | **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. **Sync Everything** bootstraps a GitOps repository from the Console. See [Local sync folder](#local-sync-folder).                                              |
+| **References**            | Completion of the names a field refers to, from the repository and the Console; Problems for references to nothing, pattern traps and overlapping ownership; CodeLens counts of what each pattern matches; Go to Definition. See [References](#references).                                        |
 | **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                                                                                |
 
 ## Local sync folder
@@ -67,6 +68,26 @@ Resources that depend on others in the same plan (a Group, an Application it own
 Application) cannot all pass a dry run before the first exists — Console's dry run does not see uncommitted creations.
 They show as **pending** ("checked when applied") rather than failed, and Apply goes one step at a time. This works
 for multi-resource files as well as Apply All Changes.
+
+## References
+
+Fields that name other resources — an application's `owner` group, an instance's `cluster` and owned `resources`, a
+service account's ACLs, a group's members and permissions, a data quality policy's rules and targets — are
+understood in the editor ([the full table](docs/specs/2026-10-04-references-design.md#references)):
+
+- **Completion** offers the names that exist, from the repository (the sync folder and open documents) and from the
+  connected Console's IaC lists, each marked with where it was found.
+- **Problems** flag a name that is in neither, once the Console has answered (never offline); an application
+  instance whose resources overlap another instance's; and pattern traps — a self-serve name ending in `*` (Console
+  rejects it), a permission's LITERAL `foo*` (stored as PREFIXED `foo`) or PREFIXED `foo*` (matches nothing). A
+  pattern that matches nothing yet is only a note: claiming a prefix ahead of its topics is legitimate.
+- **CodeLens** above each pattern counts what it matches (`matches 12 Topic resources`); click to list and open them.
+- **Go to Definition** opens a reference's repository file, or the live resource.
+
+Console reads patterns three ways, and the editor follows it: instance resources and data quality targets compare
+characters (PREFIXED is a plain prefix); group and user permissions treat a trailing `*` as a prefix; service-account
+ACLs go to Kafka, where LITERAL `*` is the wildcard. Consumer groups, Kafka principals and transactional ids have no
+IaC list, so references to them are not checked.
 
 ## AI agents
 
