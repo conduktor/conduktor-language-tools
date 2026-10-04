@@ -59,6 +59,8 @@ export {
   baseDir,
   defaultKinds,
   driftOf,
+  ENV_EXAMPLE,
+  envExample,
   environmentFor,
   environments,
   REPO_CONFIG,

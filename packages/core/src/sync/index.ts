@@ -8,6 +8,7 @@ export {
   STATE_DIR,
   type Move,
 } from './layout';
+export { ENV_EXAMPLE, envExample } from './envExample';
 export { syncPath } from './paths';
 export {
   defaultKinds,
