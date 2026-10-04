@@ -57,7 +57,9 @@ export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
 export {
   baseDir,
+  collectResources,
   defaultKinds,
+  describeBootstrap,
   driftOf,
   ENV_EXAMPLE,
   envExample,
@@ -75,7 +77,11 @@ export {
   syncPath,
   syncStatus,
   withSecretPlaceholders,
+  type BootstrapResult,
+  type CollectOptions,
   type Drift,
+  type Fetched,
+  type Skipped,
   type Move,
   type SyncStatus,
 } from './sync';

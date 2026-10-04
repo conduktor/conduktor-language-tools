@@ -8,6 +8,14 @@ export {
   STATE_DIR,
   type Move,
 } from './layout';
+export {
+  collectResources,
+  describeBootstrap,
+  type BootstrapResult,
+  type CollectOptions,
+  type Fetched,
+  type Skipped,
+} from './bootstrap';
 export { ENV_EXAMPLE, envExample } from './envExample';
 export { syncPath } from './paths';
 export {
