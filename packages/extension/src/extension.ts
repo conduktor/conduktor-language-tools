@@ -79,7 +79,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     createStatusBar(sessions),
     ...registerSyncCommands(sync, confirm, sessions, connections, output),
     ...registerConnectionCommands(connections, sessions),
-    ...registerResourceCommands(sessions, explorer, confirm),
+    ...registerResourceCommands(sessions, explorer, confirm, () => names.clear()),
     ...registerLanguageModelTools(sessions),
     registerConsoleMcpServer(sessions, connections),
     registerClaudeCodeConfigCommand(sessions, context),
@@ -168,6 +168,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       ),
     ),
     resources.onDidApply(({ uri, appliedText }) => {
+      names.clear();
       explorer.refresh();
       if (uri && appliedText !== undefined && sync.contains(uri)) void sync.markApplied(uri, appliedText);
     }),

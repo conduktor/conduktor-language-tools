@@ -1159,6 +1159,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const api = await activate();
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-lens-'))));
     api.names.clear();
     const topics = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
     const prefix = topics[0]!.metadata.name.slice(0, 2);
@@ -1179,6 +1180,95 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         .then((lenses) => (titles = lenses.map((l) => l.command?.title ?? '')));
       return titles.includes(`$(search) matches ${expected} Topic resources`);
     });
+    await useWorkspaceSyncRoot(api);
+  });
+
+  test('looks names up without reading every file in a bootstrapped repository', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-names-'))));
+    try {
+      await api.sync.syncEverything(['Topic']);
+      const local = api.sync.list().filter((e) => e.kind === 'Topic' && e.parents[0] === 'local-gateway');
+      assert.ok(local.length > 1000, `${local.length} gateway topics in the repository`);
+      // A service account with 20 ACLs looks its topics up 20 times on every check.
+      const started = Date.now();
+      for (let i = 0; i < 20; i++) await api.names.lookup('Topic', ['local-gateway']);
+      const elapsed = Date.now() - started;
+      const { names } = await api.names.lookup('Topic', ['local-gateway']);
+      assert.ok(names.filter((n) => n.sources.includes('repo')).length >= local.length);
+      assert.ok(elapsed < 1000, `20 lookups took ${elapsed} ms`);
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('re-checks references when what they name appears in another document', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const group = `vscode-later-${Date.now()}`;
+    const problems = (uri: vscode.Uri) => vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'Conduktor');
+    const app = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: `apiVersion: v1\nkind: Application\nmetadata: { name: vscode-later }\nspec: { title: T, owner: ${group} }\n`,
+    });
+    await until(() => problems(app.uri).some((d) => d.message.includes(group)));
+    await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: `apiVersion: v2\nkind: Group\nmetadata: { name: ${group} }\nspec: { displayName: Later }\n`,
+    });
+    await until(() => !problems(app.uri).some((d) => d.message.includes(group)));
+  });
+
+  test('sees a resource it has just applied, without a manual refresh', async () => {
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    assert.strictEqual(state.connection.mode, 'apply');
+    const name = `vscode-applied-${Date.now()}`;
+    await api.names.lookup('Group', []);
+    const doc = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: `apiVersion: v2\nkind: Group\nmetadata: { name: ${name} }\nspec: { displayName: Applied }\n`,
+    });
+    try {
+      await api.apply(doc.uri);
+      await vscode.window.showTextDocument(doc);
+      await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+      const { names } = await api.names.lookup('Group', []);
+      assert.ok(
+        names.some((n) => n.name === name && n.sources.includes('console')),
+        'the applied group is on the Console',
+      );
+    } finally {
+      await state.client.delete(`/public/iam/v2/group/${name}`).catch(() => undefined);
+    }
+  });
+
+  test('completes inside a quoted value', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const [group] = await state.client.list('/public/iam/v2/group');
+    const name = group!.metadata.name;
+    const content =
+      'apiVersion: v1\nkind: Application\nmetadata: { name: vscode-quoted }\nspec:\n  title: T\n  owner: ""\n';
+    const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+    const position = doc.positionAt(content.indexOf('owner: "') + 'owner: "'.length);
+    const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      doc.uri,
+      position,
+    );
+    const item = list.items.find(
+      (i) => i.detail?.startsWith('Group') && (typeof i.label === 'string' ? i.label : i.label.label) === name,
+    );
+    assert.ok(item, 'the group is offered');
+    assert.strictEqual(item.filterText, `"${name}`);
+    assert.strictEqual(item.insertText, `"${name}"`);
   });
 
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {

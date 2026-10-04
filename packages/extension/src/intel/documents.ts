@@ -1,4 +1,4 @@
-import { parse } from 'yaml';
+import { parseDocument } from 'yaml';
 import { catalogDocuments, isRecord, type KindCatalog, type Resource } from '@conduktor/vscode-core';
 
 export interface ParsedDocument {
@@ -10,9 +10,10 @@ export interface ParsedDocument {
 export function parsedDocuments(text: string, catalog: KindCatalog): ParsedDocument[] {
   return catalogDocuments(text, catalog).map((document) => {
     const source = text.slice(document.start, document.end);
+    // Read what parses even when another line is mid-edit, so references keep working while typing.
     let value: unknown;
     try {
-      value = parse(source);
+      value = parseDocument(source).toJS();
     } catch {
       value = undefined;
     }

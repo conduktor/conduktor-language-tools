@@ -25,13 +25,14 @@ export function registerResourceCommands(
   sessions: SessionManager,
   explorer: ExplorerProvider,
   confirm: Confirm,
+  onDeleted: () => void,
 ): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand('conduktor.copyToWorkspace', (target?: ResourceNode | vscode.Uri) =>
       copyToWorkspace(sessions, target),
     ),
     vscode.commands.registerCommand('conduktor.deleteResource', (node: ResourceNode) =>
-      deleteResource(sessions, explorer, confirm, node),
+      deleteResource(sessions, explorer, confirm, node, onDeleted),
     ),
   ];
 }
@@ -76,6 +77,7 @@ async function deleteResource(
   explorer: ExplorerProvider,
   confirm: Confirm,
   node: ResourceNode,
+  onDeleted: () => void,
 ): Promise<void> {
   const state = sessions.current();
   if (state.status !== 'ready' || state.connection.mode !== 'apply') {
@@ -93,6 +95,7 @@ async function deleteResource(
   try {
     await state.client.delete(itemPath(node.kind, parentsOf(node.kind, node.parents), node.name));
     void vscode.window.showInformationMessage(`Deleted ${subject} from ${state.connection.name}.`);
+    onDeleted();
     explorer.refresh();
   } catch (error) {
     void vscode.window.showErrorMessage(`Could not delete ${subject}: ${describeError(error)}`);

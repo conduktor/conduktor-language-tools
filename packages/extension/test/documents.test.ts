@@ -27,7 +27,12 @@ describe('parsedDocuments', () => {
     expect(documentAt(text, text.indexOf('k8s'), catalog)).toBeUndefined();
   });
 
-  it('still gives a document whose YAML is half written', () => {
-    expect(parsedDocuments('apiVersion: v1\nkind: Application\nspec: { owner: [\n', catalog)).toHaveLength(1);
+  it('still reads a document with a broken line elsewhere, so completion keeps working while typing', () => {
+    const [app] = parsedDocuments(
+      'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec:\n  owner: \n  title: "unterminated\n',
+      catalog,
+    );
+    expect(app?.resource?.metadata.name).toBe('shop');
+    expect(app?.resource?.spec).toHaveProperty('owner');
   });
 });

@@ -27,7 +27,8 @@ export class ReferenceDiagnostics implements vscode.Disposable {
     const all = () => vscode.workspace.textDocuments.forEach((d) => this.schedule(d));
     this.listeners = [
       vscode.workspace.onDidOpenTextDocument((d) => this.schedule(d)),
-      vscode.workspace.onDidChangeTextDocument((e) => this.schedule(e.document)),
+      // A change in one document can resolve or break references in the others.
+      vscode.workspace.onDidChangeTextDocument((e) => e.document.languageId === 'yaml' && all()),
       vscode.workspace.onDidCloseTextDocument((d) => this.collection.delete(d.uri)),
       sessions.onDidChange(all),
       names.onDidChange(all),

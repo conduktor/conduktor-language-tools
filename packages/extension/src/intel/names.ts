@@ -12,19 +12,30 @@ import type { SyncFolder } from '../sync/syncFolder';
 
 export class Names implements vscode.Disposable {
   private lists = new Map<string, Promise<Resource[] | undefined>>();
+  private files = new Map<string, Promise<Resource[]>>();
+  private readonly parsed = new Map<string, { version: number; resources: Resource[] }>();
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
-  private readonly listener: vscode.Disposable;
+  private readonly listeners: vscode.Disposable[];
 
   constructor(
     private readonly sessions: SessionManager,
     private readonly sync: SyncFolder,
   ) {
-    this.listener = sessions.onDidChange(() => this.clear());
+    this.listeners = [
+      sessions.onDidChange(() => this.clear()),
+      sync.onDidChange(() => {
+        this.files = new Map();
+        this.changed.fire();
+      }),
+      vscode.workspace.onDidCloseTextDocument((document) => this.parsed.delete(document.uri.toString())),
+    ];
   }
 
+  /** Forgets what the Console said, after a refresh or a change the extension made there itself. */
   clear(): void {
     this.lists = new Map();
+    this.files = new Map();
     this.changed.fire();
   }
 
@@ -34,8 +45,10 @@ export class Names implements vscode.Disposable {
     parents: readonly string[],
   ): Promise<{ names: { name: string; sources: NameSource[] }[]; checked: boolean }> {
     const index = new NameIndex();
+    for (const entry of this.sync.list())
+      if (entry.kind === kind && sameParents(entry.parents, parents)) index.add(kind, parents, entry.name, 'repo');
     const params = this.parentParams(kind);
-    for (const resource of await this.repoResources(kind))
+    for (const resource of this.openResources(kind))
       if (sameParents(parentsIn(resource, params), parents)) index.add(kind, parents, resource.metadata.name, 'repo');
     const live = await this.resources(kind, parents);
     for (const resource of live ?? []) index.add(kind, parents, resource.metadata.name, 'console');
@@ -60,22 +73,53 @@ export class Names implements vscode.Disposable {
     return list;
   }
 
-  /** The repository's documents of a kind: the sync folder's files, with open documents' unsaved text winning. */
+  /** The repository's full documents of a kind (for overlap): open documents win over their files. */
   async repoResources(kind: string): Promise<Resource[]> {
+    const open = new Set(this.openDocuments().map((document) => document.uri.toString()));
+    const files = this.files.get(kind) ?? this.readFiles(kind);
+    this.files.set(kind, files);
+    const fromFiles = (await files).filter((resource) => !open.has(sourceOf.get(resource) ?? ''));
+    return [...this.openResources(kind), ...fromFiles];
+  }
+
+  private async readFiles(kind: string): Promise<Resource[]> {
     const state = this.sessions.current();
     if (state.status !== 'ready') return [];
-    const open = new Map<string, string>();
-    for (const document of vscode.workspace.textDocuments)
-      if (document.languageId === 'yaml') open.set(document.uri.toString(), document.getText());
-    const texts = [...open.values()];
-    for (const entry of this.sync.list())
-      if (entry.kind === kind && !open.has(entry.uri.toString()))
-        texts.push(new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri)));
     const found: Resource[] = [];
-    for (const text of texts)
+    for (const entry of this.sync.list().filter((e) => e.kind === kind)) {
+      const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
       for (const document of catalogDocuments(text, state.spec.catalog))
-        if (document.kind === kind && document.resource) found.push(document.resource);
+        if (document.kind === kind && document.resource) {
+          sourceOf.set(document.resource, entry.uri.toString());
+          found.push(document.resource);
+        }
+    }
     return found;
+  }
+
+  // What the user is writing counts as the repository: untitled documents and files in the sync folder, not git
+  // diff sides or other folders that happen to be open.
+  private openDocuments(): vscode.TextDocument[] {
+    return vscode.workspace.textDocuments.filter(
+      (d) => d.languageId === 'yaml' && (d.uri.scheme === 'untitled' || this.sync.contains(d.uri)),
+    );
+  }
+
+  private openResources(kind: string): Resource[] {
+    const state = this.sessions.current();
+    if (state.status !== 'ready') return [];
+    return this.openDocuments().flatMap((document) => {
+      const key = document.uri.toString();
+      let parsed = this.parsed.get(key);
+      if (parsed?.version !== document.version) {
+        const resources = catalogDocuments(document.getText(), state.spec.catalog).flatMap((d) =>
+          d.resource ? [d.resource] : [],
+        );
+        parsed = { version: document.version, resources };
+        this.parsed.set(key, parsed);
+      }
+      return parsed.resources.filter((resource) => resource.kind === kind);
+    });
   }
 
   private parentParams(kind: string): string[] {
@@ -84,10 +128,12 @@ export class Names implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listener.dispose();
+    this.listeners.forEach((listener) => listener.dispose());
     this.changed.dispose();
   }
 }
+
+const sourceOf = new WeakMap<Resource, string>();
 
 function parentsIn(resource: Resource, params: readonly string[]): string[] {
   return params.map((param) => {

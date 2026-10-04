@@ -41,10 +41,16 @@ export class ReferenceCompletionProvider implements vscode.CompletionItemProvide
     if (!found || !parents) return [];
     const { reference, range } = found;
     const { names } = await this.names.lookup(reference.kind, parents);
+    // The range covers the quotes of a quoted value, and VS Code filters on the text typed from its start.
+    const quote = /^["']/.exec(document.getText(range))?.[0] ?? '';
     return names.map(({ name, sources }) => {
       const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Reference);
       item.detail = `${reference.kind} · ${describeSources(sources)}`;
       item.range = range;
+      if (quote) {
+        item.filterText = `${quote}${name}`;
+        item.insertText = `${quote}${name}${quote}`;
+      }
       return item;
     });
   }
