@@ -1,7 +1,7 @@
 # Conduktor for VS Code — local GitOps
 
-Status: approved 2026-10-04 · phase 1 (bootstrap) specified; phases 2–4 record decisions and are specified when
-started · builds on the [sync folder](2026-10-02-sync-folder-design.md).
+Status: phase 1 (bootstrap) implemented 2026-10-04; phases 2–4 record decisions and are specified when started ·
+builds on the [sync folder](2026-10-02-sync-folder-design.md).
 
 ## Intent
 
@@ -64,7 +64,8 @@ rules: nothing moves onto an existing path.
    kind (or that parent) and is reported; other errors are reported and the rest continues.
 4. **Write:** each resource as a synced copy, under the rules the sync folder already has: a file with local changes,
    a new file or a file the extension cannot identify is never overwritten, only reported. Resources removed from the
-   Console show as deleted drift; local files are never deleted.
+   Console show as deleted drift; local files are never deleted. Built-in resources (`metadata.builtIn`, such as the
+   stock data quality rules) are left out and reported: the Console owns them and refuses them on apply.
 5. **Secrets:** `${CDK_SECRET_…}` placeholders as today; `.env.example` lists every variable the environment's files
    reference, and is rewritten on each bootstrap.
 6. **Summary:** resources written per kind, unchanged, skipped (with why) and conflicts, in the output panel and a
@@ -107,3 +108,7 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
   cluster's resources, no file under `environments/<env>/` that is not a resource, `.env.example` lists the
   KafkaCluster secrets, a second run reports everything unchanged, a locally modified file survives. Then
   `conduktor apply -f environments/<env> -r --dry-run` with the local CLI reports every resource NotChanged.
+
+  The CLI check covers global resources and real brokers. A Gateway's simulated cluster holds ACLs Kafka refuses
+  (`IdempotentWrite` on a transactional id), so service accounts are exercised on a local Console stack's SASL
+  broker (`local-kafka-sasl`, `StandardAuthorizer`).

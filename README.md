@@ -24,7 +24,7 @@ is valid, and what applying it would change. Git comes with VS Code.
 | **Dry run, apply, diff**  | CodeLenses above every resource: **Dry run**, **Apply** (dry run, confirmation, apply) and **Diff with Live**. The last result shows in the lens and at the end of the line; failures land in Problems.                                                                                            |
 | **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                                                                            |
 | **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                                                                              |
-| **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. See [Local sync folder](#local-sync-folder).                                                                                                                   |
+| **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. **Sync Everything** bootstraps a GitOps repository from the Console. See [Local sync folder](#local-sync-folder).                                              |
 | **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                                                                                |
 
 ## Local sync folder
@@ -39,6 +39,13 @@ Stage changes as files before they reach the Console — the first step towards 
   first time anything is written (`<workspace>/conduktor` is offered), and **Set Sync Folder…** changes it — for
   example to a GitOps repository — offering to move the existing environments and to add the folder to the
   workspace. The choice is remembered per workspace (machine-wide when no folder is open).
+- **Sync Everything** bootstraps the whole picture: pick the kinds the repository manages (all but User, which SSO or
+  SCIM usually owns; the choice is kept in `conduktor.yaml` at the root, with the environment's Console URL), and every
+  resource of those kinds, globally and in every cluster, becomes a file. Built-in resources are left out. Files with
+  local changes, new files and files it cannot identify are never overwritten, only reported; re-running it pulls in
+  what changed on the Console. Secrets become `${CDK_SECRET_…}` placeholders, listed in
+  `environments/<env>/.env.example`; real values go in a git-ignored `.env`. Check the result with
+  `conduktor apply -f environments/<env> -r --dry-run`: every resource should come back NotChanged.
 - **Sync Locally** on a resource, a kind or a cluster copies just that; nothing else is copied. A git-ignored
   `.conduktor/base/<env>/` at the root of the sync folder keeps the version last synced or applied (the _base_),
   outside the environment so the CLI never applies it. Folders from the older `<sync folder>/<connection>/` layout
@@ -181,7 +188,9 @@ the tools, and a unit test fails until it matches core.
 
 The smoke test has a live part that runs when `CONDUKTOR_SMOKE_URL` and `CONDUKTOR_SMOKE_TOKEN` are set (a PAT or an
 admin key for a local Console). It creates, edits, diffs and deletes a `vscode-smoke-<timestamp>` topic on the
-`local-kafka` cluster. The variables are separate from `CDK_*` because VS Code re-reads the login shell environment on
+`local-kafka` cluster. It expects a local Console stack, including its SASL broker on `localhost:19093`
+(registered as the `local-kafka-sasl` cluster by the test), where service accounts and ACLs behave like real Kafka;
+the bootstrap test also runs `conduktor` when it is on the PATH. The variables are separate from `CDK_*` because VS Code re-reads the login shell environment on
 macOS, where `CDK_*` usually points at whichever Console the CLI is using.
 
 ```sh
