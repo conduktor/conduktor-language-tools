@@ -148,6 +148,12 @@
         "category": "Conduktor"
       },
       {
+        "command": "conduktor.syncEverything",
+        "title": "Sync Everything",
+        "category": "Conduktor",
+        "icon": "$(repo-pull)"
+      },
+      {
         "command": "conduktor.syncLocally",
         "title": "Sync Locally",
         "category": "Conduktor",
@@ -300,12 +306,21 @@
           "group": "navigation"
         },
         {
+          "command": "conduktor.syncEverything",
+          "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "3_sync"
+        },
+        {
           "command": "conduktor.setSyncFolder",
           "when": "view == conduktor.explorer && conduktor.mode",
           "group": "3_sync"
         }
       ],
       "commandPalette": [
+        {
+          "command": "conduktor.syncEverything",
+          "when": "conduktor.mode"
+        },
         {
           "command": "conduktor.dryRunDocument",
           "when": "false"

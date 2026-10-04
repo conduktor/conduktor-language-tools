@@ -770,6 +770,32 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('syncs everything a connection holds into its environment', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const repo = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-repo-')));
+    await api.sync.setSyncRoot(repo);
+    const text = async (uri: vscode.Uri) => new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    try {
+      const kinds = await api.sync.managedKinds();
+      assert.ok(!kinds.includes('User') && kinds.includes('Topic'), kinds.join(', '));
+      const result = await api.sync.syncEverything(kinds);
+      assert.strictEqual(result.cancelled, false);
+      assert.ok((result.written.Topic ?? 0) > 0, JSON.stringify(result));
+      const clusters = await state.client.list('/public/console/v2/kafka-cluster');
+      for (const cluster of clusters)
+        assert.ok(api.sync.entryFor('KafkaCluster', [], cluster.metadata.name), cluster.metadata.name);
+      const config = await text(vscode.Uri.joinPath(repo, 'conduktor.yaml'));
+      assert.ok(config.includes(`console: ${state.client.baseUrl}`), config);
+      const example = await text(vscode.Uri.joinPath(api.sync.root()!, '.env.example'));
+      assert.match(example, /^CDK_SECRET_KAFKACLUSTER_LOCAL_GATEWAY_SPEC_KAFKAFLAVOR_PASSWORD=$/m);
+      assert.match(await text(vscode.Uri.joinPath(repo, '.gitignore')), /^\.env$/m);
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();

@@ -1,13 +1,22 @@
+import * as fs from 'node:fs/promises';
+import { dirname } from 'node:path';
 import * as vscode from 'vscode';
 import { parse, stringify } from 'yaml';
 import {
   baseDir,
+  collectResources,
   ConsoleError,
+  eachLimit,
+  defaultKinds,
   describeError,
   driftOf,
+  ENV_EXAMPLE,
+  envExample,
   environmentDir,
   environmentFor,
   environmentName,
+  environments,
+  ENVIRONMENTS_DIR,
   isRecord,
   itemPath,
   listPath,
@@ -19,7 +28,9 @@ import {
   STATE_DIR,
   syncPath,
   syncStatus,
+  withEnvironment,
   withSecretPlaceholders,
+  type BootstrapResult,
   type Drift,
   type KindVersion,
   type Resource,
@@ -50,6 +61,8 @@ const ROOT_KEY = 'conduktor.syncRoot';
 
 export class SyncFolder implements vscode.Disposable {
   private entries: LocalEntry[] = [];
+  private entriesByUri = new Map<string, LocalEntry>();
+  private bootstrapping = false;
   private drift = new Map<string, Drift>();
   private exists = false;
   private boundEnvironment: string | undefined;
@@ -160,7 +173,7 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   entryAt(uri: vscode.Uri): LocalEntry | undefined {
-    return this.entries.find((entry) => entry.uri.toString() === uri.toString());
+    return this.entriesByUri.get(uri.toString());
   }
 
   entryFor(kind: string, parents: readonly string[], name: string): LocalEntry | undefined {
@@ -180,7 +193,7 @@ export class SyncFolder implements vscode.Disposable {
     await this.requireChosen();
     const state = this.ready();
     const live = await state.client.get(itemPath(kind, parentsOf(kind, [...parents]), name));
-    const uri = await this.writeSynced(kind, [...parents], live);
+    const { uri } = await this.writeSynced(kind, [...parents], live);
     await this.refresh();
     return uri;
   }
@@ -205,6 +218,58 @@ export class SyncFolder implements vscode.Disposable {
     }
     await this.refresh();
     return resources.length;
+  }
+
+  /** The kinds this environment manages: its entry in conduktor.yaml, else every kind but User. */
+  async managedKinds(): Promise<string[]> {
+    const state = this.ready();
+    const config = await read(vscode.Uri.joinPath(this.requireSyncRoot(), REPO_CONFIG));
+    return environments(config)[this.environment()!]?.kinds ?? defaultKinds(state.spec.catalog);
+  }
+
+  /** Bootstraps the environment: every chosen kind, globally and in every cluster, under the never-overwrite rules. */
+  async syncEverything(
+    kinds: readonly string[],
+    options: { cancelled?: () => boolean; onProgress?: (done: number, total: number) => void } = {},
+  ): Promise<BootstrapResult> {
+    await this.requireChosen();
+    const state = this.ready();
+    const syncRoot = this.requireSyncRoot();
+    const configUri = vscode.Uri.joinPath(syncRoot, REPO_CONFIG);
+    const config = withEnvironment(await read(configUri), this.environment()!, {
+      console: state.client.baseUrl,
+      kinds: [...kinds],
+    });
+    await write(configUri, config);
+    await this.ensureIgnored(['.env', `${ENVIRONMENTS_DIR}/*/.env`]);
+    await this.refresh();
+
+    const { fetched, skipped, cancelled } = await collectResources(state.client, state.spec.catalog, kinds, {
+      concurrency: 4,
+      ...options,
+    });
+    const result: BootstrapResult = { written: {}, unchanged: 0, conflicts: [], skipped, cancelled };
+    // Thousands of files are written; the watcher's rescans would re-read the folder after every one.
+    this.bootstrapping = true;
+    try {
+      await this.ensureStateDir();
+      await eachLimit(fetched, 8, async ({ kind, parents, resource }) => {
+        try {
+          const { written } = await this.writeSynced(kind, parents, resource);
+          if (written) result.written[kind.kind] = (result.written[kind.kind] ?? 0) + 1;
+          else result.unchanged++;
+        } catch {
+          result.conflicts.push(syncPath(kind, parents, resource.metadata.name));
+        }
+      });
+      result.conflicts.sort();
+    } finally {
+      this.bootstrapping = false;
+    }
+    await this.refresh();
+    const texts = await Promise.all(this.entries.map(async (entry) => (await read(entry.uri)) ?? ''));
+    await write(vscode.Uri.joinPath(this.requireRoot(), ENV_EXAMPLE), envExample(texts));
+    return result;
   }
 
   /**
@@ -292,15 +357,19 @@ export class SyncFolder implements vscode.Disposable {
     this.exists = !!root && (await fileExists(root));
     await vscode.commands.executeCommand('setContext', 'conduktor.syncFolder', this.exists);
     if (!root || !this.exists) {
-      this.entries = [];
-      this.changed.fire();
+      this.setEntries([]);
       return;
     }
     const state = this.sessions.current();
     let entries = await this.scan(root, state);
     if (state.status === 'ready' && (await this.relocate(root, entries, state))) entries = await this.scan(root, state);
     if (options.drift && state.status === 'ready') await this.checkDrift(entries, state);
-    this.entries = entries.map((entry) => ({ ...entry, drift: this.drift.get(entry.uri.toString()) }));
+    this.setEntries(entries.map((entry) => ({ ...entry, drift: this.drift.get(entry.uri.toString()) })));
+  }
+
+  private setEntries(entries: LocalEntry[]): void {
+    this.entries = entries;
+    this.entriesByUri = new Map(entries.map((entry) => [entry.uri.toString(), entry]));
     this.changed.fire();
   }
 
@@ -388,23 +457,38 @@ export class SyncFolder implements vscode.Disposable {
     }
   }
 
-  private async writeSynced(kind: KindVersion, parents: string[], live: Resource): Promise<vscode.Uri> {
+  private async writeSynced(
+    kind: KindVersion,
+    parents: string[],
+    live: Resource,
+  ): Promise<{ uri: vscode.Uri; written: boolean }> {
     const root = this.requireRoot();
     const path = syncPath(kind, parents, live.metadata.name);
     const uri = vscode.Uri.joinPath(root, path);
-    if ((await fileExists(uri)) && this.entryAt(uri)?.status !== 'synced')
+    const exists = await fileExists(uri);
+    if (exists && this.entryAt(uri)?.status !== 'synced')
       throw new Error(`${path} is not a synced copy of ${live.kind} ${live.metadata.name}, so it is left as it is.`);
     const { resource, variables } = withSecretPlaceholders(live);
+    const text = stringify(resource);
+    if (exists && (await read(uri)) === text && (await read(this.baseOf(uri))) === text) return { uri, written: false };
     if (variables.length > 0) {
       this.output.info(
         `${live.kind} ${live.metadata.name}: secrets replaced with ${variables.map((v) => `\${${v}}`).join(', ')}`,
       );
     }
-    const text = stringify(resource);
-    await this.ensureStateDir();
+    if (!this.bootstrapping) await this.ensureStateDir();
     await write(uri, text);
     await write(this.baseOf(uri), text);
-    return uri;
+    return { uri, written: true };
+  }
+
+  private async ensureIgnored(patterns: readonly string[]): Promise<void> {
+    const uri = vscode.Uri.joinPath(this.requireSyncRoot(), '.gitignore');
+    const current = (await read(uri)) ?? '';
+    const missing = patterns.filter((pattern) => !current.split('\n').includes(pattern));
+    if (missing.length === 0) return;
+    const separator = current && !current.endsWith('\n') ? '\n' : '';
+    await write(uri, `${current}${separator}${missing.join('\n')}\n`);
   }
 
   private async ensureStateDir(): Promise<void> {
@@ -457,6 +541,7 @@ export class SyncFolder implements vscode.Disposable {
     if (root) {
       this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
       const schedule = () => {
+        if (this.bootstrapping) return;
         if (this.refreshTimer) clearTimeout(this.refreshTimer);
         this.refreshTimer = setTimeout(() => void this.refresh(), 300);
       };
@@ -559,9 +644,12 @@ export async function chooseFolder(suggested: vscode.Uri | undefined): Promise<v
   return folder;
 }
 
+// The sync folder is on the disk the extension host runs on; going through workspace.fs costs a round trip per call,
+// which a bootstrap of thousands of files makes minutes long.
 async function fileExists(uri: vscode.Uri): Promise<boolean> {
   try {
-    await vscode.workspace.fs.stat(uri);
+    if (uri.scheme === 'file') await fs.stat(uri.fsPath);
+    else await vscode.workspace.fs.stat(uri);
     return true;
   } catch {
     return false;
@@ -570,6 +658,7 @@ async function fileExists(uri: vscode.Uri): Promise<boolean> {
 
 async function read(uri: vscode.Uri): Promise<string | undefined> {
   try {
+    if (uri.scheme === 'file') return await fs.readFile(uri.fsPath, 'utf8');
     return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
   } catch {
     return undefined;
@@ -577,6 +666,11 @@ async function read(uri: vscode.Uri): Promise<string | undefined> {
 }
 
 async function write(uri: vscode.Uri, text: string): Promise<void> {
+  if (uri.scheme === 'file') {
+    await fs.mkdir(dirname(uri.fsPath), { recursive: true });
+    await fs.writeFile(uri.fsPath, text);
+    return;
+  }
   await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
 }

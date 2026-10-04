@@ -11,6 +11,7 @@ export {
 export {
   collectResources,
   describeBootstrap,
+  eachLimit,
   type BootstrapResult,
   type CollectOptions,
   type Fetched,

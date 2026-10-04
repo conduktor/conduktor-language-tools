@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import { describeError, type KindVersion } from '@conduktor/vscode-core';
+import { describeBootstrap, describeError, type KindCatalog, type KindVersion } from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { ConnectionStore } from '../connections/connectionStore';
 import type { SessionManager } from '../connections/session';
+import type { Output } from '../output';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import { inWorkspace } from './folders';
 import { chooseFolder, type SyncFolder } from './syncFolder';
@@ -16,6 +17,7 @@ export function registerSyncCommands(
   confirm: Confirm,
   sessions: SessionManager,
   connections: ConnectionStore,
+  output: Output,
 ): vscode.Disposable[] {
   const guarded =
     <A extends unknown[]>(run: (...args: A) => Promise<unknown>) =>
@@ -67,6 +69,41 @@ export function registerSyncCommands(
         );
         if (count !== undefined)
           void vscode.window.showInformationMessage(`Synced ${count} ${node.kind.kind} resources.`);
+      }),
+    ),
+    vscode.commands.registerCommand(
+      'conduktor.syncEverything',
+      guarded(async () => {
+        const state = sessions.current();
+        if (state.status !== 'ready') throw new Error('Connect to a Conduktor Console first.');
+        if (!(await sync.ensureChosen())) return;
+        const kinds = await pickKinds(state.spec.catalog, new Set(await sync.managedKinds()));
+        if (!kinds) return;
+        const result = await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Syncing everything from ${state.connection.name}`,
+            cancellable: true,
+          },
+          (progress, token) => {
+            let reported = 0;
+            return sync.syncEverything(kinds, {
+              cancelled: () => token.isCancellationRequested,
+              onProgress: (done, total) => {
+                const percent = (done / total) * 100;
+                progress.report({ message: `${done} of ${total} lists`, increment: percent - reported });
+                reported = percent;
+              },
+            });
+          },
+        );
+        const { headline, details } = describeBootstrap(sync.environment() ?? state.connection.name, result);
+        output.info(headline);
+        details.forEach((line) => output.info(`  ${line}`));
+        const show = await (result.conflicts.length + result.skipped.length > 0
+          ? vscode.window.showWarningMessage(headline, 'Show Output')
+          : vscode.window.showInformationMessage(headline, 'Show Output'));
+        if (show) output.show();
       }),
     ),
     vscode.commands.registerCommand(
@@ -160,6 +197,20 @@ export function registerSyncCommands(
       }),
     ),
   ];
+}
+
+async function pickKinds(catalog: KindCatalog, selected: ReadonlySet<string>): Promise<string[] | undefined> {
+  const items = [...catalog.kindNames()]
+    .map((name) => catalog.latest(name)!)
+    .sort((a, b) => a.order - b.order || a.kind.localeCompare(b.kind))
+    .map((kind) => ({ label: kind.kind, description: kind.group, picked: selected.has(kind.kind) }));
+  const picked = await vscode.window.showQuickPick(items, {
+    title: 'Which kinds does this repository manage?',
+    placeHolder: 'User is left out by default: SSO or SCIM usually owns it',
+    canPickMany: true,
+    ignoreFocusOut: true,
+  });
+  return picked && picked.length > 0 ? picked.map((item) => item.label) : undefined;
 }
 
 function resourceToEdit(

@@ -131,7 +131,7 @@ function reasonOf(error: unknown): string {
   return error instanceof ConsoleError && error.status === 403 ? 'No access' : describeError(error);
 }
 
-async function eachLimit<T>(items: readonly T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
+export async function eachLimit<T>(items: readonly T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
   let next = 0;
   const worker = async () => {
     while (next < items.length) await run(items[next++]!);

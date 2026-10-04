@@ -60,6 +60,7 @@ export {
   collectResources,
   defaultKinds,
   describeBootstrap,
+  eachLimit,
   driftOf,
   ENV_EXAMPLE,
   envExample,

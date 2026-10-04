@@ -67,7 +67,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     sync,
     clusters,
     createStatusBar(sessions),
-    ...registerSyncCommands(sync, confirm, sessions, connections),
+    ...registerSyncCommands(sync, confirm, sessions, connections, output),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm),
     ...registerLanguageModelTools(sessions),
