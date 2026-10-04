@@ -1065,6 +1065,61 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
   });
 
+  test('flags references to nothing, pattern traps and overlapping ownership in Problems', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const [group] = await state.client.list('/public/iam/v2/group');
+    const problems = (uri: vscode.Uri) => vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'Conduktor');
+    const app = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content:
+        'apiVersion: v1\nkind: Application\nmetadata: { name: vscode-ref-app }\nspec: { title: T, owner: vscode-no-such-group }\n---\n' +
+        `apiVersion: v1\nkind: Application\nmetadata: { name: vscode-ref-app-2 }\nspec: { title: T, owner: ${group!.metadata.name} }\n`,
+    });
+    await until(() => problems(app.uri).length > 0);
+    assert.deepStrictEqual(
+      problems(app.uri).map((d) => [d.message, d.severity]),
+      [
+        [
+          `Group 'vscode-no-such-group' is not in the repository or on ${state.connection.name}.`,
+          vscode.DiagnosticSeverity.Warning,
+        ],
+      ],
+    );
+
+    const id = `vscode-overlap-${Date.now()}`;
+    const instance = (name: string, prefix: string) =>
+      stringify({
+        apiVersion: 'v1',
+        kind: 'ApplicationInstance',
+        metadata: { name, application: 'vscode-ref-app' },
+        spec: {
+          cluster: 'local-kafka',
+          resources: [
+            { type: 'TOPIC', name: prefix, patternType: 'PREFIXED' },
+            { type: 'TOPIC', name: 'x*', patternType: 'LITERAL' },
+          ],
+        },
+      });
+    const kind = state.spec.catalog.latest('ApplicationInstance')!;
+    const first = await api.sync.writeNew(kind, [], instance(`${id}-a`, `${id}.`), `${id}-a`);
+    const second = await api.sync.writeNew(kind, [], instance(`${id}-b`, `${id}.orders`), `${id}-b`);
+    try {
+      const doc = await vscode.workspace.openTextDocument(second);
+      await until(() => problems(doc.uri).some((d) => /^Overlaps/.test(d.message)));
+      const messages = problems(doc.uri).map((d) => d.message);
+      assert.ok(messages.includes(`Overlaps TOPIC ${id}. (PREFIXED) owned by ${id}-a.`), messages.join('\n'));
+      assert.ok(
+        messages.includes("Console rejects a name ending in *: use 'x' with patternType PREFIXED."),
+        messages.join('\n'),
+      );
+    } finally {
+      for (const uri of [first, second]) await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);
+    }
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();

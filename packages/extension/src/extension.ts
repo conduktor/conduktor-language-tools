@@ -23,6 +23,7 @@ import { applyAllChanges } from './sync/applyChanges';
 import { registerSyncCommands } from './sync/commands';
 import { LocalChangesError, SyncFolder } from './sync/syncFolder';
 import { Names } from './intel/names';
+import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -69,6 +70,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     codeLenses,
     sync,
     names,
+    new ReferenceDiagnostics(sessions, names),
     clusters,
     createStatusBar(sessions),
     ...registerSyncCommands(sync, confirm, sessions, connections, output),
