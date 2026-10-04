@@ -1,6 +1,7 @@
 # Conduktor for VS Code — run actions and consumer groups
 
-Status: approved 2026-10-02 · builds on [slice (a)](2026-10-02-slice-a-design.md) · demo click-ops.
+Status: dropped 2026-10-04 — the extension stays on the IaC endpoints (`ctl` equivalents). Run actions and live
+consumer groups would start to replace the Console UI and blur a GitOps mode where every change goes through files.
 
 ## Intent
 
