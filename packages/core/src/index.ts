@@ -89,3 +89,19 @@ export {
   type Move,
   type SyncStatus,
 } from './sync';
+export {
+  collides,
+  findReferences,
+  matcher,
+  overlapsOf,
+  patternTraps,
+  patternTypeOf,
+  referenceAt,
+  REFERENCE_RULES,
+  type Instance,
+  type OwnedResource,
+  type PatternReading,
+  type PatternType,
+  type Reference,
+  type ReferenceRule,
+} from './references';
