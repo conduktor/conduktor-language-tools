@@ -57,7 +57,13 @@ export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
 export {
   baseDir,
+  defaultKinds,
   driftOf,
+  environmentFor,
+  environments,
+  REPO_CONFIG,
+  withEnvironment,
+  type EnvironmentConfig,
   environmentDir,
   environmentName,
   ENVIRONMENTS_DIR,
