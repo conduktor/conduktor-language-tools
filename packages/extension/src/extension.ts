@@ -22,6 +22,7 @@ import { registerYamlSchemas } from './schema/yamlSchemaContributor';
 import { applyAllChanges } from './sync/applyChanges';
 import { registerSyncCommands } from './sync/commands';
 import { LocalChangesError, SyncFolder } from './sync/syncFolder';
+import { Names } from './intel/names';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -37,6 +38,7 @@ export interface ExtensionApi {
   clusters: ClusterSelection;
   compare: Compare;
   applyAllChanges: () => Promise<UpsertItem[] | undefined>;
+  names: Names;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
@@ -50,6 +52,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const resources = new ResourceController(sessions, output, compare, confirm);
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
   const sync = new SyncFolder(context, sessions, output);
+  const names = new Names(sessions, sync);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
@@ -65,6 +68,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     resources,
     codeLenses,
     sync,
+    names,
     clusters,
     createStatusBar(sessions),
     ...registerSyncCommands(sync, confirm, sessions, connections, output),
@@ -74,7 +78,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     registerConsoleMcpServer(sessions, connections),
     registerClaudeCodeConfigCommand(sessions, context),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
-    vscode.commands.registerCommand('conduktor.refreshExplorer', () => explorer.refresh()),
+    vscode.commands.registerCommand('conduktor.refreshExplorer', () => {
+      names.clear();
+      explorer.refresh();
+    }),
     vscode.commands.registerCommand('conduktor.applyAllChanges', () =>
       applyAllChanges(sessions, sync, confirm, output, clusters.current()),
     ),
@@ -169,6 +176,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output, clusters.current()),
     clusters,
     compare,
+    names,
   });
 }
 

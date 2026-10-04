@@ -1044,6 +1044,27 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('looks names up in the repository and on the Console, and knows when the Console could not answer', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const [group] = await state.client.list('/public/iam/v2/group');
+    const groups = await api.names.lookup('Group', []);
+    assert.strictEqual(groups.checked, true);
+    assert.ok(groups.names.some((n) => n.name === group!.metadata.name && n.sources.includes('console')));
+    const draft = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: 'apiVersion: v2\nkind: Group\nmetadata: { name: vscode-draft-group }\nspec: { displayName: Draft }\n',
+    });
+    const withDraft = await api.names.lookup('Group', []);
+    assert.ok(withDraft.names.some((n) => n.name === 'vscode-draft-group' && n.sources.includes('repo')));
+    const nowhere = await api.names.lookup('Topic', ['vscode-no-such-cluster']);
+    assert.strictEqual(nowhere.checked, false, 'a list the Console refused is not a check');
+    await vscode.window.showTextDocument(draft);
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();
