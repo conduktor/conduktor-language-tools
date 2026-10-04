@@ -41,6 +41,7 @@ export {
 } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
 export { comparableYaml, newResourceName, newResourceYaml } from './resources/yamlText';
+export { rangeOf, valueAt, type ValueAt, type YamlPath } from './resources/yamlPaths';
 export type { ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';
