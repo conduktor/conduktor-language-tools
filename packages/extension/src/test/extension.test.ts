@@ -1,9 +1,11 @@
 import * as assert from 'node:assert';
 import * as vscode from 'vscode';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
+import { itemPath, parentsOf, upsertTarget, type Resource } from '@conduktor/vscode-core';
 import type { ExtensionApi } from '../extension';
 import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
 
@@ -29,6 +31,34 @@ async function until(condition: () => boolean, timeoutMs = 30_000): Promise<void
     if (Date.now() > deadline) throw new Error('Timed out waiting');
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
+}
+
+// The CLI expands ${CDK_SECRET_…} from its environment; the values are what the Console holds, read back for the run.
+async function secretValues(api: ExtensionApi): Promise<Record<string, string>> {
+  const state = api.sessions.current();
+  if (state.status !== 'ready') return {};
+  const values: Record<string, string> = {};
+  const visit = (local: unknown, live: unknown) => {
+    if (typeof local === 'string' && typeof live === 'string' && local.includes('${CDK_SECRET_')) {
+      const names = [...local.matchAll(/\$\{(CDK_SECRET_[A-Z0-9_]+)\}/g)].map((m) => m[1]!);
+      const pattern = new RegExp(
+        `^${local.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\$\\\{CDK_SECRET_[A-Z0-9_]+\\\}/g, '(.*)')}$`,
+      );
+      const match = pattern.exec(live);
+      names.forEach((name, i) => {
+        if (match) values[name] = match[i + 1]!;
+      });
+    } else if (local && typeof local === 'object' && live && typeof live === 'object') {
+      for (const key of Object.keys(local)) visit((local as never)[key], (live as never)[key]);
+    }
+  };
+  for (const entry of api.sync.list()) {
+    const text = readFileSync(entry.uri.fsPath, 'utf8');
+    if (!text.includes('${CDK_SECRET_')) continue;
+    const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind)!;
+    visit(parse(text), await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name)));
+  }
+  return values;
 }
 
 async function firstResource(api: ExtensionApi, node: ExplorerNode): Promise<ResourceNode | undefined> {
@@ -75,6 +105,7 @@ suite('Conduktor extension', () => {
 });
 
 const baseUrl = process.env.CONDUKTOR_SMOKE_URL;
+const SASL_CLUSTER = 'local-kafka-sasl';
 const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
 (baseUrl && apiKey ? suite : suite.skip)('Conduktor extension against a live Console', () => {
@@ -777,6 +808,54 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const repo = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-repo-')));
     await api.sync.setSyncRoot(repo);
     const text = async (uri: vscode.Uri) => new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    const kindOf = (name: string) => state.spec.catalog.latest(name)!;
+    const apply = (resource: Resource) =>
+      state.client.upsert(upsertTarget(kindOf(resource.kind), resource), resource, { dryRun: false });
+    // Service accounts need a broker with an authorizer: the local Console stack runs one as local-kafka-sasl.
+    await apply({
+      apiVersion: 'v2',
+      kind: 'KafkaCluster',
+      metadata: { name: SASL_CLUSTER },
+      spec: {
+        displayName: SASL_CLUSTER,
+        bootstrapServers: 'localhost:19093',
+        properties: {
+          'security.protocol': 'SASL_PLAINTEXT',
+          'sasl.mechanism': 'PLAIN',
+          'sasl.jaas.config':
+            'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin-secret";',
+        },
+      },
+    });
+    const account = `vscode-iac-${Date.now()}`;
+    await apply({
+      apiVersion: 'v1',
+      kind: 'ServiceAccount',
+      metadata: { name: account, cluster: SASL_CLUSTER },
+      spec: {
+        authorization: {
+          type: 'KAFKA_ACL',
+          acls: [
+            {
+              type: 'TOPIC',
+              name: 'vscode.',
+              patternType: 'PREFIXED',
+              operations: ['Read', 'Write'],
+              host: '*',
+              permission: 'Allow',
+            },
+            {
+              type: 'TRANSACTIONAL_ID',
+              name: 'vscode.',
+              patternType: 'PREFIXED',
+              operations: ['Write', 'Describe'],
+              host: '*',
+              permission: 'Allow',
+            },
+          ],
+        },
+      },
+    });
     try {
       const kinds = await api.sync.managedKinds();
       assert.ok(!kinds.includes('User') && kinds.includes('Topic'), kinds.join(', '));
@@ -786,13 +865,77 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       const clusters = await state.client.list('/public/console/v2/kafka-cluster');
       for (const cluster of clusters)
         assert.ok(api.sync.entryFor('KafkaCluster', [], cluster.metadata.name), cluster.metadata.name);
+      assert.ok(api.sync.entryFor('ServiceAccount', [SASL_CLUSTER], account), 'the service account and its ACLs');
       const config = await text(vscode.Uri.joinPath(repo, 'conduktor.yaml'));
       assert.ok(config.includes(`console: ${state.client.baseUrl}`), config);
       const example = await text(vscode.Uri.joinPath(api.sync.root()!, '.env.example'));
       assert.match(example, /^CDK_SECRET_KAFKACLUSTER_LOCAL_GATEWAY_SPEC_KAFKAFLAVOR_PASSWORD=$/m);
       assert.match(await text(vscode.Uri.joinPath(repo, '.gitignore')), /^\.env$/m);
+
+      const total = Object.values(result.written).reduce((sum, n) => sum + n, 0);
+      const env = api.sync.root()!;
+      const files: string[] = [];
+      const walk = (dir: string) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const path = join(dir, entry.name);
+          if (entry.isDirectory()) walk(path);
+          else files.push(path);
+        }
+      };
+      walk(env.fsPath);
+      for (const file of files) {
+        if (file.endsWith('.env.example')) continue;
+        assert.ok(api.sync.entryAt(vscode.Uri.file(file)), `only resources under the environment: ${file}`);
+      }
+
+      const again = await api.sync.syncEverything(kinds);
+      assert.deepStrictEqual(again.written, {}, 'a second run writes nothing');
+      assert.strictEqual(again.unchanged, total);
+
+      const topic = api.sync.list().find((e) => e.kind === 'Topic')!;
+      const edited = parse(readFileSync(topic.uri.fsPath, 'utf8'));
+      edited.metadata.labels = { ...(edited.metadata.labels ?? {}), local: 'edit' };
+      writeFileSync(topic.uri.fsPath, stringify(edited));
+      await api.sync.refresh();
+      const third = await api.sync.syncEverything(kinds);
+      assert.deepStrictEqual(third.conflicts, [topic.path]);
+      assert.strictEqual(parse(readFileSync(topic.uri.fsPath, 'utf8')).metadata.labels.local, 'edit');
+      await api.sync.discard(topic.uri);
+
+      // The Gateway's cluster is a simulator: it holds ACLs Kafka (and so Console) would refuse, such as
+      // IdempotentWrite on a transactional id. The CLI check covers global resources and the real brokers.
+      if (spawnSync('conduktor', ['version']).error) return;
+      const scopes = ['global', 'clusters/local-kafka', `clusters/${SASL_CLUSTER}`];
+      const run = spawnSync(
+        'conduktor',
+        [
+          'apply',
+          ...scopes.flatMap((scope) => ['-f', join(env.fsPath, scope)]),
+          '-r',
+          '--dry-run',
+          '--parallelism',
+          '8',
+        ],
+        {
+          encoding: 'utf8',
+          maxBuffer: 64 * 1024 * 1024,
+          env: { ...process.env, CDK_BASE_URL: baseUrl, CDK_API_KEY: apiKey, ...(await secretValues(api)) },
+        },
+      );
+      assert.strictEqual(run.status, 0, run.stderr);
+      const results = run.stdout.split('\n').filter((line) => /^\w+\/.+: \w+$/.test(line));
+      const expected = api.sync.list().filter((e) => scopes.some((scope) => e.path.startsWith(`${scope}/`))).length;
+      assert.strictEqual(results.length, expected, run.stdout.slice(0, 2000));
+      assert.deepStrictEqual(
+        results.filter((line) => !line.endsWith(': NotChanged')),
+        [],
+        'the CLI finds every bootstrapped resource unchanged',
+      );
     } finally {
       await useWorkspaceSyncRoot(api);
+      await state.client
+        .delete(itemPath(kindOf('ServiceAccount'), { cluster: SASL_CLUSTER }, account))
+        .catch(() => undefined);
     }
   });
 
