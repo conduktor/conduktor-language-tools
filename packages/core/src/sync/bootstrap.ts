@@ -14,6 +14,7 @@ export interface Fetched {
 export interface Skipped {
   kind: string;
   parents: string[];
+  name?: string;
   reason: string;
 }
 
@@ -30,6 +31,8 @@ export interface BootstrapResult {
   skipped: Skipped[];
   cancelled: boolean;
 }
+
+const BUILT_IN = 'Built in, managed by the Console';
 
 export async function collectResources(
   client: Pick<ConsoleClient, 'list'>,
@@ -84,8 +87,11 @@ export async function collectResources(
       return;
     }
     try {
-      const resources = await list(listPath(kind, parentsOf(kind, parents)));
-      fetched.push(...resources.map((resource) => ({ kind, parents, resource })));
+      for (const resource of await list(listPath(kind, parentsOf(kind, parents)))) {
+        if (resource.metadata.builtIn === true)
+          skipped.push({ kind: kind.kind, parents, name: resource.metadata.name, reason: BUILT_IN });
+        else fetched.push({ kind, parents, resource });
+      }
     } catch (error) {
       skipped.push({ kind: kind.kind, parents, reason: reasonOf(error) });
     }
@@ -121,7 +127,8 @@ export function describeBootstrap(
         .join(', ')}`,
     result.conflicts.length > 0 && `Left alone (local changes or not a synced copy): ${result.conflicts.join(', ')}`,
     ...result.skipped.map(
-      (s) => `Skipped ${s.kind}${s.parents.length > 0 ? ` in ${s.parents.join(' / ')}` : ''}: ${s.reason}`,
+      (s) =>
+        `Skipped ${s.kind}${s.name ? ` ${s.name}` : ''}${s.parents.length > 0 ? ` in ${s.parents.join(' / ')}` : ''}: ${s.reason}`,
     ),
   ].filter((line): line is string => typeof line === 'string');
   return { headline, details };

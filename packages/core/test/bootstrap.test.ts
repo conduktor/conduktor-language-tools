@@ -68,6 +68,20 @@ describe('collectResources', () => {
     expect(fake.maxInFlight()).toBeLessThanOrEqual(4);
   });
 
+  it('leaves out built-in resources, which the Console owns and will not take back', async () => {
+    const { client } = console_({
+      '/public/data-quality/v1/data-quality-rule': [
+        { metadata: { name: 'enforce_avro', builtIn: true } },
+        { metadata: { name: 'mine' } },
+      ] as Resource[],
+    });
+    const { fetched, skipped } = await collectResources(client, snapshotCatalog, ['DataQualityRule']);
+    expect(fetched.map((f) => f.resource.metadata.name)).toEqual(['mine']);
+    expect(skipped).toEqual([
+      { kind: 'DataQualityRule', parents: [], name: 'enforce_avro', reason: 'Built in, managed by the Console' },
+    ]);
+  });
+
   it('skips a kind this Console does not have', async () => {
     const { client } = console_(responses);
     const { skipped } = await collectResources(client, snapshotCatalog, ['NoSuchKind']);
@@ -93,14 +107,18 @@ describe('describeBootstrap', () => {
       written: { Topic: 3, Group: 1 },
       unchanged: 5,
       conflicts: ['clusters/local/kafka/Topic/orders.yaml'],
-      skipped: [{ kind: 'Topic', parents: ['prod'], reason: 'No access' }],
+      skipped: [
+        { kind: 'Topic', parents: ['prod'], reason: 'No access' },
+        { kind: 'DataQualityRule', parents: [], name: 'enforce_avro', reason: 'Built in, managed by the Console' },
+      ],
       cancelled: false,
     });
-    expect(summary.headline).toBe('dev: 4 written, 5 unchanged, 1 left alone, 1 skipped.');
+    expect(summary.headline).toBe('dev: 4 written, 5 unchanged, 1 left alone, 2 skipped.');
     expect(summary.details).toEqual([
       'Written: Topic 3, Group 1',
       'Left alone (local changes or not a synced copy): clusters/local/kafka/Topic/orders.yaml',
       'Skipped Topic in prod: No access',
+      'Skipped DataQualityRule enforce_avro: Built in, managed by the Console',
     ]);
   });
 });
