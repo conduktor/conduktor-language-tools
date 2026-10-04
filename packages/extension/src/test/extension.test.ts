@@ -1120,6 +1120,41 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('completes reference names and goes to their definition', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const [group] = await state.client.list('/public/iam/v2/group');
+    const name = group!.metadata.name;
+    const content =
+      'apiVersion: v1\nkind: Application\nmetadata: { name: vscode-complete }\nspec:\n  title: T\n  owner: \n';
+    const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+    const position = doc.positionAt(content.indexOf('owner: ') + 'owner: '.length);
+    const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      doc.uri,
+      position,
+    );
+    const item = list.items.find((i) => (typeof i.label === 'string' ? i.label : i.label.label) === name);
+    assert.ok(item, 'the Console group is offered');
+    assert.match(String(item.detail), /^Group · (repo \+ )?Console$/);
+
+    const local = await api.sync.syncResource(state.spec.catalog.latest('Group')!, [], name);
+    const withOwner = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: content.replace('owner: ', `owner: ${name}`),
+    });
+    const at = withOwner.positionAt(withOwner.getText().indexOf(`owner: ${name}`) + 'owner: '.length + 1);
+    const locations = await vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
+      'vscode.executeDefinitionProvider',
+      withOwner.uri,
+      at,
+    );
+    const uris = locations.map((l) => ('targetUri' in l ? l.targetUri : l.uri).toString());
+    assert.ok(uris.includes(local.toString()), uris.join(', '));
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();

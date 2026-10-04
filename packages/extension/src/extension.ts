@@ -24,6 +24,7 @@ import { registerSyncCommands } from './sync/commands';
 import { LocalChangesError, SyncFolder } from './sync/syncFolder';
 import { Names } from './intel/names';
 import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
+import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -97,6 +98,14 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       newResource(sessions, sync, clusters.current(), node),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, codeLenses),
+    vscode.languages.registerCompletionItemProvider(
+      { language: 'yaml' },
+      new ReferenceCompletionProvider(sessions, names),
+    ),
+    vscode.languages.registerDefinitionProvider(
+      { language: 'yaml' },
+      new ReferenceDefinitionProvider(sessions, sync, explorer, names),
+    ),
     vscode.commands.registerCommand('conduktor.dryRunDocument', (uri: vscode.Uri, index: number) =>
       resources.dryRun(uri, index),
     ),
