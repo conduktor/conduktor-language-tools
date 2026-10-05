@@ -6,6 +6,9 @@ import {
   ConsoleError,
   eachLimit,
   defaultKinds,
+  expandedText,
+  includeRestores,
+  statusWithIncludes,
   describeError,
   driftOf,
   ENV_EXAMPLE,
@@ -38,8 +41,9 @@ import {
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
+import { includePath, includeReaderFor } from '../editing/includes';
 import { ContentCache } from './contentCache';
-import { fileExists, read, readAll, write } from './files';
+import { fileExists, read, readAll, remove, write } from './files';
 import { singleFlight } from './singleFlight';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
@@ -376,6 +380,10 @@ export class SyncFolder implements vscode.Disposable {
   async markApplied(uri: vscode.Uri, text: string): Promise<void> {
     const base = this.baseOf(uri);
     if (base) await write(base, text);
+    // What the included files held goes with it, so a later edit to them shows and drift compares like with like.
+    const applied = this.baseOf(uri, 'applied');
+    const expanded = includes(text) ? expandedText(text, includeReaderFor(uri) ?? unreadable) : undefined;
+    if (applied) await (expanded === undefined ? remove(applied) : write(applied, expanded));
     this.drift.delete(uri.toString());
     await this.refresh();
   }
@@ -385,6 +393,11 @@ export class SyncFolder implements vscode.Disposable {
     const base = copy && (await read(copy));
     if (base === undefined) throw new Error('This file is new, so there is nothing to go back to.');
     await write(uri, base);
+    const appliedCopy = this.baseOf(uri, 'applied');
+    const applied = appliedCopy && (await read(appliedCopy));
+    if (applied !== undefined && uri.scheme === 'file')
+      for (const restore of includeRestores(base, applied))
+        await write(vscode.Uri.file(includePath(uri, restore.path)), restore.content);
     await this.refresh();
   }
 
@@ -439,18 +452,24 @@ export class SyncFolder implements vscode.Disposable {
     const bases = await readAll(
       files.map((uri, i) => (texts[i] === undefined || state.status !== 'ready' ? undefined : this.baseOf(uri))),
     );
+    const applied = await readAll(
+      files.map((uri, i) => (state.status === 'ready' && includes(texts[i]) ? this.baseOf(uri, 'applied') : undefined)),
+    );
     const entries: LocalEntry[] = [];
     const others: vscode.Uri[] = [];
     files.forEach((uri, i) => {
       const text = texts[i];
       if (text === undefined) return;
-      const found =
-        state.status === 'ready'
-          ? this.scanned.get(uri.toString(), [text, bases[i]], () => {
-              const identity = identify(text, state);
-              return identity && { identity, status: syncStatus(text, bases[i]) };
-            })
-          : undefined;
+      const scan = () => {
+        if (state.status !== 'ready') return undefined;
+        const identity = identify(text, state);
+        const status = includes(text)
+          ? statusWithIncludes(text, bases[i], applied[i], includeReaderFor(uri) ?? unreadable)
+          : syncStatus(text, bases[i]);
+        return identity && { identity, status };
+      };
+      // A file that includes another depends on content the cache key does not hold, so it is read every scan.
+      const found = includes(text) ? scan() : this.scanned.get(uri.toString(), [text, bases[i]], scan);
       if (!found) others.push(uri);
       else entries.push({ uri, path: uri.path.slice(root.path.length + 1), ...found.identity, status: found.status });
     });
@@ -482,9 +501,13 @@ export class SyncFolder implements vscode.Disposable {
       edit.renameFile(entry.uri, target);
       if (!(await vscode.workspace.applyEdit(edit))) continue;
       if (tracked) {
-        const moved = this.baseOf(target)!;
-        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(moved, '..'));
-        await vscode.workspace.fs.rename(base!, moved, { overwrite: true });
+        for (const copy of ['base', 'applied'] as const) {
+          const from = this.baseOf(entry.uri, copy)!;
+          const to = this.baseOf(target, copy)!;
+          if (!(await fileExists(from))) continue;
+          await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(to, '..'));
+          await vscode.workspace.fs.rename(from, to, { overwrite: true });
+        }
       }
       this.output.info(`Moved ${entry.path} to ${expected}`);
       moved = true;
@@ -509,10 +532,11 @@ export class SyncFolder implements vscode.Disposable {
     this.drift.clear();
     const tracked = entries.filter((entry) => entry.status !== 'new');
     const bases = await readAll(tracked.map((entry) => this.baseOf(entry.uri)));
+    const applied = await readAll(tracked.map((entry) => this.baseOf(entry.uri, 'applied')));
     await eachLimit([...tracked.keys()], 8, async (i) => {
       const entry = tracked[i]!;
       const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
-      const base = bases[i];
+      const base = applied[i] ?? bases[i];
       if (!kind || base === undefined) return;
       try {
         const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
@@ -549,6 +573,9 @@ export class SyncFolder implements vscode.Disposable {
     if (!this.bootstrapping) await this.ensureStateDir();
     await write(uri, text);
     await write(base, text);
+    // The Console's copy holds included content inline, so there is nothing left to compare included files with.
+    const applied = this.baseOf(uri, 'applied');
+    if (applied) await remove(applied);
     return { uri, written: true };
   }
 
@@ -705,6 +732,15 @@ function sameParents(a: readonly string[], b: readonly string[]): boolean {
 
 function folderOf(path: string): string {
   return path.slice(0, path.lastIndexOf('/'));
+}
+
+// A cheap first look; the parse decides whether a file really includes another.
+function includes(text: string | undefined): boolean {
+  return text !== undefined && /schemaFile|descriptionFile/.test(text);
+}
+
+function unreadable(): never {
+  throw new Error('Included files can only be read from local files.');
 }
 
 type Identity = NonNullable<ReturnType<typeof identify>>;

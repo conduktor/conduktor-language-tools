@@ -807,6 +807,50 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('counts an included file in status, and discards it back', async () => {
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    assert.strictEqual(state.connection.mode, 'apply');
+    await api.clusters.set('local-kafka');
+    const elsewhere = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-included-')));
+    await api.sync.setSyncRoot(elsewhere);
+    const name = `vscode-included-${Date.now()}-value`;
+    const schema = (field: string) =>
+      JSON.stringify({ type: 'record', name: 'R', fields: [{ name: field, type: 'string' }] });
+    try {
+      const uri = await api.sync.writeNew(
+        state.spec.catalog.latest('Subject')!,
+        ['local-kafka'],
+        stringify({
+          apiVersion: 'v2',
+          kind: 'Subject',
+          metadata: { name, cluster: 'local-kafka' },
+          spec: { format: 'AVRO', schemaFile: 'schema.avsc' },
+        }),
+        name,
+      );
+      const file = join(uri.fsPath, '..', 'schema.avsc');
+      writeFileSync(file, schema('applied'));
+      const applied = await api.applyAllChanges();
+      await api.sync.refresh();
+      assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced', JSON.stringify(applied?.map((i) => i.outcome)));
+
+      writeFileSync(file, schema('edited'));
+      await api.sync.refresh();
+      assert.strictEqual(api.sync.entryAt(uri)?.status, 'modified', 'an edited include is a change');
+
+      await api.sync.discard(uri);
+      assert.strictEqual(readFileSync(file, 'utf8'), schema('applied'));
+      await api.sync.refresh();
+      assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
+    } finally {
+      await state.client.delete(`/public/kafka/v2/cluster/local-kafka/subject/${name}`).catch(() => undefined);
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('keeps local copies under the chosen root, one folder per connection', async () => {
     const api = await activate();
     const state = api.sessions.current();

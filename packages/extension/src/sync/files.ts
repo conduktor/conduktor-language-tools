@@ -34,6 +34,11 @@ export async function write(uri: vscode.Uri, text: string): Promise<void> {
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
 }
 
+export async function remove(uri: vscode.Uri): Promise<void> {
+  if (uri.scheme === 'file') return fs.rm(uri.fsPath, { force: true });
+  await Promise.resolve(vscode.workspace.fs.delete(uri)).catch(() => undefined);
+}
+
 /** Each file's text in order, `undefined` where there is no file or it cannot be read, a few reads at a time. */
 export async function readAll(uris: readonly (vscode.Uri | undefined)[], limit = 32): Promise<(string | undefined)[]> {
   const texts: (string | undefined)[] = new Array(uris.length).fill(undefined);
