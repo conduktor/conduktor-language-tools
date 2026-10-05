@@ -126,6 +126,15 @@ export {
   type Choice,
 } from './templates';
 export {
+  fieldDocs,
+  headingSlug,
+  kindDoc,
+  parseReferencePage,
+  REFERENCE_URL,
+  type FieldDoc,
+  type KindDoc,
+} from './fieldDocs';
+export {
   applyPreset,
   checkTopicConfig,
   configValueYaml,
