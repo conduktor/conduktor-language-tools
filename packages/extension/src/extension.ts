@@ -26,6 +26,7 @@ import { MatchLensProvider } from './intel/matchLenses';
 import { Names } from './intel/names';
 import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
+import { ReferrersProvider } from './intel/referrers';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -57,6 +58,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const sync = new SyncFolder(context, sessions, output);
   const names = new Names(sessions, sync);
   const matchLenses = new MatchLensProvider(sessions, names);
+  const referrers = new ReferrersProvider(sessions, names);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
@@ -74,6 +76,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     sync,
     names,
     matchLenses,
+    referrers,
     new ReferenceDiagnostics(sessions, names),
     clusters,
     createStatusBar(sessions),
@@ -106,6 +109,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       new ReferenceCompletionProvider(sessions, names),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, matchLenses),
+    vscode.languages.registerCodeLensProvider({ language: 'yaml' }, referrers),
+    vscode.languages.registerReferenceProvider({ language: 'yaml' }, referrers),
     vscode.commands.registerCommand(
       'conduktor.showMatches',
       async (kindName: string, parents: string[], matched: string[]) => {

@@ -1294,6 +1294,77 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('finds every repository document that refers to a resource', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-referrers-'))));
+    const id = `vscode-refs-${Date.now()}`;
+    const kind = (name: string) => state.spec.catalog.latest(name)!;
+    const write = (kindName: string, parents: string[], resource: object, name: string) =>
+      api.sync.writeNew(kind(kindName), parents, stringify(resource), name);
+    try {
+      const group = await write(
+        'Group',
+        [],
+        { apiVersion: 'v2', kind: 'Group', metadata: { name: id }, spec: { displayName: 'G' } },
+        id,
+      );
+      const app = await write(
+        'Application',
+        [],
+        { apiVersion: 'v1', kind: 'Application', metadata: { name: `${id}-app` }, spec: { title: 'A', owner: id } },
+        `${id}-app`,
+      );
+      const topic = await write(
+        'Topic',
+        ['local-kafka'],
+        {
+          apiVersion: 'v2',
+          kind: 'Topic',
+          metadata: { name: `${id}.orders`, cluster: 'local-kafka' },
+          spec: { partitions: 1, replicationFactor: 1 },
+        },
+        `${id}.orders`,
+      );
+      const instance = await write(
+        'ApplicationInstance',
+        [],
+        {
+          apiVersion: 'v1',
+          kind: 'ApplicationInstance',
+          metadata: { name: `${id}-dev`, application: `${id}-app` },
+          spec: { cluster: 'local-kafka', resources: [{ type: 'TOPIC', name: `${id}.`, patternType: 'PREFIXED' }] },
+        },
+        `${id}-dev`,
+      );
+      const referrers = async (uri: vscode.Uri, name: string) => {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const position = doc.positionAt(doc.getText().indexOf(`name: ${name}`) + 'name: '.length + 1);
+        const found = await vscode.commands.executeCommand<vscode.Location[]>(
+          'vscode.executeReferenceProvider',
+          doc.uri,
+          position,
+        );
+        return found.map((l) => l.uri.toString());
+      };
+      assert.deepStrictEqual(await referrers(group, id), [app.toString()]);
+      assert.deepStrictEqual(await referrers(topic, `${id}.orders`), [instance.toString()]);
+      assert.deepStrictEqual(await referrers(instance, `${id}-dev`), []);
+
+      const groupDoc = await vscode.workspace.openTextDocument(group);
+      let titles: string[] = [];
+      await until(() => {
+        void vscode.commands
+          .executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', groupDoc.uri)
+          .then((lenses) => (titles = lenses.map((l) => l.command?.title ?? '')));
+        return titles.includes('$(references) referenced by 1');
+      });
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();
