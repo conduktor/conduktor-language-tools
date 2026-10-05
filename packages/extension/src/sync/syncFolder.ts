@@ -1,5 +1,3 @@
-import * as fs from 'node:fs/promises';
-import { dirname } from 'node:path';
 import * as vscode from 'vscode';
 import { parse, stringify } from 'yaml';
 import {
@@ -40,6 +38,7 @@ import {
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
+import { fileExists, read, write } from './files';
 import { singleFlight } from './singleFlight';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
@@ -716,35 +715,4 @@ export async function chooseFolder(suggested: vscode.Uri | undefined): Promise<v
       defaultUri: suggested,
     })) ?? [];
   return folder;
-}
-
-// The sync folder is on the disk the extension host runs on; going through workspace.fs costs a round trip per call,
-// which a bootstrap of thousands of files makes minutes long.
-async function fileExists(uri: vscode.Uri): Promise<boolean> {
-  try {
-    if (uri.scheme === 'file') await fs.stat(uri.fsPath);
-    else await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function read(uri: vscode.Uri): Promise<string | undefined> {
-  try {
-    if (uri.scheme === 'file') return await fs.readFile(uri.fsPath, 'utf8');
-    return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-  } catch {
-    return undefined;
-  }
-}
-
-async function write(uri: vscode.Uri, text: string): Promise<void> {
-  if (uri.scheme === 'file') {
-    await fs.mkdir(dirname(uri.fsPath), { recursive: true });
-    await fs.writeFile(uri.fsPath, text);
-    return;
-  }
-  await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
-  await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
 }
