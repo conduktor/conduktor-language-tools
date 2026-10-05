@@ -113,6 +113,7 @@ export {
   type ReferenceTarget,
 } from './references';
 export {
+  blankDocumentAt,
   fixedNames,
   nextChoice,
   skeletonYaml,
