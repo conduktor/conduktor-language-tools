@@ -1528,6 +1528,58 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual((await complete(kubernetes)).length, 0, 'not in a file that holds other resources');
   });
 
+  test('starts a new resource from a repository template', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-templates-')));
+    await api.sync.setSyncRoot(root);
+    const folder = vscode.Uri.joinPath(root, 'templates', 'Topic');
+    const write = (name: string, text: string) =>
+      vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder, name), new TextEncoder().encode(text));
+    await write(
+      'high-throughput.yaml',
+      '# Our standard\napiVersion: v2\nkind: Topic\nmetadata:\n  name: high-throughput\nspec:\n  partitions: 24\n  replicationFactor: 3\n',
+    );
+    await write('broken.yaml', 'kind: [\n');
+    const topic = state.spec.catalog.latest('Topic')!;
+    try {
+      let offered: string[] = [];
+      api.setTemplatePicker(async (_kind, templates) => {
+        offered = templates.map((t) => t.label);
+        return templates.find((t) => t.label === 'high-throughput')!.uri;
+      });
+      const doc = await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] });
+      assert.deepStrictEqual(offered.sort(), ['broken', 'high-throughput']);
+      assert.ok(doc);
+      assert.match(doc.getText(), /^# Our standard/);
+      assert.deepStrictEqual(parse(doc.getText()).metadata, { name: 'high-throughput', cluster: 'local-kafka' });
+      assert.ok(
+        doc.uri.path.endsWith(
+          `/environments/${state.connection.name}/clusters/local-kafka/kafka/Topic/high-throughput.yaml`,
+        ),
+        doc.uri.path,
+      );
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+      const again = await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] });
+      assert.strictEqual(parse(again!.getText()).metadata.name, 'high-throughput-2', 'a free name from the template');
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+      api.setTemplatePicker(async (_kind, templates) => templates.find((t) => t.label === 'broken')!.uri);
+      assert.strictEqual(await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] }), undefined);
+      api.setTemplatePicker(async () => undefined);
+      assert.strictEqual(await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] }), undefined);
+      await api.sync.refresh();
+      assert.ok(
+        !api.sync.list().some((e) => e.uri.path.includes('/templates/')),
+        'templates are not repository resources',
+      );
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();

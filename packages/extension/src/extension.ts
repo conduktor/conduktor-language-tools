@@ -9,7 +9,13 @@ import { ConnectionStore } from './connections/connectionStore';
 import { SessionManager } from './connections/session';
 import { ResourceCodeLensProvider } from './editing/codeLens';
 import { Compare } from './editing/compare';
-import { newResource, quickPickVariant, type VariantPicker } from './editing/newResource';
+import {
+  newResource,
+  quickPickTemplate,
+  quickPickVariant,
+  type TemplatePicker,
+  type VariantPicker,
+} from './editing/newResource';
 import { ResourceController } from './editing/resourceController';
 import type { ExplorerNode, ResourceNode } from './explorer/explorerModel';
 import { ClusterSelection } from './explorer/clusterSelection';
@@ -40,6 +46,7 @@ export interface ExtensionApi {
   newResource: (node?: ExplorerNode) => Promise<vscode.TextDocument | undefined>;
   setConfirm: (confirm: Confirm) => void;
   setVariantPicker: (picker: VariantPicker) => void;
+  setTemplatePicker: (picker: TemplatePicker) => void;
   sync: SyncFolder;
   clusters: ClusterSelection;
   compare: Compare;
@@ -52,6 +59,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const confirm: Confirm = (...args) => confirmWith(...args);
   let pickVariantWith: VariantPicker = quickPickVariant;
   const pickVariant: VariantPicker = (...args) => pickVariantWith(...args);
+  let pickTemplateWith: TemplatePicker = quickPickTemplate;
+  const pickTemplate: TemplatePicker = (...args) => pickTemplateWith(...args);
 
   const output = new Output();
   const connections = new ConnectionStore(context);
@@ -105,7 +114,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.commands.registerCommand('conduktor.showAll', () => explorer.showOnlyChanges(false)),
     vscode.commands.registerCommand('conduktor.selectCluster', () => clusters.pick()),
     vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) =>
-      newResource(sessions, sync, clusters.current(), node, pickVariant),
+      newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, codeLenses),
     vscode.languages.registerCompletionItemProvider(
@@ -211,12 +220,16 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     liveUri: (node: ResourceNode) => explorer.liveUri(node),
     dryRun: (uri: vscode.Uri, index?: number) => resources.dryRun(uri, index),
     apply: (uri: vscode.Uri, index?: number) => resources.apply(uri, index),
-    newResource: (node?: ExplorerNode) => newResource(sessions, sync, clusters.current(), node, pickVariant),
+    newResource: (node?: ExplorerNode) =>
+      newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate),
     setConfirm: (replacement: Confirm) => {
       confirmWith = replacement;
     },
     setVariantPicker: (replacement: VariantPicker) => {
       pickVariantWith = replacement;
+    },
+    setTemplatePicker: (replacement: TemplatePicker) => {
+      pickTemplateWith = replacement;
     },
     sync,
     applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output, clusters.current()),

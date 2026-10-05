@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
   fixedNames,
+  fromTemplate,
   kindSchema,
   listPath,
   newResourceName,
@@ -9,6 +10,7 @@ import {
   PARENT_KINDS,
   parentsOf,
   skeletonYaml,
+  templateDocument,
   type Choice,
   type KindCatalog,
   type KindVersion,
@@ -35,12 +37,29 @@ export const quickPickVariant: VariantPicker = async (choice, kind) => {
   return picked?.value;
 };
 
+export type TemplatePicker = (
+  kind: string,
+  templates: { label: string; uri: vscode.Uri }[],
+) => Promise<vscode.Uri | 'built-in' | undefined>;
+
+export const quickPickTemplate: TemplatePicker = async (kind, templates) => {
+  const picked = await vscode.window.showQuickPick(
+    [
+      { label: `$(symbol-structure) ${kind} from the schema`, value: 'built-in' as const },
+      ...templates.map((t) => ({ label: `$(file) ${t.label}`, description: 'repository template', value: t.uri })),
+    ],
+    { title: `New ${kind}: start from`, ignoreFocusOut: true },
+  );
+  return picked?.value;
+};
+
 export async function newResource(
   sessions: SessionManager,
   sync: SyncFolder,
   cluster: string | undefined,
   node?: ExplorerNode,
   pickVariant: VariantPicker = quickPickVariant,
+  pickTemplate: TemplatePicker = quickPickTemplate,
 ): Promise<vscode.TextDocument | undefined> {
   const state = sessions.current();
   if (state.status !== 'ready') {
@@ -60,10 +79,14 @@ export async function newResource(
     if (!value) return undefined;
     parents = [...parents, value];
   }
-  const template = await templateFor(state, kind, pickVariant);
+  const templates = await repoTemplates(sync, kind.kind);
+  const start = templates.length > 0 ? await pickTemplate(kind.kind, templates) : 'built-in';
+  if (start === undefined) return undefined;
+  const template =
+    start === 'built-in' ? await templateFor(state, kind, pickVariant) : await fileTemplate(state, start, kind);
   if (!template) return undefined;
   const local = await sync.ensureChosen();
-  const name = await nameFor(sync, local, kind, parents, template.fixedNames);
+  const name = await nameFor(sync, local, kind, parents, template);
   if (!name) {
     void vscode.window.showWarningMessage(
       `Every ${kind.kind} name (${template.fixedNames!.join(', ')}) already has a local file.`,
@@ -81,6 +104,40 @@ export async function newResource(
 interface Template {
   render: (parents: Record<string, string>, name: string) => string;
   fixedNames?: string[];
+  baseName?: string;
+}
+
+// Templates live outside environments/, so `ctl` never applies them and they never count as repository resources.
+async function repoTemplates(sync: SyncFolder, kind: string): Promise<{ label: string; uri: vscode.Uri }[]> {
+  const root = sync.syncRoot();
+  if (!root) return [];
+  const folder = vscode.Uri.joinPath(root, 'templates', kind);
+  try {
+    const entries = await vscode.workspace.fs.readDirectory(folder);
+    return entries
+      .filter(([name, type]) => type === vscode.FileType.File && /\.ya?ml$/.test(name))
+      .map(([name]) => ({ label: name.replace(/\.ya?ml$/, ''), uri: vscode.Uri.joinPath(folder, name) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  } catch {
+    return [];
+  }
+}
+
+async function fileTemplate(state: Ready, uri: vscode.Uri, kind: KindVersion): Promise<Template | undefined> {
+  const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+  const document = templateDocument(text, kind.kind);
+  if (!document) {
+    void vscode.window.showWarningMessage(
+      `${vscode.workspace.asRelativePath(uri)} holds no ${kind.kind} to start from.`,
+    );
+    return undefined;
+  }
+  const root = kind.bodySchema && kindSchema(state.spec.schema, kind as KindVersion & { bodySchema: string });
+  return {
+    render: (parents, name) => fromTemplate(document.text, parents, name),
+    fixedNames: root ? fixedNames(root) : undefined,
+    baseName: document.name || undefined,
+  };
 }
 
 // Built from the kind's schema once its variants are chosen; a kind without a published schema keeps its example.
@@ -103,9 +160,11 @@ async function nameFor(
   local: boolean,
   kind: KindVersion,
   parents: string[],
-  fixed: readonly string[] | undefined,
+  template: Template,
 ): Promise<string | undefined> {
-  if (!fixed) return local ? sync.freeName(kind, parents, newResourceName(kind)) : newResourceName(kind);
+  const fixed = template.fixedNames;
+  const base = template.baseName ?? newResourceName(kind);
+  if (!fixed) return local ? sync.freeName(kind, parents, base) : base;
   if (!local) return fixed[0];
   for (const candidate of fixed) if ((await sync.freeName(kind, parents, candidate)) === candidate) return candidate;
   return undefined;
