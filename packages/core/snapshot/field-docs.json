@@ -248,1057 +248,1233 @@
       "kind": "Alert",
       "path": "metadata.user",
       "text": "|`metadata.group`|`metadata.appInstance` has to be a valid user, group or appInstance.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "metadata.destination.type",
       "text": "can be either `Slack`, `Teams` or `Webhook`. When set to:\n`Slack`: has to be a valid Slack channel ID\n`Teams`: has to be a valid Teams webhook URL\n`Webhook`:\n`spec.destination.url` has to be a valid URL\n`spec.destination.method` has to be `GET`, `POST`, `PUT` or `DELETE`\n`spec.destination.headers` (optional) has to be key-value pairs of HTTP headers\n`spec.destination.authentication.type` (optional) has to be `BasicAuth` (define `spec.destination.authentication.username` and `spec.destination.authentication.password`) or `BearerToken` (define `spec.destination.authentication.token`).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.cluster",
       "text": "has to be a valid KafkaCluster name.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.type",
       "text": "has to be `BrokerAlert`,`TopicAlert`, `KafkaConnectAlert` or `ConsumerGroupAlert`. When set to:\n`BrokerAlert`: `spec.metric` has to be `MessageIn`, `MessageOut`, `MessageSize`, `OfflinePartitionCount`, `PartitionCount`, `UnderMinIsrPartitionCount` or `UnderReplicatedPartitionCount`.\n`TopicAlert`: `spec.metric` has to be `MessageCount`, `MessageIn`, `MessageOut` or `MessageSize` and the `spec.topicName` has to be a Kafka topic that the owner can access.\n`KafkaConnectAlert`:`spec.metric` has to be `FailedTaskCount`;`spec.connectName` has to be a valid KafkaConnect cluster associated to this `spec.cluster` Kafka cluster and `spec.connectorName` has to be a Kafka Connect Connector that the owner can access.\n`ConsumerGroupAlert`:`spec.metric` has to be `OffsetLag` or `TimeLag` and `spec.consumerGroupName` has to be a Kafka Consumer group that the owner can access.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.metric",
       "text": "depends on the `spec.type`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.operator",
       "text": "has to be `GreaterThan`, `GreaterThanOrEqual`, `LessThan`, `LessThanOrEqual` or `NotEqual`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.threshold",
       "text": "has to be a number.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.description",
       "text": "(optional) provides a text description of the alert.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.displayName",
       "text": "(optional) provides a display name for the alert.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Alert",
       "path": "spec.disable",
       "text": "(optional), default is `false`. Has to be `true` or `false`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
     },
     {
       "kind": "Application",
       "path": "spec.owner",
       "text": "is a valid Console group",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#application"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#application",
+      "section": "Application"
     },
     {
       "kind": "Application",
       "path": "spec.policyRef",
       "text": "(optional), if set, has to be a valid list of [ResourcePolicy](https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy).",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#application"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#application",
+      "section": "Application"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.instancePermissions",
       "text": "(optional) is a list of instance-level permission assignments.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.instancePermissions[].appInstance",
       "text": "has to be an application instance associated with this application (`metadata.application`).",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.instancePermissions[].permissions",
       "text": "is a list of valid instance permissions: `applicationInstancePermissionRequestAccess`, `applicationInstancePermissionGrantAccess`, `applicationInstancePermissionProposeAccess`, `applicationInstanceApiKeyManage`, `applicationInstanceChargebackView`, `alertManage`, `serviceAccountManage`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.permissions[].appInstance",
       "text": "has to be an application instance associated with this application (`metadata.application`).",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.permissions[].resourceType",
       "text": "can be `TOPIC`, `SUBJECT`, `CONSUMER_GROUP` or `CONNECTOR`. When set to `CONNECTOR`, an additional field `spec.permissions[].connectCluster` is mandatory and has to be a valid *KafkaConnectCluster* name.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.permissions[].patternType",
       "text": "can be `PREFIXED` or `LITERAL`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.permissions[].name",
       "text": "has to reference any 'sub-resource' of `metadata.appInstance` or any subscribed topic. Use `*` to include to all owned and subscribed resources associated to this *appInstance*.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.permissions[].permissions",
       "text": "are valid permissions.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.members",
       "text": "has to be an email addresses of members that you want to add to this group.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.externalGroups",
       "text": "a list of LDAP or OIDC groups to sync with this Console group. Members added this way will not appear in `spec.members` list.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroup",
       "path": "spec.externalGroupRegex",
       "text": "a list of regex patterns that can match to a series of LDAP or OIDC groups to sync with this Console group. Members added this way will not appear in `spec.members` list.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#example",
+      "section": "Example"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "metadata.name",
       "text": "is the unique identifier of the template and can contain lowercase letters, numbers, `_`, `-` and `.`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.displayName",
       "text": "is required and is the name shown in the Console template picker.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.description",
       "text": "is optional.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.defaults.permissions",
       "text": "is optional and contains resource permission entries. Application instance permissions aren't supported by templates.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.defaults.permissions[].resourceType",
       "text": "can be `TOPIC`, `CONSUMER_GROUP`, `SUBJECT` or `CONNECTOR`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.defaults.permissions[].patternType",
       "text": "can be `LITERAL` or `PREFIXED`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.defaults.permissions[].name",
       "text": "identifies the resource or pattern. Use `*` to target all resources of that type owned by the selected application instance.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.defaults.permissions[].connectCluster",
       "text": "applies only to `CONNECTOR` entries. Set it to a Kafka Connect cluster that is linked to every application instance where the entry will be applied; otherwise, adjust the generated entry before saving.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationGroupTemplate",
       "path": "spec.defaults.permissions[].permissions",
       "text": "must contain valid permission IDs for the selected resource type.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationgrouptemplate",
+      "section": "ApplicationGroupTemplate"
     },
     {
       "kind": "ApplicationInstance",
       "path": "metadata.application",
       "text": "is a valid application.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.cluster",
       "text": "is a valid Console cluster technical Id.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.cluster",
       "text": "is immutable (can't be updated after creation).",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.serviceAccount",
       "text": "(optional). If already used by another *AppInstance* on the same `spec.cluster`, it can't be set.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.applicationManagedServiceAccount",
       "text": "(optional), default is `false`. If set to `true`, the service account ACLs will be managed by the application owners directly instead of being synchronized by the *ApplicationInstance*. [Find out more about managed service account](https://docs.conduktor.io/guide/reference/self-service-reference#application-managed-service-account).",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.policyRef",
       "text": "(optional), if set, has to be a valid list of [ResourcePolicy](https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy).",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.topicPolicyRef",
       "text": "(optional), if defined, has to be a valid list of [TopicPolicy](https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy). Will be deprecated in a future release — prefer `spec.policyRef` with [ResourcePolicy](https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy) instead.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.defaultCatalogVisibility",
       "text": "(optional), default is `PUBLIC`. Can be `PUBLIC` or `PRIVATE`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.resources[].type",
       "text": "can be `TOPIC`, `CONSUMER_GROUP`, `SUBJECT`, `TRANSACTIONAL_ID` or `CONNECTOR`:\n`spec.resources[].connectCluster` is **only mandatory** when `type` is `CONNECTOR`;\n`spec.resources[].connectCluster` is a valid Connect cluster linked to the Kafka cluster `spec.cluster`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.resources[].patternType",
       "text": "can be `PREFIXED` or `LITERAL`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.resources[].name",
       "text": "has to not overlap with any other *ApplicationInstance* on the same cluster. I.e.: if there's already an owner for `click`, this is forbidden:\n`click.orders.`: resource is a child-resource of `click`\n`cli`: resource is a parent-resource of `click`",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstance",
       "path": "spec.resources[].ownershipMode",
       "text": "(optional), default is `ALL`. Can be `ALL` or `LIMITED`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
     },
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec",
       "text": "is immutable:\nonce created, you'll only be able to update its metadata. **This is to protect you from making a change that could impact an external application**.\nthis resource affects target *ApplicationInstance*'s Kafka service account ACLs.\nto edit this resource, delete and re-create it.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
+      "section": "ApplicationInstancePermission"
     },
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec.resource.type",
       "text": "can be `TOPIC`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
+      "section": "ApplicationInstancePermission"
     },
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec.resource.patternType",
       "text": "can be `PREFIXED` or `LITERAL`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
+      "section": "ApplicationInstancePermission"
     },
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec.resource.name",
       "text": "has to reference any 'sub-resource' of `metadata.appInstance`. For example, if you're the owner of the `click.` prefix, you can grant `READ` or `WRITE` access to:\nthe whole `click.` prefix,\na sub prefix `click.orders.`,\na literal topic name `click.orders.france`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
+      "section": "ApplicationInstancePermission"
     },
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec.serviceAccountPermission",
       "text": "can be `READ` or `WRITE`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
+      "section": "ApplicationInstancePermission"
     },
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec.grantedTo",
       "text": "has to be an *ApplicationInstance* on the same Kafka cluster as `metadata.appInstance`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
+      "section": "ApplicationInstancePermission"
     },
     {
       "kind": "Connector",
       "path": "metadata.connectCluster",
       "text": "is a valid Kafka Connect cluster",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector",
+      "section": "Connector"
     },
     {
       "kind": "Connector",
       "path": "metadata.name",
       "text": "has to belong to the application instance",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector",
+      "section": "Connector"
     },
     {
       "kind": "Connector",
       "path": "metadata.autoRestart.enabled",
       "text": "(optional), default is `\"false\"`. Defines whether Console's automatic restart feature is enabled for this connector.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector",
+      "section": "Connector"
     },
     {
       "kind": "Connector",
       "path": "metadata.autoRestart.frequencySeconds",
       "text": "(optional), default is `600`, meaning 10 minutes. Defines the delay between consecutive restart attempts.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#connector",
+      "section": "Connector"
     },
     {
       "kind": "ConnectorTemplate",
       "path": "metadata.name",
       "text": "is the unique identifier of the template.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate",
+      "section": "ConnectorTemplate"
     },
     {
       "kind": "ConnectorTemplate",
       "path": "spec.displayName",
       "text": "is required and is the name shown in the connector wizard template picker.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate",
+      "section": "ConnectorTemplate"
     },
     {
       "kind": "ConnectorTemplate",
       "path": "spec.defaults.spec.class",
       "text": "is required — the connector plugin class the template starts from. The wizard offers the template only when the user selects a matching connector class.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate",
+      "section": "ConnectorTemplate"
     },
     {
       "kind": "ConnectorTemplate",
       "path": "spec.defaults.spec.config",
       "text": "holds the connector configuration to pre-fill. Keys that look like secrets — for example `password`, `secret`, `credentials` or `sasl.jaas.config` — are rejected, so templates never store sensitive values.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#connectortemplate",
+      "section": "ConnectorTemplate"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.name",
       "text": "is mandatory and must be unique.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "spec.displayName",
       "text": "is mandatory and is shown in the Console UI.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "spec.description",
       "text": "is optional but recommended to explain the policy's purpose.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "spec.rules",
       "text": "is a list of DataQualityRule names to apply (references to rules created separately).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "spec.targets",
       "text": "is mandatory and defines which topics the policy applies to:\n`cluster` is a valid Kafka cluster technical ID.\n`topic` is the topic name or prefix.\n`patternType` has to be either `LITERAL` (exact match) or `PREFIXED` (prefix match).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "spec.actions",
       "text": "defines what happens when a rule violation occurs:\n`block.enabled` (optional, defaults to false) - when true, blocks messages that violate rules from being produced. Only available if the configured cluster is a Conduktor Gateway cluster with the appropriate license.\n`mark.enabled` (optional, defaults to false) - when true, marks messages that violate rules with a header but allows production.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.nameForMetrics",
       "text": "(read-only identifier used in metrics).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.group",
       "text": "(read-only group identifier).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.createdAt",
       "text": "(read-only timestamp).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.updatedAt",
       "text": "(read-only timestamp).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.createdBy",
       "text": "(read-only user identifier).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.updatedBy",
       "text": "(read-only user identifier).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.status",
       "text": "(read-only status: `failed`, `pending`, or `ready`).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.statuses",
       "text": "(read-only per-cluster deployment status).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.metrics",
       "text": "(read-only metrics showing evaluation and violation counts).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "metadata.attachedRules",
       "text": "(read-only list of rules attached to this policy).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.name",
       "text": "is mandatory and must be unique.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.labels",
       "text": "is optional and can be used to organize rules.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "spec.type",
       "text": "has to be one of: `Cel`, `JsonSchema`, `EnforceAvro`, `EnforceSchemaId`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "spec.displayName",
       "text": "is mandatory and is shown in the Console UI.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "spec.description",
       "text": "is optional but recommended to explain what the rule validates.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "spec.customErrorMessage",
       "text": "is optional and provides a custom error message when validation fails.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.createdAt",
       "text": "(read-only timestamp).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.updatedAt",
       "text": "(read-only timestamp).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.createdBy",
       "text": "(read-only user identifier).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.updatedBy",
       "text": "(read-only user identifier).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "DataQualityRule",
       "path": "metadata.attachedPolicies",
       "text": "(read-only list of policies using this rule).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualityrule",
+      "section": "DataQualityRule"
     },
     {
       "kind": "GlueSchema",
       "path": "metadata.cluster",
       "text": "is a valid Kafka cluster.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema",
+      "section": "GlueSchema"
     },
     {
       "kind": "GlueSchema",
       "path": "metadata.name",
       "text": "has to belong to the application instance.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema",
+      "section": "GlueSchema"
     },
     {
       "kind": "GlueSchema",
       "path": "schema",
       "text": "requires an inline schema.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema",
+      "section": "GlueSchema"
     },
     {
       "kind": "GlueSchema",
       "path": "schemaFile",
       "text": "requires a path to a file that contains the schema relative to the CLI (version >=0.2.5) execution path.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema",
+      "section": "GlueSchema"
     },
     {
       "kind": "GlueSchema",
       "path": "spec.format",
       "text": "is mandatory. Defines the schema format: AVRO, PROTOBUF or JSON.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema",
+      "section": "GlueSchema"
     },
     {
       "kind": "GlueSchema",
       "path": "spec.compatibility",
       "text": "is mandatory, defines the subject compatibility mode: `BACKWARD`, `BACKWARD_ALL`, `FORWARD`, `FORWARD_ALL`, `FULL`, `FULL_ALL`, `DISABLED` or `NONE`.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#glueschema",
+      "section": "GlueSchema"
     },
     {
       "kind": "Group",
       "path": "spec.description",
       "text": "is **optional**",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
+      "section": "ConsoleGroup"
     },
     {
       "kind": "Group",
       "path": "spec.externalGroups",
       "text": "is a list of LDAP or OIDC groups to sync with this Console Group\nMembers added this way will not appear in `spec.members` but `spec.membersFromExternalGroups` instead",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
+      "section": "ConsoleGroup"
     },
     {
       "kind": "Group",
       "path": "spec.externalGroupRegex",
       "text": "is a list of regex patterns that can match to a series of LDAP or OIDC groups to sync with this Console group. Members added this way will not appear in `spec.members` list.\nSupports regex patterns for dynamic group matching (e.g., `^TEAM-.*` to match all groups starting with \"TEAM-\")",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
+      "section": "ConsoleGroup"
     },
     {
       "kind": "Group",
       "path": "spec.membersFromExternalGroups",
       "text": "is a **read-only** list of members added through `spec.externalGroups` or `spec.externalGroupRegex`",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
+      "section": "ConsoleGroup"
     },
     {
       "kind": "Group",
       "path": "spec.members",
       "text": "must be email addresses of members you wish to add to this group",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
+      "section": "ConsoleGroup"
     },
     {
       "kind": "Group",
       "path": "spec.permissions",
       "text": "are valid permissions as defined in [Permissions](https://docs.conduktor.io/guide/reference/console-reference#permissions)",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
+      "section": "ConsoleGroup"
     },
     {
       "kind": "Integration",
       "path": "metadata.name",
       "text": "has to be one of `Slack`, `Email`, `Teams` or `Webhook`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#integrations"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#integrations",
+      "section": "Integrations"
     },
     {
       "kind": "Integration",
       "path": "spec.config",
       "text": "is required for `Slack` and `Email` integrations. For `Teams` and `Webhook`, the spec can be empty as they are configured per-alert.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#integrations"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#integrations",
+      "section": "Integrations"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.icon",
       "text": "(optional, default `kafka`) is a valid entry from our [Icon Sets](https://docs.conduktor.io/guide/reference/console-reference#icon-sets)",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
+      "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.color",
       "text": "(optional, default `#000000`) is a HEX color for `spec.icon`",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
+      "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.ignoreUntrustedCertificate",
       "text": "(optional, default `false`) must be one of [`true`, `false`]",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
+      "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.type",
       "text": "(optional) must be one of [`ConfluentLike`, `Glue`]\nSee [Schema Registry Properties](https://docs.conduktor.io/guide/reference/console-reference#schema-registry) for the detailed list of options",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
+      "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.kafkaFlavor.type",
       "text": "(optional) must be one of [`Confluent`, `ConfluentPlatform`, `Aiven`, `Gateway`]\nSee [Kafka Provider Properties](https://docs.conduktor.io/guide/reference/console-reference#kafka-provider) for the detailed list of options",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
+      "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.policiesRef",
       "text": "(optional), if set, has to be a valid list of [ResourcePolicy](https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
+      "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.urls",
       "text": "must be a single URL of a Kafka Connect cluster\n**Multiple URLs are not supported for now. Coming soon**",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry",
+      "section": "Confluent or Confluent-like Registry"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.ignoreUntrustedCertificate",
       "text": "(optional, default `false`) must be one of [`true`, `false`]",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry",
+      "section": "Confluent or Confluent-like Registry"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.properties",
       "text": "(optional) is Java Properties formatted key values to further configure the SchemaRegistry",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry",
+      "section": "Confluent or Confluent-like Registry"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.security.type",
       "text": "(optional) must be one of [`BasicAuth`, `BearerToken`, `SSLAuth`]\nSee [HTTP Security Properties](https://docs.conduktor.io/guide/reference/console-reference#http-security-properties) for the detailed list of options",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry",
+      "section": "Confluent or Confluent-like Registry"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.region",
       "text": "must be a valid AWS region",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#aws-glue-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#aws-glue-registry",
+      "section": "AWS Glue registry"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.registryName",
       "text": "must be a valid AWS Glue Registry in this region",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#aws-glue-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#aws-glue-registry",
+      "section": "AWS Glue registry"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.security.type",
       "text": "must be one of [`Credentials`, `FromContext`, `FromRole`]",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#aws-glue-registry"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#aws-glue-registry",
+      "section": "AWS Glue registry"
     },
     {
       "kind": "KafkaConnectCluster",
       "path": "metadata.cluster",
       "text": "has to be a valid KafkaCluster name.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster",
+      "section": "KafkaConnectCluster"
     },
     {
       "kind": "KafkaConnectCluster",
       "path": "spec.urls",
       "text": "has to be a single URL of a Kafka Connect cluster. Multiple URLs are not currently supported.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster",
+      "section": "KafkaConnectCluster"
     },
     {
       "kind": "KafkaConnectCluster",
       "path": "spec.ignoreUntrustedCertificate",
       "text": "(optional, default `false`). Has to be `true` or `false`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster",
+      "section": "KafkaConnectCluster"
     },
     {
       "kind": "KafkaConnectCluster",
       "path": "spec.headers",
       "text": "(optional) has to be key-value pairs of HTTP headers.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster",
+      "section": "KafkaConnectCluster"
     },
     {
       "kind": "KafkaConnectCluster",
       "path": "spec.security.type",
       "text": "(optional) has to be `BasicAuth`, `BearerToken` or `SSLAuth`. [Find out more](https://docs.conduktor.io/guide/reference/console-reference#http-security-properties).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster",
+      "section": "KafkaConnectCluster"
     },
     {
       "kind": "KafkaConnectCluster",
       "path": "spec.policiesRef",
       "text": "(optional), if set, has to be a valid list of [ResourcePolicy](https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkaconnectcluster",
+      "section": "KafkaConnectCluster"
     },
     {
       "kind": "KsqlDBCluster",
       "path": "metadata.cluster",
       "text": "has to be a valid KafkaCluster name.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster",
+      "section": "KsqlDBCluster"
     },
     {
       "kind": "KsqlDBCluster",
       "path": "spec.url",
       "text": "has to be a single URL of a KsqlDB cluster.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster",
+      "section": "KsqlDBCluster"
     },
     {
       "kind": "KsqlDBCluster",
       "path": "spec.ignoreUntrustedCertificate",
       "text": "(optional), default is `false`. Has to be `true` or `false`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster",
+      "section": "KsqlDBCluster"
     },
     {
       "kind": "KsqlDBCluster",
       "path": "spec.headers",
       "text": "(optional) has to be key-value pairs of HTTP headers.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster",
+      "section": "KsqlDBCluster"
     },
     {
       "kind": "KsqlDBCluster",
       "path": "spec.security.type",
       "text": "(optional) has to be `BasicAuth`, `BearerToken` or `SSLAuth`. [Find out more](https://docs.conduktor.io/guide/reference/console-reference#http-security-properties).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#ksqldbcluster",
+      "section": "KsqlDBCluster"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.displayName",
       "text": "is mandatory.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.description",
       "text": "(optional), useful for context information.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.url",
       "text": "(optional), useful for context information.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.partner",
       "text": "(optional), useful for context information.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.cluster",
       "text": "has to be a valid Console cluster technical ID with the **Provider configured as *Gateway***.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.underlyingCluster",
       "text": "has to be a valid Console cluster technical ID where the cluster has to be defined under the Gateway defined by the `spec.gatewayClusterId`.\nWhen not specified, the value is inferred to be equal to the `spec.gatewayClusterId` field, hence selecting the main cluster behind Gateway by default.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.authenticationMode.type",
       "text": "must be one of [`PLAIN`, `OAUTHBEARER`, `MTLS`]. See [authentication examples](https://docs.conduktor.io/guide/use-cases/third-party-data#authentication-modes) for detailed configuration.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.authenticationMode.serviceAccount",
       "text": "requirements depend on the authentication type:\n**PLAIN**: Any unique identifier for your partner (e.g., `partner-external-partner`). This will be created as a local Gateway service account automatically if it doesn't exist.\n**OAUTHBEARER**: Must match the \"sub\" claim in the partner's OAuth/OIDC token (e.g., `oauth-partner-service-account`). The partner needs to authenticate using their OAuth provider.\n**MTLS**: Must match the client's Distinguished Name (DN) from their certificate, unless you've modified `GATEWAY_SSL_PRINCIPAL_MAPPING_RULES` (e.g., `CN=partner-client,OU=Engineering,O=PartnerCorp,C=US`).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "spec.vclusterName",
       "text": "(optional), custom name for the Virtual Cluster. If not provided, it will be auto-generated.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "topics[].name",
       "text": "is the name of the topic as it should appear to your external partner. This can be different from `backingTopic`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "topics[].backingTopic",
       "text": "is the internal name of the topic that you want to share.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "topics[].permission",
       "text": "has to be set to either `READ` or `WRITE` (which includes `READ`).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "trafficControlPolicies.maxProduceRate",
       "text": "(optional), sets the maximum rate (in bytes/s) at which the partner can produce messages to the topics per Gateway node.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "trafficControlPolicies.maxConsumeRate",
       "text": "(optional), sets the maximum rate (in bytes/s) at which the partner can consume messages from the topics per Gateway node.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "trafficControlPolicies.limitCommitOffset",
       "text": "(optional), sets the maximum number of commit requests (in requests/minute) that the partner can make per Gateway node.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "headers.addOnProduce",
       "text": "(optional), list of headers to inject when producing messages. The `value` field supports special variables: `{{user}}`, `{{userIp}}`, `{{clientId}}`, `{{apiKey}}`, `{{apiKeyVersion}}`, `{{gatewayHost}}`, `{{timestampMillis}}`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "headers.removeOnConsume",
       "text": "(optional), list of header key patterns (regex) to remove when consuming messages.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "metadata.updatedAt",
       "text": "(by consecutive *get* from the CLI/API).",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "metadata.status",
       "text": "(by consecutive *get* from the CLI/API.) Possible values are `PENDING`, `READY` or `FAILED`.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "PartnerZone",
       "path": "metadata.failedReason",
       "text": "will be populated in case of `FAILED` status.",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
+      "section": "Partner Zones"
     },
     {
       "kind": "ResourcePolicy",
       "path": "spec.targetKind",
       "text": "can be `Topic`, `Connector`, `Subject`, `ApplicationGroup` or `ApplicationInstancePermission`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy",
+      "section": "ResourcePolicy"
     },
     {
       "kind": "ResourcePolicy",
       "path": "spec.rules[].condition",
       "text": "is a valid [CEL expression](https://cel.dev)  and will be evaluated against the resource.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy",
+      "section": "ResourcePolicy"
     },
     {
       "kind": "ResourcePolicy",
       "path": "spec.rules[].errorMessage",
       "text": "is a string that will be displayed when the condition is not met.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#resourcepolicy",
+      "section": "ResourcePolicy"
     },
     {
       "kind": "ServiceAccount",
       "path": "metadata.cluster",
       "text": "is a valid Kafka cluster.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
     },
     {
       "kind": "ServiceAccount",
       "path": "metadata.name",
       "text": "is a valid, pre-existing service account.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
     },
     {
       "kind": "ServiceAccount",
       "path": "spec.authorization.type",
       "text": "has to be `KAFKA_ACL` (not supported for Aiven Kafka clusters) or `AIVEN_ACL` (is only supported for Aiven Kafka clusters).\n`spec.acls[].type` has to be a [valid Kafka resource type](https://kafka.apache.org/documentation/#operations_resources_and_protocols) .\n`spec.acls[].operations` has to contain only operations that are valid for the resource type.\n`spec.acls[].host` (optional), will default to `*`.\n`spec.acls[].permission` (optional), will default to `Allow`.\n`spec.acls[].resourceType` has to be a [valid resource type on Aiven Kafka](https://aiven.io/docs/products/kafka/concepts/acl)  for `TOPIC` or [a valid resource for](https://aiven.io/docs/products/kafka/karapace/concepts/acl-definition)  `SCHEMA`.\n`spec.acls[].name` has to be a valid resource name on Aiven Kafka. For schemas, it has to match `^(Config:|Subject:[A-Za-z0-9/_.*?-]+)`.\n`spec.acls[].permission` has to contain only operations that are valid for the resource type.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
     },
     {
       "kind": "Subject",
       "path": "metadata.cluster",
       "text": "is a valid Kafka cluster.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject",
+      "section": "Subject"
     },
     {
       "kind": "Subject",
       "path": "metadata.name",
       "text": "has to belong to the application instance.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject",
+      "section": "Subject"
     },
     {
       "kind": "Subject",
       "path": "spec.format",
       "text": "is mandatory. Defines the schema format: AVRO, PROTOBUF or JSON.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject",
+      "section": "Subject"
     },
     {
       "kind": "Subject",
       "path": "spec.compatibility",
       "text": "(optional), defines the subject compatibility mode: `BACKWARD`, `BACKWARD_TRANSITIVE`, `FORWARD`, `FORWARD_TRANSITIVE`, `FULL`, `FULL_TRANSITIVE` or `NONE`. If undefined, the compatibility mode will be the one defined at the schema registry global level.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject",
+      "section": "Subject"
     },
     {
       "kind": "Subject",
       "path": "spec.references",
       "text": "(optional), specifies the names of referenced schemas.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#subject",
+      "section": "Subject"
     },
     {
       "kind": "Topic",
       "path": "metadata.cluster",
       "text": "is a valid Kafka cluster",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "metadata.name",
       "text": "has to belong to the application instance",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "spec.replicationFactor",
       "text": "are immutable and can't be modified once the topic is created",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "spec.partitions",
       "text": "are immutable and can't be modified once the topic is created",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "spec.configs",
       "text": "has to be a valid [Kafka topic config](https://kafka.apache.org/documentation/#topicconfigs)",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "metadata.description",
       "text": "(optional), the description field in markdown that will be displayed in the **Topic Catalog** page in the UI.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "metadata.descriptionIsEditable",
       "text": "(optional), defaults to `true`. Defines whether the description can be updated in the UI.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "Topic",
       "path": "metadata.catalogVisibility",
       "text": "(optional), can be `PUBLIC` or `PRIVATE`. When the topic is linked to a Self-service application, defines whether the topic is visible (`PUBLIC`) in the **Topic Catalog** or not (`PRIVATE`). If empty, the visibility in the topic list is inherited from `spec.defaultCatalogVisibility`.",
-      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic"
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#topic",
+      "section": "Topic"
     },
     {
       "kind": "TopicPolicy",
       "path": "spec.policies",
       "text": "require YAML paths that are paths to the [topic resource YAML](https://docs.conduktor.io/guide/reference/kafka-reference#topic). For example:\n`metadata.name` to create constraints on topic name\n`metadata.labels.<key>` to create constraints on topic label `<key>`\n`spec.partitions` to create constraints on partitions number\n`spec.replicationFactor` to create constraints on replication factor\n`spec.configs.<key>` to create constraints on topic config `<key>`",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy",
+      "section": "TopicPolicy"
     },
     {
       "kind": "TopicPolicy",
       "path": "delete",
       "text": "",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#oneof"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#oneof",
+      "section": "OneOf"
     },
     {
       "kind": "TopicPolicy",
       "path": "compact",
       "text": "",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#oneof"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#oneof",
+      "section": "OneOf"
     },
     {
       "kind": "TopicPolicy",
       "path": "deleet",
       "text": "(typo)",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#oneof"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#oneof",
+      "section": "OneOf"
     },
     {
       "kind": "TopicPolicy",
       "path": "wikipedia.links.avro",
       "text": "",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#match"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#match",
+      "section": "Match"
     },
     {
       "kind": "TopicPolicy",
       "path": "wikipedia.products.json",
       "text": "",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#match"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#match",
+      "section": "Match"
     },
     {
       "kind": "TopicPolicy",
       "path": "notwikipedia.products.avro2",
       "text": ": `^` and `$` prevents anything before and after the pattern",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#match"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#match",
+      "section": "Match"
     },
     {
       "kind": "TopicTemplate",
       "path": "metadata.name",
       "text": "is the unique identifier of the template.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate",
+      "section": "TopicTemplate"
     },
     {
       "kind": "TopicTemplate",
       "path": "spec.displayName",
       "text": "is required and is the name shown in the **Create Topic** template picker.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate",
+      "section": "TopicTemplate"
     },
     {
       "kind": "TopicTemplate",
       "path": "spec.description",
       "text": "(optional) appears under the display name to help users choose.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate",
+      "section": "TopicTemplate"
     },
     {
       "kind": "TopicTemplate",
       "path": "spec.defaults",
       "text": "(all optional) pre-fill the form: `metadata.name`, `metadata.labels`, `spec.partitions`, `spec.replicationFactor` and `spec.configs`.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate",
+      "section": "TopicTemplate"
     },
     {
       "kind": "TopicTemplate",
       "path": "spec.defaults.spec.partitions",
       "text": "when set, have to be greater than zero.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate",
+      "section": "TopicTemplate"
     },
     {
       "kind": "TopicTemplate",
       "path": "spec.defaults.spec.replicationFactor",
       "text": "when set, have to be greater than zero.",
-      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate"
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topictemplate",
+      "section": "TopicTemplate"
     },
     {
       "kind": "User",
       "path": "spec.permissions",
       "text": "are valid permissions as defined in [Permissions](https://docs.conduktor.io/guide/reference/console-reference#permissions)",
-      "url": "https://docs.conduktor.io/guide/reference/console-reference#consoleuser"
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#consoleuser",
+      "section": "ConsoleUser"
     }
   ]
 }

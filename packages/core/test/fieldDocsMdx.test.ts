@@ -50,14 +50,28 @@ describe('reference pages', () => {
         path: 'spec.permissions',
         text: `(optional) is a list of [permissions](${url}#permissions)\nSee [Topic](https://docs.conduktor.io/guide/reference/kafka-reference#topic)`,
         url: `${url}#consoleuser`,
+        section: 'ConsoleUser',
       },
-      { kind: 'User', path: 'spec.firstName', text: '(optional) are free text', url: `${url}#consoleuser` },
-      { kind: 'User', path: 'spec.lastName', text: '(optional) are free text', url: `${url}#consoleuser` },
+      {
+        kind: 'User',
+        path: 'spec.firstName',
+        text: '(optional) are free text',
+        url: `${url}#consoleuser`,
+        section: 'ConsoleUser',
+      },
+      {
+        kind: 'User',
+        path: 'spec.lastName',
+        text: '(optional) are free text',
+        url: `${url}#consoleuser`,
+        section: 'ConsoleUser',
+      },
       {
         kind: 'User',
         path: 'spec.kafkaFlavor.type',
         text: 'must be one of [`Confluent`, `Aiven`]',
         url: `${url}#kafka-provider`,
+        section: 'Kafka provider',
       },
     ]);
   });

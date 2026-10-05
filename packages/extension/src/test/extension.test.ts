@@ -1777,4 +1777,45 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await useWorkspaceSyncRoot(api);
     }
   });
+
+  test('explains fields, links their docs and where references point', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const content =
+      'apiVersion: v2\nkind: Topic\nmetadata:\n  name: vscode-hover\n  cluster: local-kafka\nspec:\n  partitions: 1\n  replicationFactor: 1\n  configs:\n    retention.ms: "1"\n';
+    const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+    const hover = async (needle: string, inside = 1) => {
+      const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+        'vscode.executeHoverProvider',
+        doc.uri,
+        doc.positionAt(content.indexOf(needle) + inside),
+      );
+      return hovers
+        .flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')))
+        .join('\n');
+    };
+    assert.match(
+      await hover('kind'),
+      /\*\*Topic\*\*[\s\S]*docs\.conduktor\.io\/guide\/reference\/kafka-reference#topic/,
+    );
+    const cluster = await hover('cluster');
+    assert.match(cluster, /valid Kafka cluster/);
+    assert.match(cluster, /in the Console|in the repository/);
+    assert.match(await hover('partitions'), /integer · required/);
+    assert.doesNotMatch(await hover('retention.ms'), /docs\.conduktor\.io/, 'topic configs keep their own hover');
+
+    const cluster2 =
+      'apiVersion: v2\nkind: KafkaCluster\nmetadata:\n  name: x\nspec:\n  schemaRegistry:\n    type: ConfluentLike\n    security:\n      type: BasicAuth\n';
+    const registry = await vscode.workspace.openTextDocument({ language: 'yaml', content: cluster2 });
+    const [described] = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      registry.uri,
+      registry.positionAt(cluster2.lastIndexOf('type') + 1),
+    );
+    const text = described!.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')).join('\n');
+    assert.match(text, /\[Confluent or Confluent-like Registry\]\([^)]*#confluent-or-confluent-like-registry\)/);
+    assert.match(text, /\[AWS Glue registry\]/, 'each section the docs describe it in is named');
+    assert.match(text, /\[Docs\]\([^)]*#kafkacluster\)/, 'the Docs link goes to the kind when sections differ');
+  });
 });

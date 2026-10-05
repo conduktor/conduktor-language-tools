@@ -12,6 +12,7 @@ export interface FieldDoc {
   path: string;
   text: string;
   url: string;
+  section: string;
 }
 
 const SITE = 'https://docs.conduktor.io';
@@ -48,6 +49,7 @@ export function parseReferencePage(
   const fields: FieldDoc[] = [];
   let kind: KindDoc | undefined;
   let anchor = '';
+  let section = '';
   let fence = false;
   let summary: 'waiting' | 'open' | 'done' = 'done';
   let bullet: FieldDoc[] | undefined;
@@ -71,6 +73,7 @@ export function parseReferencePage(
         summary = 'waiting';
       }
       anchor = `${pageUrl}#${headingSlug(title)}`;
+      section = title;
       bullet = undefined;
       continue;
     }
@@ -99,7 +102,7 @@ export function parseReferencePage(
     const paths = field ? [...field[1]!.matchAll(/`([^`]+)`/g)].map((match) => match[1]!) : [];
     if (field && paths.every((path) => FIELD_PATH.test(path))) {
       const text = clean(field[2]!);
-      bullet = paths.map((path) => ({ kind: kind!.kind, path, text, url: anchor }));
+      bullet = paths.map((path) => ({ kind: kind!.kind, path, text, url: anchor, section }));
       fields.push(...bullet);
       continue;
     }

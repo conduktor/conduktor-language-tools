@@ -34,6 +34,7 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
+import { FieldDocsHover } from './intel/fieldDocs';
 import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
 import { createStatusBar } from './statusBar';
 
@@ -129,6 +130,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     ),
     vscode.languages.registerCompletionItemProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
+    vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
     new TopicConfigDiagnostics(sessions),
     vscode.commands.registerCommand(APPLY_PRESET, (uri: vscode.Uri, start: number, preset: TopicPreset) =>
       applyTopicPreset(uri, start, preset, sessions),
