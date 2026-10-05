@@ -1,0 +1,452 @@
+{
+  "kafka": "4.2",
+  "source": "https://kafka.apache.org/42/configuration/topic-configs/",
+  "configs": [
+    {
+      "key": "cleanup.policy",
+      "doc": "This config designates the retention policy to use on log segments. The \"delete\" policy (which is the default) will discard old segments when their retention time or size limit has been reached. The \"compact\" policy will enable log compaction, which retains the latest value for each key. It is also possible to specify both policies in a comma-separated list (e.g. \"delete,compact\"). In this case, old segments will be discarded per the retention time and size configuration, while retained segments will be compacted. An empty list means infinite retention - no cleanup policies will be applied and log segments will be retained indefinitely. Note that with remote storage enabled, local retention limits (log.local.retention.ms and log.local.retention.bytes) are still applied to local segments.",
+      "type": "list",
+      "default": "delete",
+      "validValues": "[compact, delete]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_cleanup.policy"
+    },
+    {
+      "key": "compression.gzip.level",
+      "doc": "The compression level to use if compression.type is set to gzip.",
+      "type": "int",
+      "default": "-1",
+      "validValues": "[1,...,9] or -1",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_compression.gzip.level"
+    },
+    {
+      "key": "compression.lz4.level",
+      "doc": "The compression level to use if compression.type is set to lz4.",
+      "type": "int",
+      "default": "9",
+      "validValues": "[1,...,17]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_compression.lz4.level"
+    },
+    {
+      "key": "compression.type",
+      "doc": "Specify the final compression type for a given topic. This configuration accepts the standard compression codecs ('gzip', 'snappy', 'lz4', 'zstd'). It additionally accepts 'uncompressed' which is equivalent to no compression; and 'producer' which means retain the original compression codec set by the producer.",
+      "type": "string",
+      "default": "producer",
+      "validValues": "[uncompressed, zstd, lz4, snappy, gzip, producer]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_compression.type"
+    },
+    {
+      "key": "compression.zstd.level",
+      "doc": "The compression level to use if compression.type is set to zstd.",
+      "type": "int",
+      "default": "3",
+      "validValues": "[-131072,...,22]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_compression.zstd.level"
+    },
+    {
+      "key": "confluent.allow.mirror.v0v1.format",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-allow-mirror-v0v1-format"
+    },
+    {
+      "key": "confluent.cluster.link.allow.legacy.message.format",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-cluster-link-allow-legacy-message-format"
+    },
+    {
+      "key": "confluent.context.name",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-context-name"
+    },
+    {
+      "key": "confluent.key.schema.validation",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-key-schema-validation"
+    },
+    {
+      "key": "confluent.key.subject.name.strategy",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "io.confluent.kafka.serializers.subject.TopicNameStrategy",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-key-subject-name-strategy"
+    },
+    {
+      "key": "confluent.placement.constraints",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-placement-constraints"
+    },
+    {
+      "key": "confluent.prefer.tier.fetch.ms",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "-1",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-prefer-tier-fetch-ms"
+    },
+    {
+      "key": "confluent.schema.validation.context.name",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "default",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-schema-validation-context-name"
+    },
+    {
+      "key": "confluent.segment.speculative.prefetch.enable",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-segment-speculative-prefetch-enable"
+    },
+    {
+      "key": "confluent.tier.cleaner.compact.min.efficiency",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "0.5",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-cleaner-compact-min-efficiency"
+    },
+    {
+      "key": "confluent.tier.cleaner.compact.segment.min.bytes",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "20971520",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-cleaner-compact-segment-min-bytes"
+    },
+    {
+      "key": "confluent.tier.cleaner.dual.compaction",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-cleaner-dual-compaction"
+    },
+    {
+      "key": "confluent.tier.cleaner.enable",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-cleaner-enable"
+    },
+    {
+      "key": "confluent.tier.cleaner.min.cleanable.ratio",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "0.75",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-cleaner-min-cleanable-ratio"
+    },
+    {
+      "key": "confluent.tier.enable",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-enable"
+    },
+    {
+      "key": "confluent.tier.local.hotset.bytes",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "-1",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-local-hotset-bytes"
+    },
+    {
+      "key": "confluent.tier.local.hotset.ms",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "86400000",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-local-hotset-ms"
+    },
+    {
+      "key": "confluent.tier.segment.hotset.roll.min.bytes",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "104857600",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-tier-segment-hotset-roll-min-bytes"
+    },
+    {
+      "key": "confluent.value.schema.validation",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "false",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-value-schema-validation"
+    },
+    {
+      "key": "confluent.value.subject.name.strategy",
+      "doc": "Confluent Platform topic config.",
+      "type": "string",
+      "default": "io.confluent.kafka.serializers.subject.TopicNameStrategy",
+      "url": "https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html#confluent-value-subject-name-strategy"
+    },
+    {
+      "key": "delete.retention.ms",
+      "doc": "The amount of time to retain delete tombstone markers for log compacted topics. This setting also gives a bound on the time in which a consumer must complete a read if they begin from offset 0 to ensure that they get a valid snapshot of the final stage (otherwise delete tombstones may be collected before they complete their scan).",
+      "type": "long",
+      "default": "86400000",
+      "defaultNote": "1 day",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_delete.retention.ms"
+    },
+    {
+      "key": "file.delete.delay.ms",
+      "doc": "The time to wait before deleting a file from the filesystem",
+      "type": "long",
+      "default": "60000",
+      "defaultNote": "1 minute",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_file.delete.delay.ms"
+    },
+    {
+      "key": "flush.messages",
+      "doc": "This setting allows specifying an interval at which we will force an fsync of data written to the log. For example if this was set to 1 we would fsync after every message; if it were 5 we would fsync after every five messages. In general we recommend you not set this and use replication for durability and allow the operating system's background flush capabilities as it is more efficient. This setting can be overridden on a per-topic basis (see the per-topic configuration section).",
+      "type": "long",
+      "default": "9223372036854775807",
+      "validValues": "[1,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_flush.messages"
+    },
+    {
+      "key": "flush.ms",
+      "doc": "This setting allows specifying a time interval at which we will force an fsync of data written to the log. For example if this was set to 1000 we would fsync after 1000 ms had passed. Note that this setting depends on the broker-level configuration log.flush.scheduler.interval.ms, which controls how frequently the flush check occurs. In general we recommend you not set this and use replication for durability and allow the operating system's background flush capabilities as it is more efficient.",
+      "type": "long",
+      "default": "9223372036854775807",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_flush.ms"
+    },
+    {
+      "key": "follower.replication.throttled.replicas",
+      "doc": "A list of replicas for which log replication should be throttled on the follower side. The list should describe a set of replicas in the form [PartitionId]:[BrokerId],[PartitionId]:[BrokerId]:... or alternatively the wildcard '*' can be used to throttle all replicas for this topic.",
+      "type": "list",
+      "default": "\"\"",
+      "validValues": "[partitionId]:[brokerId],[partitionId]:[brokerId],...",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_follower.replication.throttled.replicas"
+    },
+    {
+      "key": "index.interval.bytes",
+      "doc": "This setting controls how frequently Kafka adds entries to its offset index and, conditionally, to its time index. The default setting ensures that we index a message roughly every 4096 bytes. More frequent indexing allows reads to jump closer to the exact position in the log but results in larger index files. You probably don't need to change this.Note: the time index will be inserted only when the timestamp is greater than the last indexed timestamp.",
+      "type": "int",
+      "default": "4096",
+      "defaultNote": "4 kibibytes",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_index.interval.bytes"
+    },
+    {
+      "key": "leader.replication.throttled.replicas",
+      "doc": "A list of replicas for which log replication should be throttled on the leader side. The list should describe a set of replicas in the form [PartitionId]:[BrokerId],[PartitionId]:[BrokerId]:... or alternatively the wildcard '*' can be used to throttle all replicas for this topic.",
+      "type": "list",
+      "default": "\"\"",
+      "validValues": "[partitionId]:[brokerId],[partitionId]:[brokerId],...",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_leader.replication.throttled.replicas"
+    },
+    {
+      "key": "local.retention.bytes",
+      "doc": "The maximum size of local log segments that can grow for a partition before it deletes the old segments. Default value is -2, it represents retention.bytes value to be used. The effective value should always be less than or equal to retention.bytes value.",
+      "type": "long",
+      "default": "-2",
+      "validValues": "[-2,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_local.retention.bytes"
+    },
+    {
+      "key": "local.retention.ms",
+      "doc": "The number of milliseconds to keep the local log segment before it gets deleted. Default value is -2, it represents retention.ms value is to be used. The effective value should always be less than or equal to retention.ms value.",
+      "type": "long",
+      "default": "-2",
+      "validValues": "[-2,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_local.retention.ms"
+    },
+    {
+      "key": "max.compaction.lag.ms",
+      "doc": "The maximum time a message will remain ineligible for compaction in the log. Only applicable for logs that are being compacted.",
+      "type": "long",
+      "default": "9223372036854775807",
+      "validValues": "[1,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_max.compaction.lag.ms"
+    },
+    {
+      "key": "max.decompressed.message.bytes",
+      "doc": "The maximum decompressed size, in bytes, of a single record the broker will accept; larger records are rejected with an InvalidRecordException. It is enforced where the broker decompresses records: produce validation of compressed batches, log compaction, and offset lookups by timestamp or max timestamp against the local log or remote storage. Unlike max.message.bytes, which bounds the compressed batch on the wire, this bounds the decompressed size of an individual record. Lowering it below the size of already-stored records makes compaction and timestamp offset lookups of affected partitions fail until it is raised again. The default imposes no limit beyond the largest record the broker could allocate anyway; set a smaller value to enforce a per-record cap.",
+      "type": "int",
+      "default": "2147483639",
+      "validValues": "[1,...,2147483639]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_max.decompressed.message.bytes"
+    },
+    {
+      "key": "max.message.bytes",
+      "doc": "The largest record batch size allowed by Kafka (after compression if compression is enabled).",
+      "type": "int",
+      "default": "1048588",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_max.message.bytes"
+    },
+    {
+      "key": "message.timestamp.after.max.ms",
+      "doc": "This configuration sets the allowable timestamp difference between the message timestamp and the broker's timestamp. The message timestamp can be later than or equal to the broker's timestamp, with the maximum allowable difference determined by the value set in this configuration. If message.timestamp.type=CreateTime, the message will be rejected if the difference in timestamps exceeds this specified threshold. This configuration is ignored if message.timestamp.type=LogAppendTime.",
+      "type": "long",
+      "default": "3600000",
+      "defaultNote": "1 hour",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_message.timestamp.after.max.ms"
+    },
+    {
+      "key": "message.timestamp.before.max.ms",
+      "doc": "This configuration sets the allowable timestamp difference between the broker's timestamp and the message timestamp. The message timestamp can be earlier than or equal to the broker's timestamp, with the maximum allowable difference determined by the value set in this configuration. If message.timestamp.type=CreateTime, the message will be rejected if the difference in timestamps exceeds this specified threshold. This configuration is ignored if message.timestamp.type=LogAppendTime.",
+      "type": "long",
+      "default": "9223372036854775807",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_message.timestamp.before.max.ms"
+    },
+    {
+      "key": "message.timestamp.type",
+      "doc": "Define whether the timestamp in the message is message create time or log append time.",
+      "type": "string",
+      "default": "CreateTime",
+      "validValues": "[CreateTime, LogAppendTime]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_message.timestamp.type"
+    },
+    {
+      "key": "min.cleanable.dirty.ratio",
+      "doc": "This configuration controls how frequently the log compactor will attempt to clean the log (assuming log compaction is enabled). By default we will avoid cleaning a log where more than 50% of the log has been compacted. This ratio bounds the maximum space wasted in the log by duplicates (at 50% at most 50% of the log could be duplicates). A higher ratio will mean fewer, more efficient cleanings but will mean more wasted space in the log. If the max.compaction.lag.ms or the min.compaction.lag.ms configurations are also specified, then the log compactor considers the log to be eligible for compaction as soon as either: (i) the dirty ratio threshold has been met and the log has had dirty (uncompacted) records for at least the min.compaction.lag.ms duration, or (ii) if the log has had dirty (uncompacted) records for at most the max.compaction.lag.ms period.",
+      "type": "double",
+      "default": "0.5",
+      "validValues": "[0,...,1]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_min.cleanable.dirty.ratio"
+    },
+    {
+      "key": "min.compaction.lag.ms",
+      "doc": "The minimum time a message will remain uncompacted in the log. Only applicable for logs that are being compacted.",
+      "type": "long",
+      "default": "0",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_min.compaction.lag.ms"
+    },
+    {
+      "key": "min.insync.replicas",
+      "doc": "Specifies the minimum number of in-sync replicas (including the leader) required for a write to succeed when a producer sets acks to \"all\" (or \"-1\"). In the acks=all case, every in-sync replica must acknowledge a write for it to be considered successful. E.g., if a topic has replication.factor of 3 and the ISR set includes all three replicas, then all three replicas must acknowledge an acks=all write for it to succeed, even if min.insync.replicas happens to be less than 3. If acks=all and the current ISR set contains fewer than min.insync.replicas members, then the producer will raise an exception (either NotEnoughReplicas or NotEnoughReplicasAfterAppend).Regardless of the acks setting, the messages will not be visible to the consumers until they are replicated to all in-sync replicas and the min.insync.replicas condition is met.When used together, min.insync.replicas and acks allow you to enforce greater durability guarantees. A typical scenario would be to create a topic with a replication factor of 3, set min.insync.replicas to 2, and produce with acks of \"all\". This ensures that a majority of replicas must persist a write before it's considered successful by the producer and it's visible to consumers.Note that when the Eligible Leader Replicas feature is enabled, the semantics of this config changes. Please refer to the ELR section for more info.",
+      "type": "int",
+      "default": "1",
+      "validValues": "[1,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_min.insync.replicas"
+    },
+    {
+      "key": "preallocate",
+      "doc": "True if we should preallocate the file on disk when creating a new log segment.",
+      "type": "boolean",
+      "default": "false",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_preallocate"
+    },
+    {
+      "key": "remote.log.copy.disable",
+      "doc": "Determines whether tiered data for a topic should become read only, and no more data uploading on a topic. Once this config is set to true, the local retention configuration (i.e. local.retention.ms/bytes) becomes irrelevant, and all data expiration follows the topic-wide retention configuration(i.e. retention.ms/bytes).",
+      "type": "boolean",
+      "default": "false",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_remote.log.copy.disable"
+    },
+    {
+      "key": "remote.log.delete.on.disable",
+      "doc": "Determines whether tiered data for a topic should be deleted after tiered storage is disabled on a topic. This configuration should be enabled when trying to set remote.storage.enable from true to false",
+      "type": "boolean",
+      "default": "false",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_remote.log.delete.on.disable"
+    },
+    {
+      "key": "remote.storage.enable",
+      "doc": "To enable tiered storage for a topic, set this configuration to true. To disable tiered storage for a topic that has it enabled, set this configuration to false. When disabling, you must also set remote.log.delete.on.disable to true.",
+      "type": "boolean",
+      "default": "false",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_remote.storage.enable"
+    },
+    {
+      "key": "retention.bytes",
+      "doc": "This configuration controls the maximum size a partition (which consists of log segments) can grow to before we will discard old log segments to free up space if we are using the \"delete\" retention policy. By default there is no size limit only a time limit. Since this limit is enforced at the partition level, multiply it by the number of partitions to compute the topic retention in bytes. Additionally, retention.bytes configuration operates independently of \"segment.ms\" and \"segment.bytes\" configurations. Moreover, it triggers the rolling of new segment if the retention.bytes is configured to zero.",
+      "type": "long",
+      "default": "-1",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_retention.bytes"
+    },
+    {
+      "key": "retention.ms",
+      "doc": "This configuration controls the maximum time we will retain a log before we will discard old log segments to free up space if we are using the \"delete\" retention policy. This represents an SLA on how soon consumers must read their data. If set to -1, no time limit is applied. Additionally, retention.ms configuration operates independently of \"segment.ms\" and \"segment.bytes\" configurations. Moreover, it triggers the rolling of new segment if the retention.ms condition is satisfied.",
+      "type": "long",
+      "default": "604800000",
+      "defaultNote": "7 days",
+      "validValues": "[-1,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_retention.ms"
+    },
+    {
+      "key": "segment.bytes",
+      "doc": "This configuration controls the segment file size for the log. Retention and cleaning is always done a file at a time so a larger segment size means fewer files but less granular control over retention.",
+      "type": "int",
+      "default": "1073741824",
+      "defaultNote": "1 gibibyte",
+      "validValues": "[1048576,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_segment.bytes"
+    },
+    {
+      "key": "segment.index.bytes",
+      "doc": "This configuration controls the size of the index that maps offsets to file positions. We preallocate this index file and shrink it only after log rolls. You generally should not need to change this setting.",
+      "type": "int",
+      "default": "10485760",
+      "defaultNote": "10 mebibytes",
+      "validValues": "[4,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_segment.index.bytes"
+    },
+    {
+      "key": "segment.jitter.ms",
+      "doc": "The maximum random jitter subtracted from the scheduled segment roll time to avoid thundering herds of segment rolling",
+      "type": "long",
+      "default": "0",
+      "validValues": "[0,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_segment.jitter.ms"
+    },
+    {
+      "key": "segment.ms",
+      "doc": "This configuration controls the period of time after which Kafka will force the log to roll even if the segment file isn't full to ensure that retention can delete or compact old data.",
+      "type": "long",
+      "default": "604800000",
+      "defaultNote": "7 days",
+      "validValues": "[1,...]",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_segment.ms"
+    },
+    {
+      "key": "unclean.leader.election.enable",
+      "doc": "Indicates whether to enable replicas not in the ISR set to be elected as leader as a last resort, even though doing so may result in data loss.Note: In KRaft mode, when enabling this config dynamically, it needs to wait for the unclean leader electionthread to trigger election periodically (default is 5 minutes). Please run kafka-leader-election.sh with unclean option to trigger the unclean leader election immediately if needed.",
+      "type": "boolean",
+      "default": "false",
+      "importance": "medium",
+      "url": "https://kafka.apache.org/42/configuration/topic-configs/#topicconfigs_unclean.leader.election.enable"
+    }
+  ]
+}
