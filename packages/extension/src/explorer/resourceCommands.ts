@@ -59,7 +59,7 @@ async function copyToWorkspace(sessions: SessionManager, target?: ResourceNode |
       filters: { YAML: ['yaml', 'yml'] },
     });
     if (!destination) return;
-    const { resource: copy, variables } = withSecretPlaceholders(resource);
+    const { resource: copy, variables } = withSecretPlaceholders(resource, parents);
     await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(stringify(copy)));
     await vscode.window.showTextDocument(destination);
     if (variables.length > 0) {

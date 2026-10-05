@@ -67,8 +67,9 @@ Stage changes as files before they reach the Console — the first step towards 
 - Apply one resource from its file or the tree, or **Apply All Changes**: every new or modified file in dependency
   order, one at a time, stopping at the first failure. Each success becomes the new base. **Discard Local Changes**
   goes back to the base; **Re-sync from Console** replaces the file with what the Console holds.
-- Secrets never reach the disk: synced files hold `${CDK_SECRET_<KIND>_<NAME>_<FIELD>}` placeholders, expanded from
-  VS Code's environment when applied. **Show Required Variables** lists them.
+- Secrets never reach the disk: synced files hold `${CDK_SECRET_<KIND>_<PARENTS>_<NAME>_<FIELD>}` placeholders (the
+  parents, such as the cluster, keep the same connector in two clusters apart), expanded from VS Code's environment when
+  applied. **Show Required Variables** lists them.
 
 Resources that depend on others in the same plan (a Group, an Application it owns, an ApplicationInstance of that
 Application) cannot all pass a dry run before the first exists — Console's dry run does not see uncommitted creations.

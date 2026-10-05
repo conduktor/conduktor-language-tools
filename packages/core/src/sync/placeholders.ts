@@ -1,10 +1,17 @@
 import type { Resource } from '../resources/types';
 import { replaceSecrets } from '../tools/redact';
 
-export function withSecretPlaceholders(resource: Resource): { resource: Resource; variables: string[] } {
+/**
+ * Secrets replaced with `${CDK_SECRET_…}` variables named after the resource — kind, parents, name — and the field, so
+ * the same connector in two clusters gets two variables.
+ */
+export function withSecretPlaceholders(
+  resource: Resource,
+  parents: readonly string[],
+): { resource: Resource; variables: string[] } {
   const variables: string[] = [];
   const replaced = replaceSecrets(resource, (path) => {
-    const variable = ['CDK_SECRET', resource.kind, resource.metadata.name, ...path].map(slug).join('_');
+    const variable = ['CDK_SECRET', resource.kind, ...parents, resource.metadata.name, ...path].map(slug).join('_');
     variables.push(variable);
     return `\${${variable}}`;
   }) as Resource;

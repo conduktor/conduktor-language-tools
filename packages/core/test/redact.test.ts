@@ -92,7 +92,7 @@ describe('secret placeholders and drift follow the same rule', () => {
   };
 
   it('replaces URL credentials with variables and keeps non-strings', () => {
-    const { resource, variables } = withSecretPlaceholders(connector);
+    const { resource, variables } = withSecretPlaceholders(connector, []);
     expect(resource.spec).toEqual({
       config: {
         'connection.url':
@@ -108,11 +108,11 @@ describe('secret placeholders and drift follow the same rule', () => {
   });
 
   it('is not drift while only the secrets in a URL differ', () => {
-    expect(driftOf(stringify(withSecretPlaceholders(connector).resource), connector)).toBeUndefined();
+    expect(driftOf(stringify(withSecretPlaceholders(connector, []).resource), connector)).toBeUndefined();
   });
 
   it('placeholders an already placeholdered resource the same way', () => {
-    const once = withSecretPlaceholders(connector).resource;
-    expect(withSecretPlaceholders(once).resource).toEqual(once);
+    const once = withSecretPlaceholders(connector, []).resource;
+    expect(withSecretPlaceholders(once, []).resource).toEqual(once);
   });
 });

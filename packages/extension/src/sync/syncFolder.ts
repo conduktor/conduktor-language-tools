@@ -327,8 +327,8 @@ export class SyncFolder implements vscode.Disposable {
    */
   async stageEdit(kind: KindVersion, parents: readonly string[], name: string, text: string): Promise<vscode.Uri> {
     const state = this.ready();
-    const staged = withPlaceholders(text);
     const identity = identify(text, state);
+    const staged = withPlaceholders(text, identity?.parents ?? parents);
     if (
       identity &&
       !(identity.kind === kind.kind && identity.name === name && sameParents(identity.parents, parents))
@@ -395,7 +395,7 @@ export class SyncFolder implements vscode.Disposable {
     if (!entry || !kind) throw new Error('Not a Conduktor resource in the sync folder.');
     const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
     this.requireSameSession(state, `${entry.kind} ${entry.name}`);
-    const text = stringify(withSecretPlaceholders(live).resource);
+    const text = stringify(withSecretPlaceholders(live, entry.parents).resource);
     await write(uri, text);
     await this.markApplied(uri, text);
   }
@@ -538,7 +538,7 @@ export class SyncFolder implements vscode.Disposable {
     const current = await read(uri);
     const baseText = current === undefined ? undefined : await read(base);
     if (current !== undefined && current !== baseText) throw new NotSyncedCopyError(path, live);
-    const { resource, variables } = withSecretPlaceholders(live);
+    const { resource, variables } = withSecretPlaceholders(live, parents);
     const text = stringify(resource);
     if (current === text && baseText === text) return { uri, written: false };
     if (variables.length > 0) {
@@ -690,10 +690,10 @@ export class LocalChangesError extends Error {
 }
 
 // No secret value is written to disk; unparseable YAML is staged as typed, so the user can fix it in the file.
-function withPlaceholders(text: string): string {
+function withPlaceholders(text: string, parents: readonly string[]): string {
   try {
     const value: unknown = parse(text);
-    return isRecord(value) ? stringify(withSecretPlaceholders(value as Resource).resource) : text;
+    return isRecord(value) ? stringify(withSecretPlaceholders(value as Resource, parents).resource) : text;
   } catch {
     return text;
   }

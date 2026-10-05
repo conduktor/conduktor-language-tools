@@ -82,7 +82,7 @@ describe('driftOf', () => {
     metadata: { name: 'prod' },
     spec: { bootstrapServers: 'k:9092', kafkaFlavor: { type: 'Gateway', url: 'u', user: 'a', password: 'real' } },
   };
-  const { resource: synced } = withSecretPlaceholders(cluster);
+  const { resource: synced } = withSecretPlaceholders(cluster, []);
 
   it('is nothing while the Console still matches the base, secrets aside', () => {
     expect(driftOf(stringify(synced), cluster)).toBeUndefined();
@@ -97,17 +97,35 @@ describe('driftOf', () => {
 });
 
 describe('withSecretPlaceholders', () => {
-  it('replaces secret values with environment variables named after the resource and field', () => {
-    const { resource, variables } = withSecretPlaceholders({
+  it('names the parents, so same-named resources in different clusters get their own variables', () => {
+    const connector = (cluster: string): Resource => ({
       apiVersion: 'v2',
-      kind: 'KafkaCluster',
-      metadata: { name: 'local-gateway' },
-      spec: {
-        bootstrapServers: 'k:9092',
-        properties: { 'sasl.jaas.config': 'secret jaas', 'security.protocol': 'SASL_SSL' },
-        kafkaFlavor: { type: 'Gateway', user: 'admin', password: 'conduktor' },
-      },
+      kind: 'Connector',
+      metadata: { name: 'c', cluster, connectCluster: 'connect' },
+      spec: { config: { password: 'p' } },
     });
+    expect(withSecretPlaceholders(connector('a'), ['a', 'connect']).variables).toEqual([
+      'CDK_SECRET_CONNECTOR_A_CONNECT_C_SPEC_CONFIG_PASSWORD',
+    ]);
+    expect(withSecretPlaceholders(connector('b'), ['b', 'connect']).variables).toEqual([
+      'CDK_SECRET_CONNECTOR_B_CONNECT_C_SPEC_CONFIG_PASSWORD',
+    ]);
+  });
+
+  it('replaces secret values with environment variables named after the resource and field', () => {
+    const { resource, variables } = withSecretPlaceholders(
+      {
+        apiVersion: 'v2',
+        kind: 'KafkaCluster',
+        metadata: { name: 'local-gateway' },
+        spec: {
+          bootstrapServers: 'k:9092',
+          properties: { 'sasl.jaas.config': 'secret jaas', 'security.protocol': 'SASL_SSL' },
+          kafkaFlavor: { type: 'Gateway', user: 'admin', password: 'conduktor' },
+        },
+      },
+      [],
+    );
     expect(resource.spec).toEqual({
       bootstrapServers: 'k:9092',
       properties: {
@@ -127,7 +145,7 @@ describe('withSecretPlaceholders', () => {
   });
 
   it('leaves resources without secrets as they are', () => {
-    expect(withSecretPlaceholders(topic)).toEqual({ resource: topic, variables: [] });
+    expect(withSecretPlaceholders(topic, ['local'])).toEqual({ resource: topic, variables: [] });
   });
 });
 
