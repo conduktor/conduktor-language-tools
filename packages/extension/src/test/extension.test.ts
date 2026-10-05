@@ -1435,6 +1435,45 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('builds a new resource for the variants it is asked for', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await useWorkspaceSyncRoot(api);
+    const asked: string[] = [];
+    api.setVariantPicker(async (choice) => {
+      asked.push(choice.path.join('.'));
+      return choice.path.join('.') === 'spec.kafkaFlavor' ? 'Gateway' : null;
+    });
+    const doc = await api.newResource({ type: 'kind', kind: state.spec.catalog.latest('KafkaCluster')!, parents: [] });
+    assert.ok(doc);
+    try {
+      assert.ok(asked.includes('spec.kafkaFlavor'), asked.join(', '));
+      const value = parse(doc.getText());
+      assert.strictEqual(value.spec.kafkaFlavor.type, 'Gateway');
+      assert.ok(!('schemaRegistry' in value.spec));
+      value.metadata.name = `vscode-skeleton-${Date.now()}`;
+      value.spec.displayName = 'D';
+      value.spec.bootstrapServers = 'gateway-plain-1:9099';
+      Object.assign(value.spec.kafkaFlavor, {
+        url: 'http://gateway-plain-1:8888',
+        user: 'admin',
+        password: 'conduktor',
+        virtualCluster: 'passthrough',
+      });
+      const filled = await vscode.workspace.openTextDocument({ language: 'yaml', content: stringify(value) });
+      const [item] = (await api.dryRun(filled.uri)) ?? [];
+      assert.deepStrictEqual(item?.outcome, { status: 'ok', result: 'Created' });
+
+      api.setVariantPicker(async () => undefined);
+      const dismissed = await api.newResource({ type: 'kind', kind: state.spec.catalog.latest('Alert')!, parents: [] });
+      assert.strictEqual(dismissed, undefined, 'dismissing the picker writes nothing');
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await Promise.resolve(vscode.workspace.fs.delete(doc.uri)).catch(() => undefined);
+    }
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();
