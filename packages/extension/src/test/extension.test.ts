@@ -1749,8 +1749,13 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         return { documents, took: Date.now() - at };
       };
       await timed();
+      let rescans = 0;
+      const counting = api.sync.onDidChange(() => rescans++);
       writeFileSync(join(root, 'environments', env, folder, 't-11.yaml'), text(11, 5));
       await api.sync.refresh();
+      // The watcher's own rescan follows; timing during it would measure both.
+      await until(() => rescans >= 2, 5_000).catch(() => undefined);
+      counting.dispose();
       const { documents, took: indexed } = await timed();
       assert.ok(indexed < 300, `the name index took ${indexed} ms after one change`);
       assert.strictEqual(
@@ -1758,6 +1763,15 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
           ?.partitions,
         5,
         'the changed file is read afresh',
+      );
+
+      const checking = Date.now();
+      await api.sync.refresh({ drift: true });
+      const checked = Date.now() - checking;
+      assert.ok(checked < 10_000, `checking drift took ${checked} ms`);
+      assert.ok(
+        api.sync.list().every((e) => e.drift === 'deleted' || e.status === 'new'),
+        'none of them is in the Console',
       );
     } finally {
       await useWorkspaceSyncRoot(api);

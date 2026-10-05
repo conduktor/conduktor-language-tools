@@ -430,8 +430,12 @@ export class SyncFolder implements vscode.Disposable {
       this.scanned.clear();
       this.scannedWith = state;
     }
+    // Only a connected session has an environment, and so base copies to compare with.
+    const place = state.status === 'ready' ? this.place() : undefined;
     const texts = await readAll(files);
-    const bases = await readAll(files.map((uri, i) => (texts[i] === undefined ? undefined : this.baseOf(uri))));
+    const bases = await readAll(
+      files.map((uri, i) => (texts[i] === undefined || !place ? undefined : this.baseOf(uri, place))),
+    );
     const entries: LocalEntry[] = [];
     const others: vscode.Uri[] = [];
     files.forEach((uri, i) => {
@@ -499,11 +503,13 @@ export class SyncFolder implements vscode.Disposable {
 
   private async checkDrift(entries: readonly LocalEntry[], state: Ready): Promise<void> {
     this.drift.clear();
-    for (const entry of entries) {
-      if (entry.status === 'new') continue;
+    const tracked = entries.filter((entry) => entry.status !== 'new');
+    const bases = await readAll(tracked.map((entry) => this.baseOf(entry.uri)));
+    await eachLimit([...tracked.keys()], 8, async (i) => {
+      const entry = tracked[i]!;
       const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
-      const base = await read(this.baseOf(entry.uri));
-      if (!kind || base === undefined) continue;
+      const base = bases[i];
+      if (!kind || base === undefined) return;
       try {
         const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
         const drift = driftOf(base, live);
@@ -512,7 +518,7 @@ export class SyncFolder implements vscode.Disposable {
         if (error instanceof ConsoleError && error.status === 404) this.drift.set(entry.uri.toString(), 'deleted');
         else this.output.warn(`Could not check ${entry.path} against the Console: ${describeError(error)}`);
       }
-    }
+    });
   }
 
   private async writeSynced(
