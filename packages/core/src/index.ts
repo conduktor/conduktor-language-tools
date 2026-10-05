@@ -126,11 +126,15 @@ export {
   type Choice,
 } from './templates';
 export {
+  applyPreset,
   checkTopicConfig,
   parseKafkaTopicConfigs,
+  presetFromTemplate,
   topicConfig,
   TOPIC_CONFIGS,
+  TOPIC_PRESETS,
   type TopicConfigDoc,
+  type TopicPreset,
   type TopicConfigProblem,
 } from './topicConfigs';
 export { setFields, type FieldValue } from './resources/setFields';
