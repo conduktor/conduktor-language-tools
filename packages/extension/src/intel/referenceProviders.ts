@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import { describeSources, referenceAt, valueAt, type Reference } from '@conduktor/vscode-core';
-import type { SessionManager } from '../connections/session';
+import type { SessionManager, SessionState } from '../connections/session';
 import type { ExplorerProvider } from '../explorer/explorerProvider';
 import type { SyncFolder } from '../sync/syncFolder';
 import { documentAt } from './documents';
 import type { Names } from './names';
+
+type Ready = Extract<SessionState, { status: 'ready' }>;
 
 async function referenceUnder(
   sessions: SessionManager,
@@ -67,14 +69,26 @@ export class ReferenceDefinitionProvider implements vscode.DefinitionProvider {
   async provideDefinition(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Location[]> {
     const state = this.sessions.current();
     const found = await referenceUnder(this.sessions, document, position);
-    if (state.status !== 'ready' || !found?.reference.parents || found.reference.value === '') return [];
-    const { kind: kindName, parents, value } = found.reference;
-    const local = this.sync.entryFor(kindName, parents, value);
-    if (local) return [new vscode.Location(local.uri, new vscode.Position(0, 0))];
-    const { names } = await this.names.lookup(kindName, parents);
-    const kind = state.spec.catalog.latest(kindName);
-    if (!kind || !names.some((n) => n.name === value && n.sources.includes('console'))) return [];
-    const live = this.explorer.liveUri({ type: 'resource', kind, parents, name: value });
-    return [new vscode.Location(live, new vscode.Position(0, 0))];
+    if (state.status !== 'ready' || !found) return [];
+    const target = await referenceTarget(state, this.sync, this.names, this.explorer, found.reference);
+    return target ? [new vscode.Location(target.uri, new vscode.Position(0, 0))] : [];
   }
+}
+
+/** Where a reference's target is: its file in the repository, else the live resource in the Console. */
+export async function referenceTarget(
+  state: Ready,
+  sync: SyncFolder,
+  names: Names,
+  explorer: ExplorerProvider,
+  reference: Reference,
+): Promise<{ uri: vscode.Uri; where: 'repository' | 'console' } | undefined> {
+  if (!reference.parents || reference.value === '') return undefined;
+  const { kind: kindName, parents, value } = reference;
+  const local = sync.entryFor(kindName, parents, value);
+  if (local) return { uri: local.uri, where: 'repository' };
+  const { names: found } = await names.lookup(kindName, parents);
+  const kind = state.spec.catalog.latest(kindName);
+  if (!kind || !found.some((n) => n.name === value && n.sources.includes('console'))) return undefined;
+  return { uri: explorer.liveUri({ type: 'resource', kind, parents, name: value }), where: 'console' };
 }
