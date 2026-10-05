@@ -123,7 +123,8 @@ config hover.
 
 Coding agents get the same live schema and dry run as the editor, so they write resources the Console accepts instead
 of guessing their shape. They never change the Console: an agent writes YAML and dry-runs it, and you apply it with the
-CodeLens or by saving a live document.
+CodeLens or by saving a live document. They read only files inside the workspace, with symlinks resolved, and never see
+a secret: passwords, tokens, keys and credential headers such as `Authorization` are redacted.
 
 | Tool                        | What it does                                                                                    |
 | --------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -209,7 +210,10 @@ Files you write here work with `conduktor apply`, and the reverse:
   through — the same rules as the CLI.
 - `spec.schemaFile` on a `Subject` and the `conduktor.io/descriptionFile` label on a `Topic` are read from files,
   relative to the root of the workspace folder holding the YAML (where you would run the CLI), or to the YAML's own
-  folder when it is outside the workspace.
+  folder when it is outside the workspace. A path that leads outside that folder, through `..` or a symlink, is
+  refused, so a cloned repository cannot send other files to the Console. In the sync folder, an apply also records
+  what the included files held, so editing one marks the YAML as modified, and **Discard Local Changes** writes it
+  back.
 - Resources in one file are applied in the CLI's order (users and groups, then clusters, then self-service, then
   topics and the rest).
 
