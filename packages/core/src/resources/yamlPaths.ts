@@ -28,6 +28,29 @@ export function rangeOf(text: string, path: YamlPath): [number, number] | undefi
   return found;
 }
 
+export interface ScalarRange {
+  path: YamlPath;
+  start: number;
+  end: number;
+  value: string | null;
+  quoted: boolean;
+}
+
+/** Every scalar value with its range, in document order. */
+export function scalarRanges(text: string): ScalarRange[] {
+  const found: ScalarRange[] = [];
+  scalars(text, (path, scalar) =>
+    found.push({
+      path,
+      start: scalar.range![0],
+      end: scalar.range![1],
+      value: scalar.value === null ? null : String(scalar.value),
+      quoted: scalar.type === 'QUOTE_DOUBLE' || scalar.type === 'QUOTE_SINGLE',
+    }),
+  );
+  return found;
+}
+
 function scalars(text: string, visit: (path: YamlPath, scalar: Scalar) => void): void {
   const walk = (node: unknown, path: YamlPath) => {
     if (isMap(node)) {
