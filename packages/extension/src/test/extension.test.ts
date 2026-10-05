@@ -1863,4 +1863,40 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     );
     assert.match(planted, /``a`\[x\]\(command:vscode\.open\?%5B%5D\)``/, 'a value stays inside its code span');
   });
+
+  test('dry-runs and applies a live document only on its own connection', async () => {
+    const api = await activate();
+    const start = api.sessions.current();
+    if (start.status !== 'ready') assert.fail(start.status);
+    // The test profile keeps the connection list between runs, not the stored tokens: add it again.
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
+    const switchTo = async (id: string) => {
+      const now = api.sessions.current();
+      if (now.status === 'ready' && now.connection.id === id) return;
+      await api.connections.setActive(id);
+      await until(() => {
+        const current = api.sessions.current();
+        return current.status === 'ready' && current.connection.id === id;
+      }).catch(() => {
+        const current = api.sessions.current();
+        throw new Error(
+          `switching to ${id}: ${JSON.stringify({ status: current.status, message: 'message' in current ? current.message : undefined, id: 'connection' in current ? current.connection?.id : undefined })}`,
+        );
+      });
+    };
+    try {
+      await switchTo('smoke');
+      const state = api.sessions.current();
+      if (state.status !== 'ready') assert.fail(state.status);
+      const kind = state.spec.catalog.latest('KafkaCluster')!;
+      const uri = api.liveUri({ type: 'resource', kind, parents: [], name: 'local-gateway' });
+      await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
+      await switchTo('smoke-apply');
+      assert.strictEqual(await vscode.commands.executeCommand('conduktor.dryRunDocument', uri, 0), undefined);
+      assert.strictEqual(await vscode.commands.executeCommand('conduktor.applyDocument', uri, 0), undefined);
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await switchTo(start.connection.id);
+    }
+  });
 });

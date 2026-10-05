@@ -12,6 +12,7 @@ import type { Confirm } from '../confirm';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
 import type { Compare } from './compare';
+import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import { appliedText } from './applied';
 import { includeReaderFor } from './includes';
 import { outcomeLabel, summarise } from './summary';
@@ -109,6 +110,14 @@ export class ResourceController implements vscode.Disposable {
   private async run(uri: vscode.Uri, index: number | undefined, apply: boolean): Promise<UpsertItem[] | undefined> {
     const state = this.ready(apply);
     if (!state) return undefined;
+    // A live document names its connection; it is never dry-run or applied on another one.
+    const owner = isLiveScheme(uri.scheme) ? parseLiveUriParts(uri.authority, uri.path)?.connectionId : undefined;
+    if (owner !== undefined && owner !== state.connection.id) {
+      void vscode.window.showWarningMessage(
+        `This document belongs to another connection; switch to it to ${apply ? 'apply' : 'dry-run'} it.`,
+      );
+      return undefined;
+    }
     const document = await vscode.workspace.openTextDocument(uri);
     const text = document.getText();
     const inFile = catalogDocuments(text, state.spec.catalog, { env: process.env });
