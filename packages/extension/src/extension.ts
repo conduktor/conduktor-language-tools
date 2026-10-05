@@ -114,7 +114,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     ),
     vscode.languages.registerCompletionItemProvider(
       { language: 'yaml' },
-      new SnippetCompletionProvider(sessions, names, clusters),
+      new SnippetCompletionProvider(sessions, names, clusters, sync),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, matchLenses),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, referrers),

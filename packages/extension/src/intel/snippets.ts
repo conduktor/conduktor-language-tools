@@ -1,15 +1,19 @@
 import * as vscode from 'vscode';
 import {
   blankDocumentAt,
+  catalogDocuments,
   kindSchema,
   newResourceName,
+  parseResourceDocuments,
   skeletonYaml,
   snippetOf,
   snippetVariants,
+  type KindCatalog,
   type KindVersion,
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import type { ClusterSelection } from '../explorer/clusterSelection';
+import type { SyncFolder } from '../sync/syncFolder';
 import type { Names } from './names';
 
 export class SnippetCompletionProvider implements vscode.CompletionItemProvider {
@@ -17,7 +21,16 @@ export class SnippetCompletionProvider implements vscode.CompletionItemProvider 
     private readonly sessions: SessionManager,
     private readonly names: Names,
     private readonly clusters: ClusterSelection,
+    private readonly sync: SyncFolder,
   ) {}
+
+  // A Kubernetes, Argo or Helm file is left alone, as the schema is: snippets go where Console resources live.
+  private isConduktorFile(document: vscode.TextDocument, text: string, catalog: KindCatalog): boolean {
+    const all = parseResourceDocuments(text);
+    const console = catalogDocuments(text, catalog);
+    if (all.length > console.length) return false;
+    return document.isUntitled || this.sync.contains(document.uri) || console.length > 0;
+  }
 
   async provideCompletionItems(
     document: vscode.TextDocument,
@@ -25,8 +38,9 @@ export class SnippetCompletionProvider implements vscode.CompletionItemProvider 
   ): Promise<vscode.CompletionItem[]> {
     const state = this.sessions.current();
     if (state.status !== 'ready') return [];
-    const blank = blankDocumentAt(document.getText(), document.offsetAt(position));
-    if (!blank) return [];
+    const text = document.getText();
+    const blank = blankDocumentAt(text, document.offsetAt(position));
+    if (!blank || !this.isConduktorFile(document, text, state.spec.catalog)) return [];
     const range = new vscode.Range(document.positionAt(blank.start), document.positionAt(blank.end));
     const selected = this.clusters.current();
     const known = (await this.names.lookup('KafkaCluster', [])).names.map((n) => n.name);

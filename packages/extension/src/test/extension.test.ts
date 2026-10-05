@@ -1524,6 +1524,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.deepStrictEqual([range.start.character, range.end.character], [0, 3], 'replaces the typed word');
     assert.ok((await complete('kind: Topic\nmetadata: { name: a }\n---\n')).length > 0, 'after a separator');
     assert.strictEqual((await complete('kind: Topic\nmetadata: { name: a }\n', 2)).length, 0, 'not inside a document');
+    const kubernetes = 'apiVersion: apps/v1\nkind: Deployment\nmetadata: { name: web }\n---\n';
+    assert.strictEqual((await complete(kubernetes)).length, 0, 'not in a file that holds other resources');
   });
 
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
