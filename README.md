@@ -82,7 +82,10 @@ understood in the editor ([the full table](docs/specs/2026-10-04-references-desi
   rejects it), a permission's LITERAL `foo*` (stored as PREFIXED `foo`) or PREFIXED `foo*` (matches nothing). A
   pattern that matches nothing yet is only a note: claiming a prefix ahead of its topics is legitimate.
 - **CodeLens** above each pattern counts what it matches (`matches 12 Topic resources`); click to list and open them.
-- **Go to Definition** opens a reference's repository file, or the live resource.
+- **Go to Definition** (Cmd-click, F12) opens a reference's repository file, or the live resource.
+- **Find All References** (Shift+F12 on a resource's `metadata.name`) lists every repository document that refers to
+  it — by name, by a pattern that matches it (an instance owning `orders.` PREFIXED owns `orders.v2`), or by a `*`
+  — and a CodeLens on the name says `referenced by N`.
 
 Console reads patterns three ways, and the editor follows it: instance resources and data quality targets compare
 characters (PREFIXED is a plain prefix); group and user permissions treat a trailing `*` as a prefix; service-account
