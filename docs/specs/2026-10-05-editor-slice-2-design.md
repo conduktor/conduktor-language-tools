@@ -1,6 +1,6 @@
 # Conduktor for VS Code — editor intelligence, slice 2
 
-Status: approved 2026-10-05; step 1 implemented · built step by step in the order below, each step reviewed and tried by the user
+Status: approved 2026-10-05; steps 1–2 implemented · built step by step in the order below, each step reviewed and tried by the user
 before the next · builds on [references and insights](2026-10-04-references-design.md).
 
 ## Intent
