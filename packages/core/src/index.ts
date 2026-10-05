@@ -133,3 +133,4 @@ export {
   type TopicConfigDoc,
   type TopicConfigProblem,
 } from './topicConfigs';
+export { setFields, type FieldValue } from './resources/setFields';
