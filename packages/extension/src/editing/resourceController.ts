@@ -50,6 +50,7 @@ export class ResourceController implements vscode.Disposable {
     private readonly output: Output,
     private readonly compare: Compare,
     private readonly confirm: Confirm,
+    private readonly foreignEnvironment: (uri: vscode.Uri) => string | undefined,
   ) {
     this.listeners = [
       vscode.workspace.onDidChangeTextDocument((event) => {
@@ -115,6 +116,13 @@ export class ResourceController implements vscode.Disposable {
     if (owner !== undefined && owner !== state.connection.id) {
       void vscode.window.showWarningMessage(
         `This document belongs to another connection; switch to it to ${apply ? 'apply' : 'dry-run'} it.`,
+      );
+      return undefined;
+    }
+    const foreign = this.foreignEnvironment(uri);
+    if (foreign !== undefined) {
+      void vscode.window.showWarningMessage(
+        `This file belongs to environment ${foreign}; connect to its Console to ${apply ? 'apply' : 'dry-run'} it.`,
       );
       return undefined;
     }

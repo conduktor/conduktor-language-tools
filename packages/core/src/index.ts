@@ -91,6 +91,7 @@ export {
   STATE_DIR,
   syncPath,
   syncStatus,
+  collapseIncludes,
   expandedText,
   includeRestores,
   statusWithIncludes,

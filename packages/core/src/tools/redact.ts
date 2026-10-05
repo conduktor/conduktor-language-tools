@@ -7,7 +7,7 @@ export const REDACTED_MESSAGE = 'is a redacted secret; leave it out or use a ${V
 // (cluster client properties, schema registry and Connect security, Gateway and AWS credentials, connector configs,
 // webhook headers).
 const SECRET_KEY =
-  /password|passwd|secret|token|jaas|credential|private.?key|api.?key|access.?key|authori[sz]ation|cookie|x-?auth/i;
+  /password|passwd|secret|token|jaas|credential|private.?key|api.?key|access.?key|authori[sz]ation|cookie|(?:^|[-_.])x[-_]?auth/i;
 const PRIVATE_KEY_PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 
 const URL_START = /^(?:[a-z][a-z0-9+.-]*:)+\/\//i;

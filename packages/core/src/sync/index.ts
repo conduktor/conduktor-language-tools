@@ -31,5 +31,5 @@ export {
   type EnvironmentConfig,
 } from './repoConfig';
 export { withSecretPlaceholders } from './placeholders';
-export { expandedText, includeRestores, statusWithIncludes } from './includedStatus';
+export { collapseIncludes, expandedText, includeRestores, statusWithIncludes } from './includedStatus';
 export { driftOf, syncStatus, type Drift, type SyncStatus } from './status';

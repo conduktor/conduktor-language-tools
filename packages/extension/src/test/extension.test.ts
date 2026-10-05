@@ -569,6 +569,11 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       writeFileSync(uri.fsPath, edited);
       await assert.rejects(api.sync.syncResource(kind, [], 'local-gateway'), /not a synced copy/);
       assert.strictEqual(readFileSync(uri.fsPath, 'utf8'), edited);
+      await assert.rejects(
+        api.sync.stageEdit(kind, [], 'local-gateway', edited.replace('# kept', '# staged')),
+        /local changes/,
+      );
+      assert.strictEqual(readFileSync(uri.fsPath, 'utf8'), edited);
     } finally {
       await useWorkspaceSyncRoot(api);
     }
@@ -845,6 +850,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(readFileSync(file, 'utf8'), schema('applied'));
       await api.sync.refresh();
       assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
+
+      await api.sync.syncResource(state.spec.catalog.latest('Subject')!, ['local-kafka'], name);
+      assert.strictEqual(parse(readFileSync(uri.fsPath, 'utf8')).spec.schemaFile, 'schema.avsc', 'the layout stays');
+      assert.strictEqual(JSON.parse(readFileSync(file, 'utf8')).fields[0].name, 'applied');
     } finally {
       await state.client.delete(`/public/kafka/v2/cluster/local-kafka/subject/${name}`).catch(() => undefined);
       await useWorkspaceSyncRoot(api);
@@ -976,7 +985,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       writeFileSync(topic.uri.fsPath, stringify(edited));
       await api.sync.refresh();
       const third = await api.sync.syncEverything(kinds);
-      assert.deepStrictEqual(third.conflicts, [topic.path]);
+      // Nothing new on the Console, so the local edit is just a local change: kept, and not a conflict.
+      assert.deepStrictEqual(third.conflicts, []);
+      assert.strictEqual(third.unchanged, total);
       assert.strictEqual(parse(readFileSync(topic.uri.fsPath, 'utf8')).metadata.labels.local, 'edit');
       await api.sync.discard(topic.uri);
 
@@ -1941,6 +1952,24 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     } finally {
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
       await switchTo(start.connection.id);
+    }
+  });
+
+  test("dry-runs and applies a sync folder file only on its own environment's connection", async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-foreign-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(root));
+    try {
+      const file = join(root, 'environments', 'not-this-one', 'global', 'console', 'KafkaCluster', 'x.yaml');
+      mkdirSync(join(file, '..'), { recursive: true });
+      writeFileSync(file, stringify({ apiVersion: 'v2', kind: 'KafkaCluster', metadata: { name: 'x' }, spec: {} }));
+      const uri = vscode.Uri.file(file);
+      assert.strictEqual(await vscode.commands.executeCommand('conduktor.dryRunDocument', uri, 0), undefined);
+      assert.strictEqual(await vscode.commands.executeCommand('conduktor.applyDocument', uri, 0), undefined);
+    } finally {
+      await useWorkspaceSyncRoot(api);
     }
   });
 });

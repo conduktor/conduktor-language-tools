@@ -134,8 +134,12 @@ describe('reference pages', () => {
       'spec.targets.cluster',
     ]);
     expect(text('spec.destination.url')).toBe('When `spec.destination.type` is `Webhook`: has to be a valid URL');
-    expect(text('spec.acls[].host')).toBe('When `spec.authorization.type` is `KAFKA_ACL`: (optional), will default to `*`.');
-    expect(text('spec.acls[].name')).toBe('When `spec.authorization.type` is `AIVEN_ACL`: has to be a valid resource name.');
+    expect(text('spec.acls[].host')).toBe(
+      'When `spec.authorization.type` is `KAFKA_ACL`: (optional), will default to `*`.',
+    );
+    expect(text('spec.acls[].name')).toBe(
+      'When `spec.authorization.type` is `AIVEN_ACL`: has to be a valid resource name.',
+    );
     expect(text('spec.targets.cluster')).toBe('is a valid Kafka cluster.');
     expect(text('spec.destination.type')).toBe(
       'can be `Slack` or `Webhook`. When set to:\n- `Slack`: a channel ID\n- `Webhook`:\n  - `spec.destination.url` has to be a valid URL',

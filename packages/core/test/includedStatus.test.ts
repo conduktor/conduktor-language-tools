@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse, stringify } from 'yaml';
-import { expandedText, includeRestores, statusWithIncludes } from '../src/sync/includedStatus';
+import { collapseIncludes, expandedText, includeRestores, statusWithIncludes } from '../src/sync/includedStatus';
 import { driftOf, syncStatus } from '../src/sync/status';
 
 const subject = stringify({
@@ -56,5 +56,19 @@ describe('included files in status', () => {
       ),
     ).toEqual([{ path: 'd.md', content: 'Applied text' }]);
     expect(includeRestores(applied, applied)).toEqual([]);
+  });
+
+  it("syncs what the Console holds into the file's includes, keeping the references", () => {
+    const live = {
+      apiVersion: 'v2',
+      kind: 'Subject',
+      metadata: { name: 's', cluster: 'c' },
+      spec: { format: 'AVRO', schema: 'C', id: 1 },
+    };
+    expect(collapseIncludes(live, subject)).toEqual({
+      resource: { ...live, spec: { format: 'AVRO', schemaFile: 's.avsc', id: 1 } },
+      writes: [{ path: 's.avsc', content: 'C' }],
+    });
+    expect(collapseIncludes(live, applied)).toEqual({ resource: live, writes: [] });
   });
 });

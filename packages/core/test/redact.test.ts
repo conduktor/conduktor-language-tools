@@ -31,6 +31,16 @@ describe('redactSecrets', () => {
     });
   });
 
+  it('keeps keys that only contain auth inside another word', () => {
+    const value = { maxAuthRetries: '3', sandboxAuth: 'on', 'X-Auth-Token': 't', x_auth_key: 'k' };
+    expect(redactSecrets(value).value).toEqual({
+      maxAuthRetries: '3',
+      sandboxAuth: 'on',
+      'X-Auth-Token': '<redacted>',
+      x_auth_key: '<redacted>',
+    });
+  });
+
   it('leaves numbers, booleans and objects under secret-looking names alone', () => {
     const value = { maxTokens: 4096, tokenRefresh: true, machineTokens: { active: 2 }, apiKey: 'k' };
     expect(redactSecrets(value)).toEqual({

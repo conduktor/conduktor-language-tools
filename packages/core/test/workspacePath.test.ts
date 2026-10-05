@@ -65,8 +65,16 @@ describe('containedFile', () => {
 
   it('follows a symlink that stays inside, and refuses .. and absolute paths', () => {
     const work = fixture();
-    expect(containedFile(work, 'in-file')).toBe(join(work, 'real.txt'));
+    expect(containedFile(work, 'in-file')).toBe(join(work, 'in-file'));
     expect(() => containedFile(work, '../outside/secret.txt')).toThrow(/outside/);
     expect(() => containedFile(work, join(work, 'real.txt'))).toThrow(/relative/);
+  });
+
+  it('refuses a path that does not exist yet when it would land outside', () => {
+    const work = fixture();
+    symlinkSync(join(work, '..', 'outside', 'nothing.txt'), join(work, 'dangling'));
+    expect(() => containedFile(work, 'dangling')).toThrow(/outside/);
+    expect(() => containedFile(work, 'out-dir/new.avsc')).toThrow(/outside/);
+    expect(containedFile(work, 'schemas/new.avsc')).toBe(join(work, 'schemas', 'new.avsc'));
   });
 });

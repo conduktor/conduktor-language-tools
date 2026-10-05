@@ -6,6 +6,7 @@ import {
   ConsoleError,
   eachLimit,
   defaultKinds,
+  collapseIncludes,
   expandedText,
   includeRestores,
   statusWithIncludes,
@@ -181,6 +182,15 @@ export class SyncFolder implements vscode.Disposable {
     return syncRoot && env ? vscode.Uri.joinPath(syncRoot, environmentDir(env)) : undefined;
   }
 
+  /** The environment a file under this folder's environments/ belongs to, when it is not the current connection's. */
+  foreignEnvironment(uri: vscode.Uri): string | undefined {
+    const syncRoot = this.syncRoot();
+    const prefix = syncRoot && `${syncRoot.path.replace(/\/+$/, '')}/${ENVIRONMENTS_DIR}/`;
+    if (!syncRoot || !prefix || uri.scheme !== syncRoot.scheme || !uri.path.startsWith(prefix)) return undefined;
+    const env = uri.path.slice(prefix.length).split('/')[0];
+    return env && env !== this.environment() ? env : undefined;
+  }
+
   isActive(): boolean {
     return this.exists;
   }
@@ -221,7 +231,9 @@ export class SyncFolder implements vscode.Disposable {
     const root = this.requireRoot();
     const live = await state.client.get(itemPath(kind, parentsOf(kind, [...parents]), name));
     this.requireSameSession(state, `${kind.kind} ${name}`);
-    const { uri } = await this.writeSynced(kind, [...parents], live, root);
+    const { uri, kept } = await this.writeSynced(kind, [...parents], live, root);
+    // Asked for this one resource, so say why nothing happened; a bulk sync just leaves it.
+    if (kept) throw new NotSyncedCopyError(syncPath(kind, [...parents], name), live);
     await this.refresh();
     return uri;
   }
@@ -345,6 +357,13 @@ export class SyncFolder implements vscode.Disposable {
     }
     const entry = this.entryFor(kind.kind, parents, name);
     if (entry && entry.status !== 'synced') throw new LocalChangesError(entry);
+    const onDisk = entry && (await read(entry.uri));
+    if (
+      entry &&
+      onDisk !== undefined &&
+      (await this.changedLocally(entry.uri, onDisk, await read(this.baseOf(entry.uri)!)))
+    )
+      throw new LocalChangesError(entry);
     const uri = entry?.uri ?? (await this.syncResource(kind, parents, name));
     await write(uri, staged);
     await this.refresh();
@@ -554,29 +573,50 @@ export class SyncFolder implements vscode.Disposable {
     parents: string[],
     live: Resource,
     root: vscode.Uri = this.requireRoot(),
-  ): Promise<{ uri: vscode.Uri; written: boolean }> {
+  ): Promise<{ uri: vscode.Uri; written: boolean; kept?: boolean }> {
     const path = syncPath(kind, parents, live.metadata.name);
     const uri = vscode.Uri.joinPath(root, path);
     const base = this.baseOf(uri)!;
-    // The disk decides, not the last scan, and byte for byte: an edit made since then, even a comment, is kept.
+    const appliedCopy = this.baseOf(uri, 'applied')!;
     const current = await read(uri);
     const baseText = current === undefined ? undefined : await read(base);
-    if (current !== undefined && current !== baseText) throw new NotSyncedCopyError(path, live);
-    const { resource, variables } = withSecretPlaceholders(live, parents);
+    const { resource: placeholdered, variables } = withSecretPlaceholders(live, parents);
+    // A file that includes another keeps that layout: the Console's content goes back into the included files.
+    const { resource, writes } =
+      current !== undefined && includes(current)
+        ? collapseIncludes(placeholdered, current)
+        : { resource: placeholdered, writes: [] };
     const text = stringify(resource);
-    if (current === text && baseText === text) return { uri, written: false };
+    if (current !== undefined) {
+      // The disk decides, not the last scan. Nothing changed on the Console since the base: the file stays as it is,
+      // comments and all. Both changed: the local edit is never overwritten.
+      const applied = await read(appliedCopy);
+      const appliedIncludes = applied === undefined || baseText === undefined ? [] : includeRestores(baseText, applied);
+      const consoleChanged =
+        baseText !== text || writes.some((w) => w.content !== appliedIncludes.find((a) => a.path === w.path)?.content);
+      const changedLocally = await this.changedLocally(uri, current, baseText);
+      if (!consoleChanged) return { uri, written: false, kept: changedLocally };
+      if (changedLocally) throw new NotSyncedCopyError(path, live);
+    }
     if (variables.length > 0) {
       this.output.info(
         `${live.kind} ${live.metadata.name}: secrets replaced with ${variables.map((v) => `\${${v}}`).join(', ')}`,
       );
     }
     if (!this.bootstrapping) await this.ensureStateDir();
+    for (const include of writes) await write(vscode.Uri.file(includePath(uri, include.path)), include.content);
     await write(uri, text);
     await write(base, text);
-    // The Console's copy holds included content inline, so there is nothing left to compare included files with.
-    const applied = this.baseOf(uri, 'applied');
-    if (applied) await remove(applied);
+    await (writes.length > 0 ? write(appliedCopy, stringify(placeholdered)) : remove(appliedCopy));
     return { uri, written: true };
+  }
+
+  // Byte for byte against the base, an added comment included, and through what the included files held when applied.
+  private async changedLocally(uri: vscode.Uri, current: string, baseText: string | undefined): Promise<boolean> {
+    if (current !== baseText) return true;
+    if (!includes(current)) return false;
+    const applied = await read(this.baseOf(uri, 'applied')!);
+    return statusWithIncludes(current, baseText, applied, includeReaderFor(uri) ?? unreadable) !== 'synced';
   }
 
   private async ensureIgnored(patterns: readonly string[]): Promise<void> {

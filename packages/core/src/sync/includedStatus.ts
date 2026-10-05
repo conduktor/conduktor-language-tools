@@ -47,6 +47,35 @@ export function includeRestores(base: string, applied: string): { path: string; 
   });
 }
 
+/**
+ * What the Console holds, laid out the way the local file is: content its includes point at goes back into those
+ * files, and the YAML keeps the references in place of the content.
+ */
+export function collapseIncludes(
+  live: Resource,
+  local: string,
+): { resource: Resource; writes: { path: string; content: string }[] } {
+  const current = resourceOf(local);
+  const writes: { path: string; content: string }[] = [];
+  let resource = live;
+  for (const { path, field } of current ? includes(current) : []) {
+    if (field === SCHEMA_FILE && typeof specOf(resource).schema === 'string') {
+      writes.push({ path, content: specOf(resource).schema as string });
+      resource = { ...resource, spec: renamed(specOf(resource), 'schema', SCHEMA_FILE, path) };
+    } else if (field === DESCRIPTION_FILE && typeof labelsOf(resource)[DESCRIPTION] === 'string') {
+      writes.push({ path, content: labelsOf(resource)[DESCRIPTION] as string });
+      const labels = renamed(labelsOf(resource), DESCRIPTION, DESCRIPTION_FILE, path);
+      resource = { ...resource, metadata: { ...resource.metadata, labels } };
+    }
+  }
+  return { resource, writes };
+}
+
+// The key swapped in place, so the YAML keeps its order.
+function renamed(map: Record<string, unknown>, from: string, to: string, value: string): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(map).map(([key, v]) => (key === from ? [to, value] : [key, v])));
+}
+
 function includes(resource: Resource): { path: string; field: string }[] {
   const schemaFile = resource.kind === 'Subject' ? specOf(resource)[SCHEMA_FILE] : undefined;
   const descriptionFile = resource.kind === 'Topic' ? labelsOf(resource)[DESCRIPTION_FILE] : undefined;
