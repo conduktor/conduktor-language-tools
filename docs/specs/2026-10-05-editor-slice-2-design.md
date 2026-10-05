@@ -68,6 +68,9 @@ A script builds a checked-in `topic-configs.json` from Kafka's topic configurati
 - **hover** with doc, default and the Kafka docs anchor;
 - **Problems:** an unknown key (warning — brokers can carry their own), a value of the wrong type or outside its
   valid values.
+- **Presets** inside a Topic's `spec`: built-in profiles (high throughput, low latency, compacted, short and long
+  retention) that set `partitions`, `replicationFactor` and the matching `spec.configs`, and the Console's
+  TopicTemplates (their `defaults.spec`), offered as completions — not as whole documents.
 
 ## 6. Field docs
 
