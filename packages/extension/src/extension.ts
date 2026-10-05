@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const sync = new SyncFolder(context, sessions, output);
   const names = new Names(sessions, sync);
   const matchLenses = new MatchLensProvider(sessions, names);
-  const referrers = new ReferrersProvider(sessions, names);
+  const referrers = new ReferrersProvider(sessions, names, sync);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });

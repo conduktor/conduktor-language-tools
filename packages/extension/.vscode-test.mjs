@@ -8,5 +8,5 @@ export default defineConfig({
   version: 'stable',
   workspaceFolder: mkdtempSync(join(tmpdir(), 'conduktor-smoke-')),
   launchArgs: ['--disable-extensions'],
-  mocha: { ui: 'tdd', timeout: 60_000 },
+  mocha: { ui: 'tdd', timeout: 180_000 },
 });

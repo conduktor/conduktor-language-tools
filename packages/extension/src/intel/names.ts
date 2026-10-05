@@ -22,6 +22,7 @@ export interface RepoDocument {
 export class Names implements vscode.Disposable {
   private lists = new Map<string, Promise<Resource[] | undefined>>();
   private files = new Map<string, Promise<RepoDocument[]>>();
+  private others: Promise<RepoDocument[]> | undefined;
   private readonly parsed = new Map<string, { version: number; documents: RepoDocument[] }>();
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
@@ -35,6 +36,7 @@ export class Names implements vscode.Disposable {
       sessions.onDidChange(() => this.clear()),
       sync.onDidChange(() => {
         this.files = new Map();
+        this.others = undefined;
         this.changed.fire();
       }),
       vscode.workspace.onDidCloseTextDocument((document) => this.parsed.delete(document.uri.toString())),
@@ -45,6 +47,7 @@ export class Names implements vscode.Disposable {
   clear(): void {
     this.lists = new Map();
     this.files = new Map();
+    this.others = undefined;
     this.changed.fire();
   }
 
@@ -57,7 +60,8 @@ export class Names implements vscode.Disposable {
     for (const entry of this.sync.list())
       if (entry.kind === kind && sameParents(entry.parents, parents)) index.add(kind, parents, entry.name, 'repo');
     const params = this.parentParams(kind);
-    for (const resource of this.openResources(kind))
+    const unindexed = [...this.openResources(kind), ...(await this.otherDocuments(kind)).map((d) => d.resource)];
+    for (const resource of unindexed)
       if (sameParents(parentsIn(resource, params), parents)) index.add(kind, parents, resource.metadata.name, 'repo');
     const live = await this.resources(kind, parents);
     for (const resource of live ?? []) index.add(kind, parents, resource.metadata.name, 'console');
@@ -91,8 +95,21 @@ export class Names implements vscode.Disposable {
     const open = new Set(this.openDocuments().map((document) => document.uri.toString()));
     const files = this.files.get(kind) ?? this.readFiles(kind);
     this.files.set(kind, files);
-    const fromFiles = (await files).filter((document) => !open.has(document.uri.toString()));
+    const fromFiles = [...(await files), ...(await this.otherDocuments(kind))].filter(
+      (document) => !open.has(document.uri.toString()),
+    );
     return [...this.openRepoDocuments(kind), ...fromFiles];
+  }
+
+  // Files the sync folder does not index as one resource each, read once per change.
+  private async otherDocuments(kind: string): Promise<RepoDocument[]> {
+    this.others ??= (async () => {
+      const found: RepoDocument[] = [];
+      for (const uri of this.sync.others())
+        found.push(...this.documentsIn(uri, new TextDecoder().decode(await vscode.workspace.fs.readFile(uri))));
+      return found;
+    })();
+    return (await this.others).filter((document) => document.resource.kind === kind);
   }
 
   private async readFiles(kind: string): Promise<RepoDocument[]> {

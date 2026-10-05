@@ -810,7 +810,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
-  test('syncs everything a connection holds into its environment', async () => {
+  test('syncs everything a connection holds into its environment', async function () {
+    // Three full bootstraps; the packaged Console takes a minute to refuse the Gateway's service-account list.
+    this.timeout(600_000);
     const api = await activate();
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
@@ -820,22 +822,27 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const kindOf = (name: string) => state.spec.catalog.latest(name)!;
     const apply = (resource: Resource) =>
       state.client.upsert(upsertTarget(kindOf(resource.kind), resource), resource, { dryRun: false });
-    // Service accounts need a broker with an authorizer: the local Console stack runs one as local-kafka-sasl.
-    await apply({
-      apiVersion: 'v2',
-      kind: 'KafkaCluster',
-      metadata: { name: SASL_CLUSTER },
-      spec: {
-        displayName: SASL_CLUSTER,
-        bootstrapServers: 'localhost:19093',
-        properties: {
-          'security.protocol': 'SASL_PLAINTEXT',
-          'sasl.mechanism': 'PLAIN',
-          'sasl.jaas.config':
-            'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin-secret";',
+    // Service accounts need a broker with an authorizer: the local Console stack runs one as local-kafka-sasl. The
+    // packaged Console registers it from its config; a Console run from source needs it registered here.
+    const registered = await state.client
+      .get(`/public/console/v2/kafka-cluster/${SASL_CLUSTER}`)
+      .catch(() => undefined);
+    if (!registered)
+      await apply({
+        apiVersion: 'v2',
+        kind: 'KafkaCluster',
+        metadata: { name: SASL_CLUSTER },
+        spec: {
+          displayName: SASL_CLUSTER,
+          bootstrapServers: 'localhost:19093',
+          properties: {
+            'security.protocol': 'SASL_PLAINTEXT',
+            'sasl.mechanism': 'PLAIN',
+            'sasl.jaas.config':
+              'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="admin-secret";',
+          },
         },
-      },
-    });
+      });
     const account = `vscode-iac-${Date.now()}`;
     await apply({
       apiVersion: 'v1',
@@ -1352,14 +1359,77 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.deepStrictEqual(await referrers(topic, `${id}.orders`), [instance.toString()]);
       assert.deepStrictEqual(await referrers(instance, `${id}-dev`), []);
 
+      // A hand-written file holding several resources, never opened, with a wildcard permission in its second document.
+      const bundle = vscode.Uri.joinPath(api.sync.root()!, 'global', 'bundle.yaml');
+      const bundleText = [
+        stringify({
+          apiVersion: 'v1',
+          kind: 'Application',
+          metadata: { name: `${id}-other` },
+          spec: { title: 'O', owner: id },
+        }),
+        stringify({
+          apiVersion: 'v2',
+          kind: 'Group',
+          metadata: { name: `${id}-readers` },
+          spec: {
+            permissions: [
+              { resourceType: 'TOPIC', cluster: '*', name: '*', patternType: 'LITERAL', permissions: ['topicConsume'] },
+            ],
+          },
+        }),
+      ].join('---\n');
+      await vscode.workspace.fs.writeFile(bundle, new TextEncoder().encode(bundleText));
+      await api.sync.refresh();
+      const groupDoc0 = await vscode.workspace.openTextDocument(group);
+      const located = await vscode.commands.executeCommand<vscode.Location[]>(
+        'vscode.executeReferenceProvider',
+        groupDoc0.uri,
+        groupDoc0.positionAt(groupDoc0.getText().indexOf(`name: ${id}`) + 'name: '.length + 1),
+      );
+      const inBundle = located.find((l) => l.uri.toString() === bundle.toString());
+      assert.ok(inBundle, 'a multi-document file is searched without being open');
+      const ownerOffset = bundleText.indexOf(`owner: ${id}`) + 'owner: '.length;
+      const ownerLine = bundleText.slice(0, ownerOffset).split('\n').length - 1;
+      assert.deepStrictEqual(
+        [inBundle.range.start.line, inBundle.range.start.character, inBundle.range.end.character],
+        [ownerLine, 'owner: '.length + 2, 'owner: '.length + 2 + id.length],
+      );
+      assert.ok(
+        (await referrers(topic, `${id}.orders`)).includes(bundle.toString()),
+        'a * permission covers the topic',
+      );
+
       const groupDoc = await vscode.workspace.openTextDocument(group);
       let titles: string[] = [];
       await until(() => {
         void vscode.commands
           .executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', groupDoc.uri)
           .then((lenses) => (titles = lenses.map((l) => l.command?.title ?? '')));
-        return titles.includes('$(references) referenced by 1');
+        return titles.includes('$(references) referenced by 2');
       });
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('counts referrers quickly for a cluster thousands of resources point at', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-lens-cost-'))));
+    try {
+      await api.sync.syncEverything(['KafkaCluster', 'Topic']);
+      const cluster = api.sync.entryFor('KafkaCluster', [], 'local-gateway')!;
+      const doc = await vscode.workspace.openTextDocument(cluster.uri);
+      const lens = () => vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', doc.uri);
+      await lens();
+      const started = Date.now();
+      const lenses = await lens();
+      const elapsed = Date.now() - started;
+      const title = lenses.map((l) => l.command?.title ?? '').find((t) => t.includes('referenced by'));
+      assert.match(String(title), /referenced by \d{4}/);
+      assert.ok(elapsed < 300, `lenses took ${elapsed} ms`);
     } finally {
       await useWorkspaceSyncRoot(api);
     }

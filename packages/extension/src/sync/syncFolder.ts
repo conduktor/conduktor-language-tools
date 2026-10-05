@@ -64,6 +64,7 @@ const ROOT_KEY = 'conduktor.syncRoot';
 export class SyncFolder implements vscode.Disposable {
   private entries: LocalEntry[] = [];
   private entriesByUri = new Map<string, LocalEntry>();
+  private otherFiles: vscode.Uri[] = [];
   private bootstrapping = false;
   private drift = new Map<string, Drift>();
   private exists = false;
@@ -180,6 +181,11 @@ export class SyncFolder implements vscode.Disposable {
 
   list(): readonly LocalEntry[] {
     return this.entries;
+  }
+
+  /** YAML files in the environment that are not one resource each: several documents, or hand-written layouts. */
+  others(): readonly vscode.Uri[] {
+    return this.otherFiles;
   }
 
   changes(): LocalEntry[] {
@@ -418,10 +424,14 @@ export class SyncFolder implements vscode.Disposable {
       new vscode.RelativePattern(root, `${STATE_DIR}/**`),
     );
     const entries: LocalEntry[] = [];
+    const others: vscode.Uri[] = [];
     for (const uri of files) {
       const text = await read(uri);
       const identity = text === undefined || state.status !== 'ready' ? undefined : identify(text, state);
-      if (!identity) continue;
+      if (!identity) {
+        if (text !== undefined) others.push(uri);
+        continue;
+      }
       const base = await read(this.baseOf(uri));
       entries.push({
         uri,
@@ -430,6 +440,7 @@ export class SyncFolder implements vscode.Disposable {
         status: syncStatus(text!, base),
       });
     }
+    this.otherFiles = others;
     return entries;
   }
 

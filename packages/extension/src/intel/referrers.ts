@@ -3,17 +3,29 @@ import { rangeOf, referencingKinds, referrersOf, valueAt, type Resource } from '
 import type { SessionManager } from '../connections/session';
 import { documentAt, parsedDocuments } from './documents';
 import type { Names, RepoDocument } from './names';
+import type { SyncFolder } from '../sync/syncFolder';
 
 export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
-  private readonly listener: vscode.Disposable;
+  private readonly listeners: vscode.Disposable[];
 
   constructor(
     private readonly sessions: SessionManager,
     private readonly names: Names,
+    sync: SyncFolder,
   ) {
-    this.listener = names.onDidChange(() => this.changed.fire());
+    // Counts come from the repository alone: Console list fetches change nothing here.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => this.changed.fire(), 500);
+    };
+    this.listeners = [
+      sync.onDidChange(refresh),
+      sessions.onDidChange(refresh),
+      vscode.workspace.onDidChangeTextDocument((e) => e.document.languageId === 'yaml' && refresh()),
+    ];
   }
 
   async provideReferences(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Location[]> {
@@ -69,7 +81,7 @@ export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeL
   }
 
   dispose(): void {
-    this.listener.dispose();
+    this.listeners.forEach((listener) => listener.dispose());
     this.changed.dispose();
   }
 }
