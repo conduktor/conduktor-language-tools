@@ -125,4 +125,11 @@ export {
   type Answers,
   type Choice,
 } from './templates';
-export { parseKafkaTopicConfigs, topicConfig, TOPIC_CONFIGS, type TopicConfigDoc } from './topicConfigs';
+export {
+  checkTopicConfig,
+  parseKafkaTopicConfigs,
+  topicConfig,
+  TOPIC_CONFIGS,
+  type TopicConfigDoc,
+  type TopicConfigProblem,
+} from './topicConfigs';

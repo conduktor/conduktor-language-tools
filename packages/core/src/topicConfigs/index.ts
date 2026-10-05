@@ -1,11 +1,3 @@
-import snapshot from '../../snapshot/topic-configs.json';
-import type { TopicConfigDoc } from './kafkaDocs';
-
+export { checkTopicConfig, type TopicConfigProblem } from './check';
 export { parseKafkaTopicConfigs, type TopicConfigDoc } from './kafkaDocs';
-
-export const TOPIC_CONFIGS: readonly TopicConfigDoc[] = snapshot.configs;
-const byKey = new Map(TOPIC_CONFIGS.map((config) => [config.key, config]));
-
-export function topicConfig(key: string): TopicConfigDoc | undefined {
-  return byKey.get(key);
-}
+export { topicConfig, TOPIC_CONFIGS } from './lookup';
