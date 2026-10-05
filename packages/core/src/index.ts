@@ -112,4 +112,4 @@ export {
   type ReferenceRule,
   type ReferenceTarget,
 } from './references';
-export { nextChoice, type Answers, type Choice } from './templates';
+export { nextChoice, skeletonYaml, type Answers, type Choice } from './templates';
