@@ -1271,6 +1271,29 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual(item.insertText, `"${name}"`);
   });
 
+  test('keeps repository documents with where they are, and reads files once', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-docs-'))));
+    try {
+      await api.sync.syncEverything(['Topic']);
+      const first = Date.now();
+      const documents = await api.names.repoDocuments('Topic');
+      const cold = Date.now() - first;
+      const again = Date.now();
+      await api.names.repoDocuments('Topic');
+      const warm = Date.now() - again;
+      assert.ok(documents.length > 1000, String(documents.length));
+      const [one] = documents;
+      assert.strictEqual(one!.text.slice(0, 11), 'apiVersion:');
+      assert.strictEqual(one!.fullText.slice(one!.start, one!.start + one!.text.length), one!.text);
+      assert.ok(warm < Math.max(50, cold / 10), `cold ${cold} ms, warm ${warm} ms`);
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();

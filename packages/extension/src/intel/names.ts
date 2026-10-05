@@ -10,10 +10,19 @@ import {
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
 
+/** A Console document in the repository: its file, its text and where it starts in the file. */
+export interface RepoDocument {
+  uri: vscode.Uri;
+  start: number;
+  text: string;
+  fullText: string;
+  resource: Resource;
+}
+
 export class Names implements vscode.Disposable {
   private lists = new Map<string, Promise<Resource[] | undefined>>();
-  private files = new Map<string, Promise<Resource[]>>();
-  private readonly parsed = new Map<string, { version: number; resources: Resource[] }>();
+  private files = new Map<string, Promise<RepoDocument[]>>();
+  private readonly parsed = new Map<string, { version: number; documents: RepoDocument[] }>();
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
   private readonly listeners: vscode.Disposable[];
@@ -73,28 +82,44 @@ export class Names implements vscode.Disposable {
     return list;
   }
 
-  /** The repository's full documents of a kind (for overlap): open documents win over their files. */
   async repoResources(kind: string): Promise<Resource[]> {
+    return (await this.repoDocuments(kind)).map((document) => document.resource);
+  }
+
+  /** The repository's documents of a kind: open documents win over their files, which are read once per change. */
+  async repoDocuments(kind: string): Promise<RepoDocument[]> {
     const open = new Set(this.openDocuments().map((document) => document.uri.toString()));
     const files = this.files.get(kind) ?? this.readFiles(kind);
     this.files.set(kind, files);
-    const fromFiles = (await files).filter((resource) => !open.has(sourceOf.get(resource) ?? ''));
-    return [...this.openResources(kind), ...fromFiles];
+    const fromFiles = (await files).filter((document) => !open.has(document.uri.toString()));
+    return [...this.openRepoDocuments(kind), ...fromFiles];
   }
 
-  private async readFiles(kind: string): Promise<Resource[]> {
-    const state = this.sessions.current();
-    if (state.status !== 'ready') return [];
-    const found: Resource[] = [];
+  private async readFiles(kind: string): Promise<RepoDocument[]> {
+    const found: RepoDocument[] = [];
     for (const entry of this.sync.list().filter((e) => e.kind === kind)) {
       const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
-      for (const document of catalogDocuments(text, state.spec.catalog))
-        if (document.kind === kind && document.resource) {
-          sourceOf.set(document.resource, entry.uri.toString());
-          found.push(document.resource);
-        }
+      found.push(...this.documentsIn(entry.uri, text).filter((document) => document.resource.kind === kind));
     }
     return found;
+  }
+
+  private documentsIn(uri: vscode.Uri, fullText: string): RepoDocument[] {
+    const state = this.sessions.current();
+    if (state.status !== 'ready') return [];
+    return catalogDocuments(fullText, state.spec.catalog).flatMap((document) =>
+      document.resource
+        ? [
+            {
+              uri,
+              start: document.start,
+              text: fullText.slice(document.start, document.end),
+              fullText,
+              resource: document.resource,
+            },
+          ]
+        : [],
+    );
   }
 
   // What the user is writing counts as the repository: untitled documents and files in the sync folder, not git
@@ -106,19 +131,18 @@ export class Names implements vscode.Disposable {
   }
 
   private openResources(kind: string): Resource[] {
-    const state = this.sessions.current();
-    if (state.status !== 'ready') return [];
+    return this.openRepoDocuments(kind).map((document) => document.resource);
+  }
+
+  private openRepoDocuments(kind: string): RepoDocument[] {
     return this.openDocuments().flatMap((document) => {
       const key = document.uri.toString();
       let parsed = this.parsed.get(key);
       if (parsed?.version !== document.version) {
-        const resources = catalogDocuments(document.getText(), state.spec.catalog).flatMap((d) =>
-          d.resource ? [d.resource] : [],
-        );
-        parsed = { version: document.version, resources };
+        parsed = { version: document.version, documents: this.documentsIn(document.uri, document.getText()) };
         this.parsed.set(key, parsed);
       }
-      return parsed.resources.filter((resource) => resource.kind === kind);
+      return parsed.documents.filter((d) => d.resource.kind === kind);
     });
   }
 
@@ -132,8 +156,6 @@ export class Names implements vscode.Disposable {
     this.changed.dispose();
   }
 }
-
-const sourceOf = new WeakMap<Resource, string>();
 
 function parentsIn(resource: Resource, params: readonly string[]): string[] {
   return params.map((param) => {
