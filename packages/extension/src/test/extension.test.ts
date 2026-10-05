@@ -1599,6 +1599,51 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('helps with topic configs and presets', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const content =
+      'apiVersion: v2\nkind: Topic\nmetadata: { name: vscode-configs, cluster: local-kafka }\nspec:\n  partitions: 1\n  \n  configs:\n    retention.ms: "a week"\n    retention.days: "7"\n    \n';
+    const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+    const problems = () =>
+      vscode.languages
+        .getDiagnostics(doc.uri)
+        .filter((d) => d.source === 'Conduktor')
+        .map((d) => d.message);
+    await until(() => problems().length >= 2);
+    assert.ok(problems().includes('retention.ms is a long (a whole number).'), problems().join('\n'));
+    assert.ok(problems().some((m) => m.startsWith('retention.days is not a Kafka topic config')));
+
+    const lines = content.split('\n');
+    const at = (line: number) => new vscode.Position(line, lines[line]!.length);
+    const complete = (position: vscode.Position) =>
+      vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', doc.uri, position);
+    const label = (i: vscode.CompletionItem) => (typeof i.label === 'string' ? i.label : i.label.label);
+    const keys = await complete(at(9));
+    assert.ok(
+      keys.items.some((i) => label(i) === 'cleanup.policy'),
+      'config keys are offered',
+    );
+    assert.ok(!keys.items.some((i) => label(i) === 'retention.ms'), 'a key already set is not offered again');
+
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      doc.uri,
+      new vscode.Position(7, 6),
+    );
+    const text = hovers
+      .flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')))
+      .join('\n');
+    assert.match(text, /topicconfigs_retention\.ms/);
+
+    const presets = await complete(at(5));
+    const compacted = presets.items.find((i) => label(i) === 'Preset: Compacted (latest value per key)');
+    assert.ok(compacted?.command, presets.items.map(label).join(', '));
+    await vscode.commands.executeCommand(compacted.command.command, ...(compacted.command.arguments ?? []));
+    assert.strictEqual(parse(doc.getText()).spec.configs['cleanup.policy'], 'compact');
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { UpsertItem } from '@conduktor/vscode-core';
+import type { TopicPreset, UpsertItem } from '@conduktor/vscode-core';
 import { registerLanguageModelTools } from './agents/languageModelTools';
 import { registerClaudeCodeConfigCommand, registerConsoleMcpServer } from './agents/mcpServers';
 import { exposedApi } from './api';
@@ -34,6 +34,7 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
+import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -72,6 +73,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const names = new Names(sessions, sync);
   const matchLenses = new MatchLensProvider(sessions, names);
   const referrers = new ReferrersProvider(sessions, names, sync);
+  const topicConfigs = new TopicConfigProvider(sessions, names);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
@@ -124,6 +126,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerCompletionItemProvider(
       { language: 'yaml' },
       new SnippetCompletionProvider(sessions, names, clusters, sync),
+    ),
+    vscode.languages.registerCompletionItemProvider({ language: 'yaml' }, topicConfigs),
+    vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
+    new TopicConfigDiagnostics(sessions),
+    vscode.commands.registerCommand(APPLY_PRESET, (uri: vscode.Uri, start: number, preset: TopicPreset) =>
+      applyTopicPreset(uri, start, preset, sessions),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, matchLenses),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, referrers),

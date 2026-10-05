@@ -1,0 +1,100 @@
+export type TopicConfigContext =
+  | { where: 'configKey'; start: number; end: number; present: string[] }
+  | { where: 'configValue'; key: string; start: number; end: number }
+  | { where: 'configKeyName'; key: string; start: number; end: number }
+  | { where: 'specKey'; start: number; end: number };
+
+interface Line {
+  start: number;
+  text: string;
+  indent: number;
+  blank: boolean;
+}
+
+/**
+ * Where the cursor sits in one Topic document, read by indentation so a half-typed line still counts: a key or value in
+ * `spec.configs`, an existing config key, or a key directly under `spec`.
+ */
+export function topicConfigContext(text: string, offset: number): TopicConfigContext | undefined {
+  const lines = splitLines(text);
+  const index = lines.findIndex((line) => offset >= line.start && offset <= line.start + line.text.length);
+  const line = lines[index];
+  if (!line) return undefined;
+  const specAt = lines.findIndex((l) => /^spec:\s*(#.*)?$/.test(l.text));
+  if (specAt === -1 || index <= specAt) return undefined;
+  const specEnd = blockEnd(lines, specAt, 0);
+  if (index >= specEnd) return undefined;
+  const column = offset - line.start;
+  const before = line.text.slice(0, column);
+  const childIndent = lines.slice(specAt + 1, specEnd).find((l) => !l.blank)?.indent ?? 2;
+
+  const configsAt = lines.findIndex(
+    (l, i) => i > specAt && i < specEnd && l.indent === childIndent && /^\s*configs:\s*(#.*)?$/.test(l.text),
+  );
+  if (configsAt !== -1 && index > configsAt && index < blockEnd(lines, configsAt, childIndent)) {
+    const indentation = /^\s*/.exec(before)![0].length;
+    if (indentation <= childIndent && !line.blank) return undefined;
+    const colon = line.text.indexOf(':');
+    if (colon !== -1 && column > colon) {
+      const valueStart = line.start + colon + 1 + /^\s*/.exec(line.text.slice(colon + 1))![0].length;
+      return {
+        where: 'configValue',
+        key: line.text.slice(0, colon).trim(),
+        start: Math.min(valueStart, offset),
+        end: line.start + line.text.length,
+      };
+    }
+    if (colon !== -1) {
+      const keyStart = line.start + indentation;
+      return {
+        where: 'configKeyName',
+        key: line.text.slice(0, colon).trim(),
+        start: keyStart,
+        end: line.start + colon,
+      };
+    }
+    const word = /[^\s]*$/.exec(before)![0];
+    return {
+      where: 'configKey',
+      start: offset - word.length,
+      end: offset,
+      present: presentKeys(lines, configsAt, childIndent),
+    };
+  }
+
+  if (!before.includes(':') && /^\s*[A-Za-z]*$/.test(before) && /^\s*$/.test(line.text.slice(column))) {
+    const indentation = /^\s*/.exec(before)![0].length;
+    if (indentation === childIndent) {
+      const word = /[A-Za-z]*$/.exec(before)![0];
+      return { where: 'specKey', start: offset - word.length, end: offset };
+    }
+  }
+  return undefined;
+}
+
+function splitLines(text: string): Line[] {
+  let start = 0;
+  return text.split('\n').map((raw) => {
+    const value = raw.replace(/\r$/, '');
+    const line = { start, text: value, indent: /^\s*/.exec(value)![0].length, blank: value.trim() === '' };
+    start += raw.length + 1;
+    return line;
+  });
+}
+
+// The first line after `at` indented at or above `indent` (ignoring blank and comment lines).
+function blockEnd(lines: Line[], at: number, indent: number): number {
+  for (let i = at + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.blank && !line.text.trim().startsWith('#') && line.indent <= indent) return i;
+  }
+  return lines.length;
+}
+
+function presentKeys(lines: Line[], configsAt: number, childIndent: number): string[] {
+  const end = blockEnd(lines, configsAt, childIndent);
+  return lines
+    .slice(configsAt + 1, end)
+    .map((line) => /^\s*([^\s:#][^:]*):/.exec(line.text)?.[1]?.trim())
+    .filter((key): key is string => !!key);
+}
