@@ -10,6 +10,7 @@ export interface Reference {
   value: string;
   kind: string;
   parents: string[] | undefined;
+  scope: (string | undefined)[];
   pattern?: { reading: PatternReading; type: PatternType };
   wildcard: boolean;
 }
@@ -63,6 +64,7 @@ function resolve(
     value,
     kind,
     parents: known ? (parentValues as string[]) : undefined,
+    scope: parentValues.map((v) => (typeof v === 'string' && v !== '' ? v : undefined)),
     ...(rule.pattern && { pattern: { reading: rule.pattern, type: patternTypeOf(sibling('patternType')) } }),
     wildcard: !!rule.wildcard && value === '*',
   };

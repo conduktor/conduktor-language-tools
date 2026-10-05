@@ -11,4 +11,5 @@ export {
   type PatternReading,
   type PatternType,
 } from './patterns';
+export { referencingKinds, referrersOf, type Reach, type ReferenceTarget } from './reverse';
 export { REFERENCE_RULES, type ReferenceRule } from './table';
