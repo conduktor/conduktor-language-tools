@@ -4,3 +4,6 @@ out/
 .vscode-test/
 *.vsix
 .DS_Store
+
+# The default sync folder when this repository is the open workspace (F5 / local testing)
+/conduktor/
