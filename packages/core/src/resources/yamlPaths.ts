@@ -19,6 +19,30 @@ export function valueAt(text: string, offset: number): ValueAt | undefined {
   return found;
 }
 
+/** The field under the cursor: on its key (the key's range) or on its scalar value. */
+export function fieldAt(text: string, offset: number): { path: YamlPath; start: number; end: number } | undefined {
+  let found: { path: YamlPath; start: number; end: number } | undefined;
+  const at = (path: YamlPath, node: unknown) => {
+    const range = isScalar(node) ? node.range : undefined;
+    if (!found && range && range[0] <= offset && offset <= range[1]) found = { path, start: range[0], end: range[1] };
+  };
+  const walk = (node: unknown, path: YamlPath) => {
+    if (isMap(node)) {
+      for (const pair of node.items) {
+        if (!isScalar(pair.key)) continue;
+        const field = [...path, String(pair.key.value)];
+        at(field, pair.key);
+        if (isScalar(pair.value)) at(field, pair.value);
+        else walk(pair.value, field);
+      }
+    } else if (isSeq(node)) {
+      node.items.forEach((item, i) => (isScalar(item) ? at([...path, i], item) : walk(item, [...path, i])));
+    }
+  };
+  walk(parseDocument(text).contents, []);
+  return found;
+}
+
 export function rangeOf(text: string, path: YamlPath): [number, number] | undefined {
   let found: [number, number] | undefined;
   scalars(text, (at, scalar) => {

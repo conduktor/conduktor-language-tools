@@ -41,10 +41,19 @@ export {
 } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
 export { comparableYaml, newResourceName, newResourceYaml } from './resources/yamlText';
-export { rangeOf, scalarRanges, valueAt, type ScalarRange, type ValueAt, type YamlPath } from './resources/yamlPaths';
+export {
+  fieldAt,
+  rangeOf,
+  scalarRanges,
+  valueAt,
+  type ScalarRange,
+  type ValueAt,
+  type YamlPath,
+} from './resources/yamlPaths';
 export type { ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';
+export { schemaAt, type FieldSchema } from './openapi/schemaAt';
 export {
   agentInstructions,
   conduktorTools,
