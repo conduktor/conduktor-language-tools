@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   baseDir,
+  basePathOf,
   environmentDir,
   environmentName,
   migrationPaths,
@@ -115,5 +116,23 @@ describe('planRootMove', () => {
       '.conduktor/.gitignore',
       'templates',
     ]);
+  });
+});
+
+describe('basePathOf', () => {
+  it("maps a file to its own environment's base copy", () => {
+    expect(basePathOf('/r', '/r/environments/a/clusters/c/kafka/Topic/t.yaml')).toBe(
+      '/r/.conduktor/base/a/clusters/c/kafka/Topic/t.yaml',
+    );
+    expect(basePathOf('/r/', '/r/environments/b/global/console/KafkaCluster/k.yaml')).toBe(
+      '/r/.conduktor/base/b/global/console/KafkaCluster/k.yaml',
+    );
+    expect(basePathOf('/r', '/r/environments/a/x.yaml', 'applied')).toBe('/r/.conduktor/applied/a/x.yaml');
+  });
+
+  it('has no base for a file outside environments/', () => {
+    expect(basePathOf('/r', '/r/templates/Topic/x.yaml')).toBeUndefined();
+    expect(basePathOf('/r', '/elsewhere/environments/a/x.yaml')).toBeUndefined();
+    expect(basePathOf('/r', '/r/environments/a')).toBeUndefined();
   });
 });

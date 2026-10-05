@@ -1,5 +1,6 @@
 export {
   baseDir,
+  basePathOf,
   environmentDir,
   environmentName,
   ENVIRONMENTS_DIR,

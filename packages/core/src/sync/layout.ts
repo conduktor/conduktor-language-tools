@@ -20,6 +20,20 @@ export function baseDir(env: string): string {
   return `${STATE_DIR}/base/${env}`;
 }
 
+/**
+ * Where the extension keeps its copy of a file (the base it was synced or applied as, or the expanded resource that was
+ * applied) — in the file's own environment, whichever connection is current. No copy for a file outside environments/.
+ */
+export function basePathOf(syncRoot: string, file: string, copy: 'base' | 'applied' = 'base'): string | undefined {
+  const root = syncRoot.replace(/\/+$/, '');
+  const match = new RegExp(`^${escaped(root)}/${ENVIRONMENTS_DIR}/([^/]+)/(.+)$`).exec(file);
+  return match ? `${root}/${STATE_DIR}/${copy}/${match[1]}/${match[2]}` : undefined;
+}
+
+function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // The sync folder used to be <root>/<env>/ with its base inside it. Only a folder carrying the extension's .conduktor
 // is one of those, so a repository's own dev/ is never taken for it. The base moves first because it sits inside the
 // folder; if either target exists nothing moves, so base copies never end up under environments/ where `ctl` would

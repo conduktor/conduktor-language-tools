@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { parse, stringify } from 'yaml';
 import {
-  baseDir,
+  basePathOf,
   collectResources,
   ConsoleError,
   eachLimit,
@@ -214,8 +214,10 @@ export class SyncFolder implements vscode.Disposable {
     if (staged && staged.status !== 'synced') return staged.uri;
     await this.requireChosen();
     const state = this.ready();
+    const root = this.requireRoot();
     const live = await state.client.get(itemPath(kind, parentsOf(kind, [...parents]), name));
-    const { uri } = await this.writeSynced(kind, [...parents], live);
+    this.requireSameSession(state, `${kind.kind} ${name}`);
+    const { uri } = await this.writeSynced(kind, [...parents], live, root);
     await this.refresh();
     return uri;
   }
@@ -227,7 +229,7 @@ export class SyncFolder implements vscode.Disposable {
   ): Promise<number | undefined> {
     await this.requireChosen();
     const state = this.ready();
-    const place = this.place();
+    const root = this.requireRoot();
     const resources = await state.client.list(listPath(kind, parentsOf(kind, [...parents])));
     if (!(await proceed(resources.length))) return undefined;
     for (const resource of resources) {
@@ -235,7 +237,7 @@ export class SyncFolder implements vscode.Disposable {
       const staged = this.entryFor(kind.kind, parents, resource.metadata.name);
       if (staged && staged.status !== 'synced') continue;
       try {
-        await this.writeSynced(kind, [...parents], resource, place);
+        await this.writeSynced(kind, [...parents], resource, root);
       } catch (error) {
         this.output.warn(describeError(error));
       }
@@ -260,7 +262,7 @@ export class SyncFolder implements vscode.Disposable {
     const state = this.ready();
     const syncRoot = this.requireSyncRoot();
     // Everything is written where this connection's environment was when the run started; a switch stops it.
-    const place = this.place();
+    const root = this.requireRoot();
     const switched = () => this.sessions.current() !== state;
     const configUri = vscode.Uri.joinPath(syncRoot, REPO_CONFIG);
     const config = withEnvironment(await read(configUri), this.requireEnvironment(), {
@@ -295,7 +297,7 @@ export class SyncFolder implements vscode.Disposable {
           return;
         }
         try {
-          const { written } = await this.writeSynced(kind, parents, resource, place);
+          const { written } = await this.writeSynced(kind, parents, resource, root);
           if (written) result.written[kind.kind] = (result.written[kind.kind] ?? 0) + 1;
           else result.unchanged++;
         } catch (error) {
@@ -315,7 +317,7 @@ export class SyncFolder implements vscode.Disposable {
     if (switched()) return result;
     await this.refresh();
     const texts = await Promise.all(this.entries.map(async (entry) => (await read(entry.uri)) ?? ''));
-    await write(vscode.Uri.joinPath(place.root, ENV_EXAMPLE), envExample(texts));
+    await write(vscode.Uri.joinPath(root, ENV_EXAMPLE), envExample(texts));
     return result;
   }
 
@@ -372,13 +374,15 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   async markApplied(uri: vscode.Uri, text: string): Promise<void> {
-    await write(this.baseOf(uri), text);
+    const base = this.baseOf(uri);
+    if (base) await write(base, text);
     this.drift.delete(uri.toString());
     await this.refresh();
   }
 
   async discard(uri: vscode.Uri): Promise<void> {
-    const base = await read(this.baseOf(uri));
+    const copy = this.baseOf(uri);
+    const base = copy && (await read(copy));
     if (base === undefined) throw new Error('This file is new, so there is nothing to go back to.');
     await write(uri, base);
     await this.refresh();
@@ -390,6 +394,7 @@ export class SyncFolder implements vscode.Disposable {
     const kind = entry && state.spec.catalog.resolve(entry.apiVersion, entry.kind);
     if (!entry || !kind) throw new Error('Not a Conduktor resource in the sync folder.');
     const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
+    this.requireSameSession(state, `${entry.kind} ${entry.name}`);
     const text = stringify(withSecretPlaceholders(live).resource);
     await write(uri, text);
     await this.markApplied(uri, text);
@@ -430,11 +435,9 @@ export class SyncFolder implements vscode.Disposable {
       this.scanned.clear();
       this.scannedWith = state;
     }
-    // Only a connected session has an environment, and so base copies to compare with.
-    const place = state.status === 'ready' ? this.place() : undefined;
     const texts = await readAll(files);
     const bases = await readAll(
-      files.map((uri, i) => (texts[i] === undefined || !place ? undefined : this.baseOf(uri, place))),
+      files.map((uri, i) => (texts[i] === undefined || state.status !== 'ready' ? undefined : this.baseOf(uri))),
     );
     const entries: LocalEntry[] = [];
     const others: vscode.Uri[] = [];
@@ -467,7 +470,7 @@ export class SyncFolder implements vscode.Disposable {
       const expected = syncPath(kind, entry.parents, entry.name);
       if (expected.toLowerCase() === entry.path.toLowerCase()) continue;
       const base = this.baseOf(entry.uri);
-      const tracked = await fileExists(base);
+      const tracked = !!base && (await fileExists(base));
       if (!tracked && folderOf(expected) !== folderOf(entry.path)) continue;
       const target = vscode.Uri.joinPath(root, expected);
       if (await fileExists(target)) {
@@ -479,8 +482,9 @@ export class SyncFolder implements vscode.Disposable {
       edit.renameFile(entry.uri, target);
       if (!(await vscode.workspace.applyEdit(edit))) continue;
       if (tracked) {
-        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(this.baseOf(target), '..'));
-        await vscode.workspace.fs.rename(base, this.baseOf(target), { overwrite: true });
+        const moved = this.baseOf(target)!;
+        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(moved, '..'));
+        await vscode.workspace.fs.rename(base!, moved, { overwrite: true });
       }
       this.output.info(`Moved ${entry.path} to ${expected}`);
       moved = true;
@@ -525,16 +529,18 @@ export class SyncFolder implements vscode.Disposable {
     kind: KindVersion,
     parents: string[],
     live: Resource,
-    place: Place = this.place(),
+    root: vscode.Uri = this.requireRoot(),
   ): Promise<{ uri: vscode.Uri; written: boolean }> {
     const path = syncPath(kind, parents, live.metadata.name);
-    const uri = vscode.Uri.joinPath(place.root, path);
-    const exists = await fileExists(uri);
-    if (exists && this.entryAt(uri)?.status !== 'synced') throw new NotSyncedCopyError(path, live);
+    const uri = vscode.Uri.joinPath(root, path);
+    const base = this.baseOf(uri)!;
+    // The disk decides, not the last scan, and byte for byte: an edit made since then, even a comment, is kept.
+    const current = await read(uri);
+    const baseText = current === undefined ? undefined : await read(base);
+    if (current !== undefined && current !== baseText) throw new NotSyncedCopyError(path, live);
     const { resource, variables } = withSecretPlaceholders(live);
     const text = stringify(resource);
-    const base = this.baseOf(uri, place);
-    if (exists && (await read(uri)) === text && (await read(base)) === text) return { uri, written: false };
+    if (current === text && baseText === text) return { uri, written: false };
     if (variables.length > 0) {
       this.output.info(
         `${live.kind} ${live.metadata.name}: secrets replaced with ${variables.map((v) => `\${${v}}`).join(', ')}`,
@@ -560,13 +566,12 @@ export class SyncFolder implements vscode.Disposable {
     if (!(await fileExists(ignore))) await write(ignore, '*\n');
   }
 
-  private place(): Place {
-    const env = this.requireEnvironment();
-    return { root: this.requireRoot(), base: vscode.Uri.joinPath(this.requireSyncRoot(), baseDir(env)) };
-  }
-
-  private baseOf(uri: vscode.Uri, place: Place = this.place()): vscode.Uri {
-    return vscode.Uri.joinPath(place.base, uri.path.slice(place.root.path.length + 1));
+  // From the file's own path, never from the current connection: a request that finishes after a switch still writes
+  // its base copy beside the file it belongs to.
+  private baseOf(uri: vscode.Uri, copy: 'base' | 'applied' = 'base'): vscode.Uri | undefined {
+    const syncRoot = this.syncRoot();
+    const path = syncRoot && basePathOf(syncRoot.path, uri.path, copy);
+    return path === undefined ? undefined : uri.with({ path });
   }
 
   private requireSyncRoot(): vscode.Uri {
@@ -575,10 +580,9 @@ export class SyncFolder implements vscode.Disposable {
     return syncRoot;
   }
 
+  // Says which is missing: the folder, the connection, or a usable environment binding in conduktor.yaml.
   private requireRoot(): vscode.Uri {
-    const root = this.root();
-    if (!root) throw new Error('Choose a sync folder (Conduktor: Set Sync Folder…) and connect to a Console.');
-    return root;
+    return vscode.Uri.joinPath(this.requireSyncRoot(), environmentDir(this.requireEnvironment()));
   }
 
   private async requireChosen(): Promise<void> {
@@ -588,6 +592,12 @@ export class SyncFolder implements vscode.Disposable {
   // Per workspace, so each repository can bind its own folder; machine-wide when no folder is open.
   private memory(): vscode.Memento {
     return vscode.workspace.workspaceFolders?.length ? this.context.workspaceState : this.context.globalState;
+  }
+
+  // A resource fetched before a connection switch belongs to the old connection, not to the folder now on show.
+  private requireSameSession(state: Ready, subject: string): void {
+    if (this.sessions.current() !== state)
+      throw new Error(`The connection changed while ${subject} was fetched, so nothing was written.`);
   }
 
   private ready(): Ready {
@@ -659,11 +669,6 @@ export class SyncFolder implements vscode.Disposable {
       await Promise.resolve(vscode.workspace.fs.delete(leftover)).catch(() => undefined);
     }
   }
-}
-
-interface Place {
-  root: vscode.Uri;
-  base: vscode.Uri;
 }
 
 class NotSyncedCopyError extends Error {

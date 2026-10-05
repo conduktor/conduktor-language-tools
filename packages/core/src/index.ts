@@ -67,6 +67,7 @@ export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
 export {
   baseDir,
+  basePathOf,
   collectResources,
   defaultKinds,
   describeBootstrap,

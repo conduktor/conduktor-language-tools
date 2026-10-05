@@ -556,6 +556,24 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('never overwrites a file edited since the folder was last scanned', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-overwrite-'))));
+    const kind = state.spec.catalog.latest('KafkaCluster')!;
+    try {
+      const uri = await api.sync.syncResource(kind, [], 'local-gateway');
+      const edited = `${readFileSync(uri.fsPath, 'utf8')}# kept\n`;
+      // Before the watcher's rescan: the cached status still says synced.
+      writeFileSync(uri.fsPath, edited);
+      await assert.rejects(api.sync.syncResource(kind, [], 'local-gateway'), /not a synced copy/);
+      assert.strictEqual(readFileSync(uri.fsPath, 'utf8'), edited);
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('never stages a live save over local changes, an unknown file or another connection', async () => {
     const api = await activate();
     const state = api.sessions.current();
