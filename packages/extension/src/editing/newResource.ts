@@ -11,6 +11,7 @@ import {
   parentsOf,
   skeletonYaml,
   templateDocument,
+  templateName,
   type Choice,
   type KindCatalog,
   type KindVersion,
@@ -88,8 +89,11 @@ export async function newResource(
   const local = await sync.ensureChosen();
   const name = await nameFor(sync, local, kind, parents, template);
   if (!name) {
+    const own = template.baseName && template.fixedNames?.includes(template.baseName);
     void vscode.window.showWarningMessage(
-      `Every ${kind.kind} name (${template.fixedNames!.join(', ')}) already has a local file.`,
+      own
+        ? `${kind.kind} ${template.baseName} already has a local file.`
+        : `Every ${kind.kind} name (${template.fixedNames!.join(', ')}) already has a local file.`,
     );
     return undefined;
   }
@@ -124,7 +128,10 @@ async function repoTemplates(sync: SyncFolder, kind: string): Promise<{ label: s
 }
 
 async function fileTemplate(state: Ready, uri: vscode.Uri, kind: KindVersion): Promise<Template | undefined> {
-  const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+  const text = await Promise.resolve(vscode.workspace.fs.readFile(uri)).then(
+    (bytes) => new TextDecoder().decode(bytes),
+    () => '',
+  );
   const document = templateDocument(text, kind.kind);
   if (!document) {
     void vscode.window.showWarningMessage(
@@ -165,6 +172,11 @@ async function nameFor(
   const fixed = template.fixedNames;
   const base = template.baseName ?? newResourceName(kind);
   if (!fixed) return local ? sync.freeName(kind, parents, base) : base;
+  if (template.baseName !== undefined) {
+    const taken = new Set<string>();
+    if (local) for (const name of fixed) if ((await sync.freeName(kind, parents, name)) !== name) taken.add(name);
+    return templateName(template.baseName, fixed, taken);
+  }
   if (!local) return fixed[0];
   for (const candidate of fixed) if ((await sync.freeName(kind, parents, candidate)) === candidate) return candidate;
   return undefined;

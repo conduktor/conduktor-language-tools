@@ -113,6 +113,7 @@ describe('planRootMove', () => {
       '.conduktor/base/dev',
       'conduktor.yaml',
       '.conduktor/.gitignore',
+      'templates',
     ]);
   });
 });

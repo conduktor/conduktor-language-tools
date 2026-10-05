@@ -1,6 +1,6 @@
 export const ENVIRONMENTS_DIR = 'environments';
 export const STATE_DIR = '.conduktor';
-const REPO_FILES = ['conduktor.yaml', `${STATE_DIR}/.gitignore`];
+const REPO_FILES = ['conduktor.yaml', `${STATE_DIR}/.gitignore`, 'templates'];
 
 export interface Move {
   from: string;

@@ -1566,11 +1566,30 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(parse(again!.getText()).metadata.name, 'high-throughput-2', 'a free name from the template');
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
+      await api.sync.refresh();
+      const before = api.sync.list().length;
       api.setTemplatePicker(async (_kind, templates) => templates.find((t) => t.label === 'broken')!.uri);
       assert.strictEqual(await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] }), undefined);
       api.setTemplatePicker(async () => undefined);
       assert.strictEqual(await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] }), undefined);
       await api.sync.refresh();
+      assert.strictEqual(api.sync.list().length, before, 'a broken or dismissed template writes nothing');
+
+      const integration = state.spec.catalog.latest('Integration')!;
+      await vscode.workspace.fs.writeFile(
+        vscode.Uri.joinPath(root, 'templates', 'Integration', 'slack.yaml'),
+        new TextEncoder().encode('apiVersion: v3\nkind: Integration\nmetadata:\n  name: Slack\nspec: {}\n'),
+      );
+      api.setTemplatePicker(async (_kind, templates) => templates[0]!.uri);
+      const slack = await api.newResource({ type: 'kind', kind: integration, parents: [] });
+      assert.strictEqual(parse(slack!.getText()).metadata.name, 'Slack', 'a fixed-name template keeps its own name');
+      assert.ok(slack!.uri.path.endsWith('/Integration/Slack.yaml'), slack!.uri.path);
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      assert.strictEqual(
+        await api.newResource({ type: 'kind', kind: integration, parents: [] }),
+        undefined,
+        'not twice',
+      );
       assert.ok(
         !api.sync.list().some((e) => e.uri.path.includes('/templates/')),
         'templates are not repository resources',

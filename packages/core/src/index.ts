@@ -121,6 +121,7 @@ export {
   snippetOf,
   snippetVariants,
   templateDocument,
+  templateName,
   type Answers,
   type Choice,
 } from './templates';
