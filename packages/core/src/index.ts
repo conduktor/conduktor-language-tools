@@ -115,10 +115,12 @@ export {
 export {
   blankDocumentAt,
   fixedNames,
+  fromTemplate,
   nextChoice,
   skeletonYaml,
   snippetOf,
   snippetVariants,
+  templateDocument,
   type Answers,
   type Choice,
 } from './templates';
