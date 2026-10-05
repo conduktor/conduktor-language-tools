@@ -4,8 +4,10 @@ export const REDACTED = '<redacted>';
 export const REDACTED_MESSAGE = 'is a redacted secret; leave it out or use a ${VAR} the user sets';
 
 // Mirrors Console's own MCP responses, which never give an agent credentials. Matching on names covers every kind
-// (cluster client properties, schema registry and Connect security, Gateway and AWS credentials, connector configs).
-const SECRET_KEY = /password|passwd|secret|token|jaas|credential|private.?key|api.?key|access.?key/i;
+// (cluster client properties, schema registry and Connect security, Gateway and AWS credentials, connector configs,
+// webhook headers).
+const SECRET_KEY =
+  /password|passwd|secret|token|jaas|credential|private.?key|api.?key|access.?key|authori[sz]ation|cookie|x-?auth/i;
 const PRIVATE_KEY_PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 
 const URL_START = /^(?:[a-z][a-z0-9+.-]*:)+\/\//i;

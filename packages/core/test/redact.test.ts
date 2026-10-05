@@ -6,6 +6,31 @@ import { withSecretPlaceholders } from '../src/sync/placeholders';
 import { redactedPaths, redactSecrets } from '../src/tools/redact';
 
 describe('redactSecrets', () => {
+  it('redacts HTTP credential headers and keeps the rest', () => {
+    const headers = {
+      Authorization: 'Bearer abc',
+      'Proxy-Authorization': 'Basic x',
+      Cookie: 's=1',
+      'X-Auth-Token': 't',
+      'Content-Type': 'application/json',
+    };
+    const { value } = redactSecrets({ spec: { destination: { headers }, authorization: { type: 'KAFKA_ACL' } } });
+    expect(value).toEqual({
+      spec: {
+        destination: {
+          headers: {
+            Authorization: '<redacted>',
+            'Proxy-Authorization': '<redacted>',
+            Cookie: '<redacted>',
+            'X-Auth-Token': '<redacted>',
+            'Content-Type': 'application/json',
+          },
+        },
+        authorization: { type: 'KAFKA_ACL' },
+      },
+    });
+  });
+
   it('leaves numbers, booleans and objects under secret-looking names alone', () => {
     const value = { maxTokens: 4096, tokenRefresh: true, machineTokens: { active: 2 }, apiKey: 'k' };
     expect(redactSecrets(value)).toEqual({
