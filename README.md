@@ -26,6 +26,7 @@ is valid, and what applying it would change. Git comes with VS Code.
 | **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | **Sync folder**           | Stage resources as local files mirroring the tree, see what is new, modified or drifted, and apply all changes in dependency order. **Sync Everything** bootstraps a GitOps repository from the Console. See [Local sync folder](#local-sync-folder).                                                                                                                                                                                                                                                                                                                                                                                              |
 | **References**            | Completion of the names a field refers to, from the repository and the Console; Problems for references to nothing, pattern traps and overlapping ownership; CodeLens counts of what each pattern matches; Go to Definition. See [References](#references).                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Topic configs**         | In a Topic's `spec.configs`: completion of Kafka's topic configs with their docs and defaults, hovers linking to the Kafka docs, and Problems for unknown keys and values Kafka would refuse. Under `spec`, presets (high throughput, compacted, retention…) and the Console's topic templates set partitions, replication and configs in one go. See [Topic configs](#topic-configs).                                                                                                                                                                                                                                                             |
 | **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ## Local sync folder
@@ -95,6 +96,16 @@ Console reads patterns three ways, and the editor follows it: instance resources
 characters (PREFIXED is a plain prefix); group and user permissions treat a trailing `*` as a prefix; service-account
 ACLs go to Kafka, where LITERAL `*` is the wildcard. Consumer groups, Kafka principals and transactional ids have no
 IaC list, so references to them are not checked.
+
+## Topic configs
+
+The topic configs come from Kafka's own reference for the version the local stack runs (4.2), plus the Confluent keys Console
+knows, in a checked-in snapshot (`packages/core/snapshot/topic-configs.json`); refresh it with
+`node scripts/refresh-topic-configs.ts`. In a Topic's `spec.configs`, completion offers every config not yet set
+(with a choice of values where Kafka lists them), hovers show the doc, type, default and valid values with a link,
+and Problems flag an unknown key (a warning — brokers may carry their own) or a value of the wrong type or range.
+Typing a key directly under `spec` offers **presets**: built-in profiles and the Console's TopicTemplates, which set
+`partitions`, `replicationFactor` and the matching configs without touching anything else in the document.
 
 ## AI agents
 
