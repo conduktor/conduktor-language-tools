@@ -57,6 +57,7 @@ export { schemaAt, type FieldSchema } from './openapi/schemaAt';
 export {
   agentInstructions,
   conduktorTools,
+  containedFile,
   isInside,
   ToolError,
   workspaceFile,
