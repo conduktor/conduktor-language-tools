@@ -8,6 +8,8 @@ import {
   type Resource,
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
+import { ContentCache } from '../sync/contentCache';
+import { readAll } from '../sync/files';
 import type { SyncFolder } from '../sync/syncFolder';
 
 /** A Console document in the repository: its file, its text and where it starts in the file. */
@@ -23,6 +25,7 @@ export class Names implements vscode.Disposable {
   private lists = new Map<string, Promise<Resource[] | undefined>>();
   private files = new Map<string, Promise<RepoDocument[]>>();
   private others: Promise<RepoDocument[]> | undefined;
+  private readonly fileDocuments = new ContentCache<RepoDocument[]>();
   private readonly parsed = new Map<string, { version: number; documents: RepoDocument[] }>();
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
@@ -33,8 +36,13 @@ export class Names implements vscode.Disposable {
     private readonly sync: SyncFolder,
   ) {
     this.listeners = [
-      sessions.onDidChange(() => this.clear()),
+      sessions.onDidChange(() => {
+        // Parsed against the session's catalog; the Console's answers alone do not change a file.
+        this.fileDocuments.clear();
+        this.clear();
+      }),
       sync.onDidChange(() => {
+        this.fileDocuments.retain(this.sync.list().map((entry) => entry.uri.toString()));
         this.files = new Map();
         this.others = undefined;
         this.changed.fire();
@@ -113,12 +121,15 @@ export class Names implements vscode.Disposable {
   }
 
   private async readFiles(kind: string): Promise<RepoDocument[]> {
-    const found: RepoDocument[] = [];
-    for (const entry of this.sync.list().filter((e) => e.kind === kind)) {
-      const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
-      found.push(...this.documentsIn(entry.uri, text).filter((document) => document.resource.kind === kind));
-    }
-    return found;
+    const entries = this.sync.list().filter((e) => e.kind === kind);
+    const texts = await readAll(entries.map((entry) => entry.uri));
+    return entries.flatMap((entry, i) => {
+      const text = texts[i];
+      if (text === undefined) return [];
+      return this.fileDocuments
+        .get(entry.uri.toString(), [text], () => this.documentsIn(entry.uri, text))
+        .filter((document) => document.resource.kind === kind);
+    });
   }
 
   private documentsIn(uri: vscode.Uri, fullText: string): RepoDocument[] {

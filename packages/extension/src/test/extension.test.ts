@@ -1742,6 +1742,23 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await api.sync.refresh();
       assert.strictEqual(status('t-9'), undefined, 'a re-created file is read afresh');
       assert.ok(api.sync.others().some((uri) => uri.path.endsWith('/t-9.yaml')));
+
+      const timed = async () => {
+        const at = Date.now();
+        const documents = await api.names.repoDocuments('Topic');
+        return { documents, took: Date.now() - at };
+      };
+      await timed();
+      writeFileSync(join(root, 'environments', env, folder, 't-11.yaml'), text(11, 5));
+      await api.sync.refresh();
+      const { documents, took: indexed } = await timed();
+      assert.ok(indexed < 300, `the name index took ${indexed} ms after one change`);
+      assert.strictEqual(
+        (documents.find((d) => d.resource.metadata.name === 't-11')?.resource.spec as { partitions?: number })
+          ?.partitions,
+        5,
+        'the changed file is read afresh',
+      );
     } finally {
       await useWorkspaceSyncRoot(api);
     }
