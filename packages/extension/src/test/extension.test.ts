@@ -1693,4 +1693,57 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await useWorkspaceSyncRoot(api);
     }
   });
+
+  test('stays quick in a sync folder of thousands of resources', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-large-'));
+    const env = state.connection.name;
+    const folder = `clusters/local-kafka/kafka/Topic`;
+    const text = (i: number, partitions = 1) =>
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: `t-${i}`, cluster: 'local-kafka' },
+        spec: { partitions, replicationFactor: 1 },
+      });
+    mkdirSync(join(root, 'environments', env, folder), { recursive: true });
+    mkdirSync(join(root, '.conduktor', 'base', env, folder), { recursive: true });
+    for (let i = 0; i < 3000; i++) {
+      writeFileSync(join(root, 'environments', env, folder, `t-${i}.yaml`), text(i));
+      writeFileSync(join(root, '.conduktor', 'base', env, folder, `t-${i}.yaml`), text(i));
+    }
+    const topic = state.spec.catalog.latest('Topic')!;
+    try {
+      await api.sync.setSyncRoot(vscode.Uri.file(root));
+      assert.strictEqual(api.sync.list().length, 3000);
+      assert.ok(api.sync.list().every((e) => e.status === 'synced'));
+
+      const started = Date.now();
+      const doc = await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] });
+      const took = Date.now() - started;
+      assert.ok(doc);
+      assert.ok(took < 400, `New Resource took ${took} ms`);
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+      writeFileSync(join(root, 'environments', env, folder, 't-7.yaml'), text(7, 2));
+      writeFileSync(join(root, '.conduktor', 'base', env, folder, 't-8.yaml'), text(8, 3));
+      rmSync(join(root, 'environments', env, folder, 't-9.yaml'));
+      await api.sync.refresh();
+      const status = (name: string) => api.sync.entryFor('Topic', ['local-kafka'], name)?.status;
+      assert.strictEqual(status('t-7'), 'modified', 'a changed file');
+      assert.strictEqual(status('t-8'), 'modified', 'a changed base');
+      assert.strictEqual(status('t-9'), undefined, 'a deleted file');
+      assert.strictEqual(status('t-10'), 'synced');
+      assert.strictEqual(api.sync.list().length, 3000, '2999 plus the new one');
+
+      writeFileSync(join(root, 'environments', env, folder, 't-9.yaml'), 'not: a resource\n');
+      await api.sync.refresh();
+      assert.strictEqual(status('t-9'), undefined, 'a re-created file is read afresh');
+      assert.ok(api.sync.others().some((uri) => uri.path.endsWith('/t-9.yaml')));
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
 });

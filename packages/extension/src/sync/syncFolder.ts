@@ -38,7 +38,8 @@ import {
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
-import { fileExists, read, write } from './files';
+import { ContentCache } from './contentCache';
+import { fileExists, read, readAll, write } from './files';
 import { singleFlight } from './singleFlight';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
@@ -74,6 +75,8 @@ export class SyncFolder implements vscode.Disposable {
     (options) => this.rescan(options),
     (a, b) => ({ drift: a.drift || b.drift }),
   );
+  private readonly scanned = new ContentCache<{ identity: Identity; status: SyncStatus } | undefined>();
+  private scannedWith: SessionState | undefined;
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
   private readonly sessionListener: vscode.Disposable;
@@ -422,23 +425,29 @@ export class SyncFolder implements vscode.Disposable {
       new vscode.RelativePattern(root, '**/*.{yaml,yml}'),
       new vscode.RelativePattern(root, `${STATE_DIR}/**`),
     );
+    // Identities depend on the session's catalog, so nothing carries over to another session.
+    if (state !== this.scannedWith) {
+      this.scanned.clear();
+      this.scannedWith = state;
+    }
+    const texts = await readAll(files);
+    const bases = await readAll(files.map((uri, i) => (texts[i] === undefined ? undefined : this.baseOf(uri))));
     const entries: LocalEntry[] = [];
     const others: vscode.Uri[] = [];
-    for (const uri of files) {
-      const text = await read(uri);
-      const identity = text === undefined || state.status !== 'ready' ? undefined : identify(text, state);
-      if (!identity) {
-        if (text !== undefined) others.push(uri);
-        continue;
-      }
-      const base = await read(this.baseOf(uri));
-      entries.push({
-        uri,
-        path: uri.path.slice(root.path.length + 1),
-        ...identity,
-        status: syncStatus(text!, base),
-      });
-    }
+    files.forEach((uri, i) => {
+      const text = texts[i];
+      if (text === undefined) return;
+      const found =
+        state.status === 'ready'
+          ? this.scanned.get(uri.toString(), [text, bases[i]], () => {
+              const identity = identify(text, state);
+              return identity && { identity, status: syncStatus(text, bases[i]) };
+            })
+          : undefined;
+      if (!found) others.push(uri);
+      else entries.push({ uri, path: uri.path.slice(root.path.length + 1), ...found.identity, status: found.status });
+    });
+    this.scanned.retain(files.map(String));
     this.otherFiles = others;
     return entries;
   }
@@ -686,6 +695,8 @@ function sameParents(a: readonly string[], b: readonly string[]): boolean {
 function folderOf(path: string): string {
   return path.slice(0, path.lastIndexOf('/'));
 }
+
+type Identity = NonNullable<ReturnType<typeof identify>>;
 
 function identify(text: string, state: Ready) {
   let value: unknown;
