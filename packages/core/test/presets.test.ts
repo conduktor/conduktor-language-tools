@@ -7,7 +7,7 @@ describe('topic presets', () => {
   it('offers the common profiles, every value valid', () => {
     expect(TOPIC_PRESETS.map((p) => p.id)).toEqual([
       'high-throughput',
-      'low-latency',
+      'durable',
       'compacted',
       'short-retention',
       'long-retention',
@@ -15,6 +15,8 @@ describe('topic presets', () => {
     for (const preset of TOPIC_PRESETS)
       for (const [key, value] of Object.entries(preset.configs))
         expect(checkTopicConfig(key, value), `${preset.id} ${key}`).toBeUndefined();
+    // Topic-level compression makes the broker recompress whatever producers send.
+    expect(TOPIC_PRESETS.filter((p) => 'compression.type' in p.configs)).toEqual([]);
   });
 
   it('applies a preset to a topic, keeping what it does not set', () => {
@@ -49,5 +51,17 @@ describe('topic presets', () => {
       replicationFactor: 3,
       configs: {},
     });
+  });
+
+  it('applies a preset to a topic whose spec or configs are still empty', () => {
+    const compacted = TOPIC_PRESETS.find((p) => p.id === 'compacted')!;
+    for (const text of ['kind: Topic\nspec:\n', 'kind: Topic\nspec:\n  configs:\n'])
+      expect(parse(applyPreset(text, compacted)).spec.configs).toEqual(compacted.configs);
+  });
+
+  it('replaces a commented value and keeps its comment', () => {
+    const text = 'kind: Topic\nspec:\n  configs:\n    retention.ms: "1" # keep\n';
+    const short = TOPIC_PRESETS.find((p) => p.id === 'short-retention')!;
+    expect(applyPreset(text, short)).toContain('retention.ms: "86400000" # keep');
   });
 });

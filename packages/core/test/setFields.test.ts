@@ -31,4 +31,40 @@ describe('setFields', () => {
       'spec: { partitions: 1, replicationFactor: 2 }\n',
     );
   });
+
+  it('fills an empty map', () => {
+    expect(setFields('kind: Topic\nspec:\n', ['spec'], { partitions: 3 })).toBe(
+      'kind: Topic\nspec:\n  partitions: 3\n',
+    );
+    expect(setFields('spec: # later\n  \nkind: Topic\n', ['spec', 'configs'], { 'cleanup.policy': 'compact' })).toBe(
+      'spec: # later\n  configs:\n    cleanup.policy: compact\n  \nkind: Topic\n',
+    );
+    expect(setFields('spec:\n  configs:\n', ['spec', 'configs'], { 'retention.ms': '1' })).toBe(
+      'spec:\n  configs:\n    retention.ms: "1"\n',
+    );
+  });
+
+  it('gives a key with no value one', () => {
+    expect(setFields('spec:\n  configs:\n    retention.ms:\n', ['spec', 'configs'], { 'retention.ms': '1' })).toBe(
+      'spec:\n  configs:\n    retention.ms: "1"\n',
+    );
+  });
+
+  it('quotes list values written into a flow map', () => {
+    const text = setFields('spec: { configs: { retention.ms: 1 } }\n', ['spec', 'configs'], {
+      'retention.ms': 'a,b',
+      'cleanup.policy': 'compact,delete',
+    });
+    expect(text).toBe('spec: { configs: { retention.ms: "a,b", cleanup.policy: "compact,delete" } }\n');
+  });
+
+  it('inserts before a nested map when there is no one-line field, rather than reformatting', () => {
+    const text = "metadata: {name: t, cluster: 'c'}\nspec:\n  configs:\n    a: b\n";
+    expect(setFields(text, ['spec'], { partitions: 3 })).toBe(
+      "metadata: {name: t, cluster: 'c'}\nspec:\n  partitions: 3\n  configs:\n    a: b\n",
+    );
+    expect(setFields('spec:\n  configs:\n    a: b\n', ['spec'], { labels: { team: 'x' } })).toBe(
+      'spec:\n  labels:\n    team: x\n  configs:\n    a: b\n',
+    );
+  });
 });

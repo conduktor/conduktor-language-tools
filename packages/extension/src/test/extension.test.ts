@@ -1626,6 +1626,13 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       'config keys are offered',
     );
     assert.ok(!keys.items.some((i) => label(i) === 'retention.ms'), 'a key already set is not offered again');
+    const snippet = (key: string) => {
+      const insert = keys.items.find((i) => label(i) === key)?.insertText;
+      return insert instanceof vscode.SnippetString ? insert.value : insert;
+    };
+    assert.strictEqual(snippet('segment.ms'), 'segment.ms: ${1:604800000}', 'a whole number stays plain');
+    assert.strictEqual(snippet('preallocate'), 'preallocate: "${1:false}"', 'Console takes a boolean as a string');
+    assert.strictEqual(snippet('cleanup.policy'), 'cleanup.policy: "${1|compact,delete|}"');
 
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
       'vscode.executeHoverProvider',
@@ -1642,6 +1649,23 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.ok(compacted?.command, presets.items.map(label).join(', '));
     await vscode.commands.executeCommand(compacted.command.command, ...(compacted.command.arguments ?? []));
     assert.strictEqual(parse(doc.getText()).spec.configs['cleanup.policy'], 'compact');
+
+    const empty = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: 'apiVersion: v2\nkind: Topic\nmetadata: { name: vscode-empty, cluster: local-kafka }\nspec:\n  \n',
+    });
+    const offered = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      empty.uri,
+      new vscode.Position(4, 2),
+    );
+    const durable = offered.items.find((i) => label(i) === 'Preset: Durable');
+    assert.ok(durable?.command, offered.items.map(label).join(', '));
+    await vscode.commands.executeCommand(durable.command.command, ...(durable.command.arguments ?? []));
+    assert.deepStrictEqual(parse(empty.getText()).spec, {
+      replicationFactor: 3,
+      configs: { 'min.insync.replicas': '2', 'unclean.leader.election.enable': 'false' },
+    });
   });
 
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {

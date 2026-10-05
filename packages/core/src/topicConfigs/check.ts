@@ -10,14 +10,20 @@ export function checkTopicConfig(key: string, value: unknown): TopicConfigProble
   const config = topicConfig(key);
   if (!config)
     return { message: `${key} is not a Kafka topic config (a broker may still accept it).`, severity: 'warning' };
-  const text = String(value).trim();
   const error = (message: string): TopicConfigProblem => ({ message, severity: 'error' });
+  // Console sends a config as a JSON long or a string; YAML booleans, decimals and numbers past 2^53 are neither.
+  if (typeof value === 'boolean' || (typeof value === 'number' && !Number.isSafeInteger(value)))
+    return error(`${key} must be a whole number or a string; quote it: "${String(value)}".`);
+  const text = String(value).trim();
   switch (config.type) {
     case 'int':
-    case 'long':
-      if (!/^-?\d+$/.test(text))
-        return error(`${key} is ${config.type === 'int' ? 'an int' : 'a long'} (a whole number).`);
+    case 'long': {
+      const limit = config.type === 'int' ? 2n ** 31n : 2n ** 63n;
+      const name = config.type === 'int' ? 'an int' : 'a long';
+      if (!/^-?\d+$/.test(text)) return error(`${key} is ${name} (a whole number).`);
+      if (BigInt(text) >= limit || BigInt(text) < -limit) return error(`${key} is ${name}, at most ${limit - 1n}.`);
       break;
+    }
     case 'double':
       if (text === '' || !Number.isFinite(Number(text))) return error(`${key} is a number.`);
       break;

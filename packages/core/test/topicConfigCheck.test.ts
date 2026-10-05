@@ -39,4 +39,17 @@ describe('checkTopicConfig', () => {
       severity: 'warning',
     });
   });
+
+  it('refuses values Console cannot send: booleans, decimals and unsafe numbers unquoted', () => {
+    expect(checkTopicConfig('preallocate', false)?.message).toMatch(/quote it/);
+    expect(checkTopicConfig('min.cleanable.dirty.ratio', 0.5)?.message).toMatch(/quote it/);
+    expect(checkTopicConfig('flush.messages', Number('9223372036854775807'))?.message).toMatch(/quote it/);
+    expect(checkTopicConfig('flush.messages', '9223372036854775807')).toBeUndefined();
+  });
+
+  it('refuses whole numbers beyond an int or a long', () => {
+    expect(checkTopicConfig('max.message.bytes', '3000000000')?.severity).toBe('error');
+    expect(checkTopicConfig('max.message.bytes', '2147483647')).toBeUndefined();
+    expect(checkTopicConfig('retention.ms', '99999999999999999999')?.severity).toBe('error');
+  });
 });

@@ -26,14 +26,15 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
   if (index >= specEnd) return undefined;
   const column = offset - line.start;
   const before = line.text.slice(0, column);
-  const childIndent = lines.slice(specAt + 1, specEnd).find((l) => !l.blank)?.indent ?? 2;
+  const childIndent = lines.slice(specAt + 1, specEnd).find((l) => !l.blank && !comment(l))?.indent ?? 2;
+  const indentation = /^\s*/.exec(before)![0].length;
 
   const configsAt = lines.findIndex(
     (l, i) => i > specAt && i < specEnd && l.indent === childIndent && /^\s*configs:\s*(#.*)?$/.test(l.text),
   );
-  if (configsAt !== -1 && index > configsAt && index < blockEnd(lines, configsAt, childIndent)) {
-    const indentation = /^\s*/.exec(before)![0].length;
-    if (indentation <= childIndent && !line.blank) return undefined;
+  const inConfigs = configsAt !== -1 && index > configsAt && index < blockEnd(lines, configsAt, childIndent);
+  // A blank line inside the configs block belongs to spec when the cursor sits at spec's indentation.
+  if (inConfigs && indentation > childIndent) {
     const colon = line.text.indexOf(':');
     if (colon !== -1 && column > colon) {
       const valueStart = line.start + colon + 1 + /^\s*/.exec(line.text.slice(colon + 1))![0].length;
@@ -63,7 +64,6 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
   }
 
   if (!before.includes(':') && /^\s*[A-Za-z]*$/.test(before) && /^\s*$/.test(line.text.slice(column))) {
-    const indentation = /^\s*/.exec(before)![0].length;
     if (indentation === childIndent) {
       const word = /[A-Za-z]*$/.exec(before)![0];
       return { where: 'specKey', start: offset - word.length, end: offset };
@@ -86,9 +86,13 @@ function splitLines(text: string): Line[] {
 function blockEnd(lines: Line[], at: number, indent: number): number {
   for (let i = at + 1; i < lines.length; i++) {
     const line = lines[i]!;
-    if (!line.blank && !line.text.trim().startsWith('#') && line.indent <= indent) return i;
+    if (!line.blank && !comment(line) && line.indent <= indent) return i;
   }
   return lines.length;
+}
+
+function comment(line: Line): boolean {
+  return line.text.trim().startsWith('#');
 }
 
 function presentKeys(lines: Line[], configsAt: number, childIndent: number): string[] {

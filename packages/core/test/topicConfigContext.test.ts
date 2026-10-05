@@ -54,4 +54,20 @@ describe('topicConfigContext', () => {
     expect(topicConfigContext(text, at('partitions', 3))).toBeUndefined();
     expect(topicConfigContext(text, at('metadata', 2))).toBeUndefined();
   });
+
+  it('reads a blank line by the cursor column', () => {
+    const blank = 'kind: Topic\nspec:\n  configs:\n    a: b\n  \n';
+    expect(topicConfigContext(blank, blank.length - 1)).toMatchObject({ where: 'specKey' });
+    const deeper = 'kind: Topic\nspec:\n  configs:\n    a: b\n    \n';
+    expect(topicConfigContext(deeper, deeper.length - 1)).toMatchObject({ where: 'configKey' });
+    const left = 'kind: Topic\nspec:\n  configs:\n    a: b\n\n  partitions: 1\n';
+    expect(topicConfigContext(left, left.indexOf('\n\n') + 1)).toBeUndefined();
+  });
+
+  it('skips comments when reading the indentation under spec', () => {
+    const top = 'kind: Topic\nspec:\n# c\n  partitions: 1\n  \n';
+    expect(topicConfigContext(top, top.length - 1)).toMatchObject({ where: 'specKey' });
+    const deep = 'kind: Topic\nspec:\n    # c\n  configs:\n    a: b\n    \n';
+    expect(topicConfigContext(deep, deep.length - 1)).toMatchObject({ where: 'configKey' });
+  });
 });

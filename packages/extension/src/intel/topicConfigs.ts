@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import {
   applyPreset,
   checkTopicConfig,
+  configValueYaml,
   isRecord,
   presetFromTemplate,
   rangeOf,
@@ -44,9 +45,10 @@ export class TopicConfigProvider implements vscode.CompletionItemProvider, vscod
             .join(' · ');
           item.documentation = docs(config);
           const choices = enumOf(config);
-          item.insertText = new vscode.SnippetString(
-            `${config.key}: ${choices ? `\${1|${choices.join(',')}|}` : `\${1:${config.default ?? ''}}`}`,
-          );
+          // The placeholder sits inside the quotes Console needs for anything but a whole number.
+          const quoted = choices || configValueYaml(config.key, config.default ?? '') !== config.default;
+          const placeholder = choices ? `\${1|${choices.join(',')}|}` : `\${1:${snippetText(config.default ?? '')}}`;
+          item.insertText = new vscode.SnippetString(`${config.key}: ${quoted ? `"${placeholder}"` : placeholder}`);
           item.range = range;
           return item;
         });
@@ -58,6 +60,8 @@ export class TopicConfigProvider implements vscode.CompletionItemProvider, vscod
         return values.map((value) => {
           const item = new vscode.CompletionItem(value, vscode.CompletionItemKind.Value);
           if (value === config?.default) item.detail = 'default';
+          item.insertText = configValueYaml(context.key, value);
+          if (document.getText(range).startsWith('"')) item.filterText = item.insertText;
           item.range = range;
           return item;
         });
@@ -198,6 +202,10 @@ function enumOf(config: TopicConfigDoc | undefined): string[] | undefined {
   const match = config?.validValues && /^\[([^\]]*)\]$/.exec(config.validValues.split(/\s+or\s+/)[0]!.trim());
   if (!match || match[1]!.includes('...')) return undefined;
   return match[1]!.split(',').map((value) => value.trim());
+}
+
+function snippetText(text: string): string {
+  return text.replace(/[$}\\]/g, '\\$&');
 }
 
 function docs(config: TopicConfigDoc): vscode.MarkdownString {

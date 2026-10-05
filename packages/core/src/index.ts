@@ -128,6 +128,7 @@ export {
 export {
   applyPreset,
   checkTopicConfig,
+  configValueYaml,
   parseKafkaTopicConfigs,
   presetFromTemplate,
   topicConfig,
