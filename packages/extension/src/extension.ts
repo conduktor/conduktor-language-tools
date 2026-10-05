@@ -27,6 +27,7 @@ import { Names } from './intel/names';
 import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
+import { SnippetCompletionProvider } from './intel/snippets';
 import { createStatusBar } from './statusBar';
 
 export interface ExtensionApi {
@@ -110,6 +111,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerCompletionItemProvider(
       { language: 'yaml' },
       new ReferenceCompletionProvider(sessions, names),
+    ),
+    vscode.languages.registerCompletionItemProvider(
+      { language: 'yaml' },
+      new SnippetCompletionProvider(sessions, names, clusters),
     ),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, matchLenses),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, referrers),

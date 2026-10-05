@@ -1497,6 +1497,35 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('offers a snippet per kind where a document is empty', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.clusters.set('local-kafka');
+    const complete = async (content: string, offset = content.length) => {
+      const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+      const list = await vscode.commands.executeCommand<vscode.CompletionList>(
+        'vscode.executeCompletionItemProvider',
+        doc.uri,
+        doc.positionAt(offset),
+      );
+      return list.items.filter((i) =>
+        String(typeof i.label === 'string' ? i.label : i.label.label).startsWith('Conduktor: '),
+      );
+    };
+    const items = await complete('Top');
+    const topic = items.find((i) => i.label === 'Conduktor: Topic');
+    assert.ok(topic, items.map((i) => i.label).join(', '));
+    const snippet = (topic.insertText as vscode.SnippetString).value;
+    assert.match(snippet, /kind: Topic/);
+    assert.match(snippet, /cluster: \$\{2\|local-kafka,/);
+    assert.ok(items.some((i) => i.label === 'Conduktor: KafkaCluster (kafkaFlavor Gateway)'));
+    const range = topic.range as vscode.Range;
+    assert.deepStrictEqual([range.start.character, range.end.character], [0, 3], 'replaces the typed word');
+    assert.ok((await complete('kind: Topic\nmetadata: { name: a }\n---\n')).length > 0, 'after a separator');
+    assert.strictEqual((await complete('kind: Topic\nmetadata: { name: a }\n', 2)).length, 0, 'not inside a document');
+  });
+
   test('moves a sync folder from the old layout into environments/, base copies to the root', async () => {
     const api = await activate();
     const state = api.sessions.current();
