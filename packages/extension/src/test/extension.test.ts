@@ -1465,9 +1465,32 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       const [item] = (await api.dryRun(filled.uri)) ?? [];
       assert.deepStrictEqual(item?.outcome, { status: 'ok', result: 'Created' });
 
-      api.setVariantPicker(async () => undefined);
-      const dismissed = await api.newResource({ type: 'kind', kind: state.spec.catalog.latest('Alert')!, parents: [] });
-      assert.strictEqual(dismissed, undefined, 'dismissing the picker writes nothing');
+      const before = api.sync.list().length;
+      let questions = 0;
+      api.setVariantPicker(async (choice) => (questions++ === 0 ? choice.options[0]! : undefined));
+      const dismissed = await api.newResource({
+        type: 'kind',
+        kind: state.spec.catalog.latest('KafkaCluster')!,
+        parents: [],
+      });
+      assert.strictEqual(dismissed, undefined, 'dismissing the picker half-way writes nothing');
+      assert.strictEqual(questions, 2);
+      await api.sync.refresh();
+      assert.strictEqual(api.sync.list().length, before);
+
+      api.setVariantPicker(async () => null);
+      const integration = state.spec.catalog.latest('Integration')!;
+      const drafts = [
+        await api.newResource({ type: 'kind', kind: integration, parents: [] }),
+        await api.newResource({ type: 'kind', kind: integration, parents: [] }),
+      ];
+      try {
+        const names = drafts.map((d) => parse(d!.getText()).metadata.name as string);
+        assert.notStrictEqual(names[0], names[1], 'each draft takes an allowed name not yet used');
+        drafts.forEach((d, i) => assert.ok(d!.uri.path.endsWith(`/${names[i]}.yaml`), d!.uri.path));
+      } finally {
+        for (const d of drafts) if (d) await Promise.resolve(vscode.workspace.fs.delete(d.uri)).catch(() => undefined);
+      }
     } finally {
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
       await Promise.resolve(vscode.workspace.fs.delete(doc.uri)).catch(() => undefined);

@@ -24,9 +24,9 @@ export function skeletonYaml(
   const metadata = properties.metadata
     ? renderObject(root, properties.metadata, ['metadata'], example.metadata, answers, document, 0)
     : new YAMLMap();
-  // A name the schema fixes to a list (Integration: Email, Slack…) keeps the allowed value.
-  const nameSchema = metadataField(root, properties.metadata, 'name');
-  if (!nameSchema || !Array.isArray(nameSchema.enum)) metadata.set('name', name);
+  // A name the schema fixes to a list (Integration: Email, Slack…) is only taken when it is one of them.
+  const allowed = fixedNames(root);
+  if (!allowed || allowed.includes(name)) metadata.set('name', name);
   for (const [param, value] of Object.entries(parents)) metadata.set(param, value);
   (document.contents as YAMLMap).set('metadata', metadata);
   const spec = properties.spec && render(root, properties.spec, ['spec'], example.spec, answers, document, 0);
@@ -92,7 +92,15 @@ function renderObject(
       if (value !== undefined) map.items.push(document.createPair(key, value) as Pair);
     }
   }
-  if (optional.length > 0) map.comment = optional.map((line) => ` ${line}`).join('\n');
+  // An empty object stays `key: {}` with its optional fields on the same line: a field uncommented under a bare
+  // `{}` would not parse.
+  if (map.items.length === 0) {
+    map.flow = true;
+    if (optional.length > 0)
+      map.comment = ` optional: ${optional.map((line) => line.replace(': ', ' (') + ')').join(', ')}`;
+  } else if (optional.length > 0) {
+    map.comment = optional.map((line) => ` ${line}`).join('\n');
+  }
   return map;
 }
 
@@ -111,6 +119,7 @@ function placeholder(
   switch (node.type) {
     case 'integer':
     case 'number':
+      if (typeof node.exclusiveMinimum === 'number') return node.exclusiveMinimum + 1;
       return typeof node.minimum === 'number' ? node.minimum : 0;
     case 'boolean':
       return false;
@@ -123,6 +132,20 @@ function placeholder(
     default:
       return '';
   }
+}
+
+function shapeName(root: JsonSchema, node: JsonSchema): string {
+  const reference = typeof node.$ref === 'string' ? node.$ref.split('/').pop()! : undefined;
+  const resolved = resolveNode(root, node);
+  return typeof resolved.title === 'string' ? resolved.title : (reference ?? typeName(root, node));
+}
+
+/** The names a kind's metadata.name is limited to (Integration: Email, Slack…), if any. */
+export function fixedNames(root: JsonSchema): string[] | undefined {
+  const body = bodyOf(root);
+  const metadata = isRecord(body.properties) ? (body.properties as Record<string, JsonSchema>).metadata : undefined;
+  const name = metadataField(root, metadata, 'name');
+  return name && Array.isArray(name.enum) ? name.enum.map(String) : undefined;
 }
 
 function metadataField(root: JsonSchema, metadata: JsonSchema | undefined, field: string): JsonSchema | undefined {
@@ -142,6 +165,9 @@ function typeName(root: JsonSchema, node: JsonSchema): string {
   const union = unionOf(root, node);
   if (union) return `one of ${union.options.map((o) => o.value).join(', ')}`;
   const resolved = resolveNode(root, node);
+  const shapes = resolved.oneOf ?? resolved.anyOf;
+  if (Array.isArray(shapes))
+    return `one of ${(shapes as JsonSchema[]).map((option) => shapeName(root, option)).join(', ')}`;
   if (Array.isArray(resolved.enum)) return resolved.enum.join(' | ');
   if (resolved.type === 'array')
     return `list of ${typeName(root, isRecord(resolved.items) ? (resolved.items as JsonSchema) : {})}`;

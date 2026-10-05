@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import {
+  fixedNames,
   kindSchema,
   listPath,
   newResourceName,
@@ -26,9 +27,9 @@ export const quickPickVariant: VariantPicker = async (choice, kind) => {
     ...choice.options.map((option) => ({ label: option, value: option as string | null })),
     ...(choice.optional ? [{ label: '(none)', description: 'leave it out', value: null }] : []),
   ];
-  const where = choice.path.slice(1).join('.') || 'spec';
   const picked = await vscode.window.showQuickPick(items, {
-    title: `New ${kind}: which ${where} (${choice.field})?`,
+    title: `New ${kind}: ${[...choice.path.slice(1), choice.field].join('.')}`,
+    placeHolder: choice.optional ? 'Choose a variant, or leave it out' : 'Choose a variant',
     ignoreFocusOut: true,
   });
   return picked?.value;
@@ -61,21 +62,30 @@ export async function newResource(
   }
   const template = await templateFor(state, kind, pickVariant);
   if (!template) return undefined;
-  const document = (await sync.ensureChosen())
-    ? await draftLocally(sync, kind, parents, template)
-    : await vscode.workspace.openTextDocument({
-        language: 'yaml',
-        content: template(parentsOf(kind, parents), newResourceName(kind)),
-      });
+  const local = await sync.ensureChosen();
+  const name = await nameFor(sync, local, kind, parents, template.fixedNames);
+  if (!name) {
+    void vscode.window.showWarningMessage(
+      `Every ${kind.kind} name (${template.fixedNames!.join(', ')}) already has a local file.`,
+    );
+    return undefined;
+  }
+  const content = template.render(parentsOf(kind, parents), name);
+  const document = local
+    ? await vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name))
+    : await vscode.workspace.openTextDocument({ language: 'yaml', content });
   await vscode.window.showTextDocument(document);
   return document;
 }
 
-type Template = (parents: Record<string, string>, name: string) => string;
+interface Template {
+  render: (parents: Record<string, string>, name: string) => string;
+  fixedNames?: string[];
+}
 
 // Built from the kind's schema once its variants are chosen; a kind without a published schema keeps its example.
 async function templateFor(state: Ready, kind: KindVersion, pickVariant: VariantPicker): Promise<Template | undefined> {
-  if (!kind.bodySchema) return (parents, name) => newResourceYaml(kind, parents, name);
+  if (!kind.bodySchema) return { render: (parents, name) => newResourceYaml(kind, parents, name) };
   const root = kindSchema(state.spec.schema, kind as KindVersion & { bodySchema: string });
   const answers: Record<string, string | null> = {};
   for (let choice = nextChoice(root, answers); choice; choice = nextChoice(root, answers)) {
@@ -83,18 +93,22 @@ async function templateFor(state: Ready, kind: KindVersion, pickVariant: Variant
     if (value === undefined) return undefined;
     answers[choice.path.join('.')] = value;
   }
-  return (parents, name) => skeletonYaml(root, kind, parents, name, answers);
+  return { render: (parents, name) => skeletonYaml(root, kind, parents, name, answers), fixedNames: fixedNames(root) };
 }
 
-async function draftLocally(
+// A kind limited to a few names (Integration) takes the first one without a local file, so the file and the document
+// agree and an existing resource is never drafted over; any other kind gets a free variant of its example name.
+async function nameFor(
   sync: SyncFolder,
+  local: boolean,
   kind: KindVersion,
   parents: string[],
-  template: Template,
-): Promise<vscode.TextDocument> {
-  const name = await sync.freeName(kind, parents, newResourceName(kind));
-  const content = template(parentsOf(kind, parents), name);
-  return vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name));
+  fixed: readonly string[] | undefined,
+): Promise<string | undefined> {
+  if (!fixed) return local ? sync.freeName(kind, parents, newResourceName(kind)) : newResourceName(kind);
+  if (!local) return fixed[0];
+  for (const candidate of fixed) if ((await sync.freeName(kind, parents, candidate)) === candidate) return candidate;
+  return undefined;
 }
 
 async function pickKind(catalog: KindCatalog): Promise<KindVersion | undefined> {
