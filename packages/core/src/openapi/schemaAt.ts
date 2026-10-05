@@ -50,28 +50,35 @@ function variantParts(root: JsonSchema, node: JsonSchema, current: unknown): Jso
   const resolved = resolveNode(root, node);
   const plain = Array.isArray(resolved.oneOf) ? resolved.oneOf : Array.isArray(resolved.anyOf) ? resolved.anyOf : [];
   const options = union
-    ? union.options.map((option) => partsOf(root, option.schema))
-    : (plain as JsonSchema[]).map((option) => partsOf(root, option));
+    ? union.options.map((option) => ({ parts: partsOf(root, option.schema), title: undefined }))
+    : (plain as JsonSchema[]).map((option) => ({
+        parts: partsOf(root, option),
+        title: resolveNode(root, option).title,
+      }));
   if (options.length === 0) return partsOf(root, node);
-  const fitting = options.filter((parts) => fits(parts, current));
-  return [...partsOf(root, node), ...(fitting.length > 0 ? fitting : options).flat()];
+  const fitting = options.filter((option) => fits(option.parts, option.title, current));
+  return [...partsOf(root, node), ...(fitting.length > 0 ? fitting : options).flatMap((option) => option.parts)];
 }
 
-function fits(parts: readonly JsonSchema[], current: unknown): boolean {
+function fits(parts: readonly JsonSchema[], title: unknown, current: unknown): boolean {
   if (!isRecord(current)) return true;
   return parts.every((part) =>
     Object.entries(isRecord(part.properties) ? (part.properties as Record<string, JsonSchema>) : {}).every(
       ([key, property]) => {
-        const fixed = fixedValue(property);
+        const fixed = fixedValue(property, title);
         return fixed === undefined || current[key] === undefined || current[key] === fixed;
       },
     ),
   );
 }
 
-function fixedValue(property: JsonSchema): unknown {
+// An option is tagged by a const, a one-value enum, or (where the published discriminator has no mapping, as for
+// permissions) by its title when the title is one of that field's values: Tapir keeps the name there (TOPIC1 → TOPIC).
+function fixedValue(property: JsonSchema, title: unknown): unknown {
   if ('const' in property) return property.const;
-  return Array.isArray(property.enum) && property.enum.length === 1 ? property.enum[0] : undefined;
+  if (!Array.isArray(property.enum)) return undefined;
+  if (property.enum.length === 1) return property.enum[0];
+  return typeof title === 'string' && property.enum.includes(title) ? title : undefined;
 }
 
 function describe(root: JsonSchema, node: JsonSchema): Omit<FieldSchema, 'required'> {

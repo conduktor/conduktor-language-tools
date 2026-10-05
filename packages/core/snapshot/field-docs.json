@@ -254,7 +254,35 @@
     {
       "kind": "Alert",
       "path": "metadata.destination.type",
-      "text": "can be either `Slack`, `Teams` or `Webhook`. When set to:\n`Slack`: has to be a valid Slack channel ID\n`Teams`: has to be a valid Teams webhook URL\n`Webhook`:\n`spec.destination.url` has to be a valid URL\n`spec.destination.method` has to be `GET`, `POST`, `PUT` or `DELETE`\n`spec.destination.headers` (optional) has to be key-value pairs of HTTP headers\n`spec.destination.authentication.type` (optional) has to be `BasicAuth` (define `spec.destination.authentication.username` and `spec.destination.authentication.password`) or `BearerToken` (define `spec.destination.authentication.token`).",
+      "text": "can be either `Slack`, `Teams` or `Webhook`. When set to:\n- `Slack`: has to be a valid Slack channel ID\n- `Teams`: has to be a valid Teams webhook URL\n- `Webhook`:\n  - `spec.destination.url` has to be a valid URL\n  - `spec.destination.method` has to be `GET`, `POST`, `PUT` or `DELETE`\n  - `spec.destination.headers` (optional) has to be key-value pairs of HTTP headers\n  - `spec.destination.authentication.type` (optional) has to be `BasicAuth` (define `spec.destination.authentication.username` and `spec.destination.authentication.password`) or `BearerToken` (define `spec.destination.authentication.token`).",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
+    },
+    {
+      "kind": "Alert",
+      "path": "spec.destination.url",
+      "text": "When `metadata.destination.type` is `Webhook`: has to be a valid URL",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
+    },
+    {
+      "kind": "Alert",
+      "path": "spec.destination.method",
+      "text": "When `metadata.destination.type` is `Webhook`: has to be `GET`, `POST`, `PUT` or `DELETE`",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
+    },
+    {
+      "kind": "Alert",
+      "path": "spec.destination.headers",
+      "text": "When `metadata.destination.type` is `Webhook`: (optional) has to be key-value pairs of HTTP headers",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
+      "section": "Alerts"
+    },
+    {
+      "kind": "Alert",
+      "path": "spec.destination.authentication.type",
+      "text": "When `metadata.destination.type` is `Webhook`: (optional) has to be `BasicAuth` (define `spec.destination.authentication.username` and `spec.destination.authentication.password`) or `BearerToken` (define `spec.destination.authentication.token`).",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
       "section": "Alerts"
     },
@@ -268,7 +296,7 @@
     {
       "kind": "Alert",
       "path": "spec.type",
-      "text": "has to be `BrokerAlert`,`TopicAlert`, `KafkaConnectAlert` or `ConsumerGroupAlert`. When set to:\n`BrokerAlert`: `spec.metric` has to be `MessageIn`, `MessageOut`, `MessageSize`, `OfflinePartitionCount`, `PartitionCount`, `UnderMinIsrPartitionCount` or `UnderReplicatedPartitionCount`.\n`TopicAlert`: `spec.metric` has to be `MessageCount`, `MessageIn`, `MessageOut` or `MessageSize` and the `spec.topicName` has to be a Kafka topic that the owner can access.\n`KafkaConnectAlert`:`spec.metric` has to be `FailedTaskCount`;`spec.connectName` has to be a valid KafkaConnect cluster associated to this `spec.cluster` Kafka cluster and `spec.connectorName` has to be a Kafka Connect Connector that the owner can access.\n`ConsumerGroupAlert`:`spec.metric` has to be `OffsetLag` or `TimeLag` and `spec.consumerGroupName` has to be a Kafka Consumer group that the owner can access.",
+      "text": "has to be `BrokerAlert`,`TopicAlert`, `KafkaConnectAlert` or `ConsumerGroupAlert`. When set to:\n- `BrokerAlert`: `spec.metric` has to be `MessageIn`, `MessageOut`, `MessageSize`, `OfflinePartitionCount`, `PartitionCount`, `UnderMinIsrPartitionCount` or `UnderReplicatedPartitionCount`.\n- `TopicAlert`: `spec.metric` has to be `MessageCount`, `MessageIn`, `MessageOut` or `MessageSize` and the `spec.topicName` has to be a Kafka topic that the owner can access.\n- `KafkaConnectAlert`:`spec.metric` has to be `FailedTaskCount`;`spec.connectName` has to be a valid KafkaConnect cluster associated to this `spec.cluster` Kafka cluster and `spec.connectorName` has to be a Kafka Connect Connector that the owner can access.\n- `ConsumerGroupAlert`:`spec.metric` has to be `OffsetLag` or `TimeLag` and `spec.consumerGroupName` has to be a Kafka Consumer group that the owner can access.",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#alerts",
       "section": "Alerts"
     },
@@ -527,7 +555,21 @@
     {
       "kind": "ApplicationInstance",
       "path": "spec.resources[].type",
-      "text": "can be `TOPIC`, `CONSUMER_GROUP`, `SUBJECT`, `TRANSACTIONAL_ID` or `CONNECTOR`:\n`spec.resources[].connectCluster` is **only mandatory** when `type` is `CONNECTOR`;\n`spec.resources[].connectCluster` is a valid Connect cluster linked to the Kafka cluster `spec.cluster`.",
+      "text": "can be `TOPIC`, `CONSUMER_GROUP`, `SUBJECT`, `TRANSACTIONAL_ID` or `CONNECTOR`:\n- `spec.resources[].connectCluster` is **only mandatory** when `type` is `CONNECTOR`;\n- `spec.resources[].connectCluster` is a valid Connect cluster linked to the Kafka cluster `spec.cluster`.",
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
+    },
+    {
+      "kind": "ApplicationInstance",
+      "path": "spec.resources[].connectCluster",
+      "text": "is **only mandatory** when `type` is `CONNECTOR`;",
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
+    },
+    {
+      "kind": "ApplicationInstance",
+      "path": "spec.resources[].connectCluster",
+      "text": "is a valid Connect cluster linked to the Kafka cluster `spec.cluster`.",
       "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
       "section": "ApplicationInstance"
     },
@@ -541,7 +583,14 @@
     {
       "kind": "ApplicationInstance",
       "path": "spec.resources[].name",
-      "text": "has to not overlap with any other *ApplicationInstance* on the same cluster. I.e.: if there's already an owner for `click`, this is forbidden:\n`click.orders.`: resource is a child-resource of `click`\n`cli`: resource is a parent-resource of `click`",
+      "text": "has to not overlap with any other *ApplicationInstance* on the same cluster. I.e.: if there's already an owner for `click`, this is forbidden:\n    - `click.orders.`: resource is a child-resource of `click`\n    - `cli`: resource is a parent-resource of `click`",
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
+      "section": "ApplicationInstance"
+    },
+    {
+      "kind": "ApplicationInstance",
+      "path": "spec.resources[].name.cli",
+      "text": ": resource is a parent-resource of `click`",
       "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstance",
       "section": "ApplicationInstance"
     },
@@ -555,7 +604,7 @@
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec",
-      "text": "is immutable:\nonce created, you'll only be able to update its metadata. **This is to protect you from making a change that could impact an external application**.\nthis resource affects target *ApplicationInstance*'s Kafka service account ACLs.\nto edit this resource, delete and re-create it.",
+      "text": "is immutable:\n- once created, you'll only be able to update its metadata. **This is to protect you from making a change that could impact an external application**.\n- this resource affects target *ApplicationInstance*'s Kafka service account ACLs.\n- to edit this resource, delete and re-create it.",
       "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
       "section": "ApplicationInstancePermission"
     },
@@ -576,7 +625,7 @@
     {
       "kind": "ApplicationInstancePermission",
       "path": "spec.resource.name",
-      "text": "has to reference any 'sub-resource' of `metadata.appInstance`. For example, if you're the owner of the `click.` prefix, you can grant `READ` or `WRITE` access to:\nthe whole `click.` prefix,\na sub prefix `click.orders.`,\na literal topic name `click.orders.france`.",
+      "text": "has to reference any 'sub-resource' of `metadata.appInstance`. For example, if you're the owner of the `click.` prefix, you can grant `READ` or `WRITE` access to:\n- the whole `click.` prefix,\n- a sub prefix `click.orders.`,\n- a literal topic name `click.orders.france`.",
       "url": "https://docs.conduktor.io/guide/reference/self-service-reference#applicationinstancepermission",
       "section": "ApplicationInstancePermission"
     },
@@ -681,14 +730,49 @@
     {
       "kind": "DataQualityPolicy",
       "path": "spec.targets",
-      "text": "is mandatory and defines which topics the policy applies to:\n`cluster` is a valid Kafka cluster technical ID.\n`topic` is the topic name or prefix.\n`patternType` has to be either `LITERAL` (exact match) or `PREFIXED` (prefix match).",
+      "text": "is mandatory and defines which topics the policy applies to:\n- `cluster` is a valid Kafka cluster technical ID.\n- `topic` is the topic name or prefix.\n- `patternType` has to be either `LITERAL` (exact match) or `PREFIXED` (prefix match).",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
+    },
+    {
+      "kind": "DataQualityPolicy",
+      "path": "spec.targets.cluster",
+      "text": "is a valid Kafka cluster technical ID.",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
+    },
+    {
+      "kind": "DataQualityPolicy",
+      "path": "spec.targets.topic",
+      "text": "is the topic name or prefix.",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
+    },
+    {
+      "kind": "DataQualityPolicy",
+      "path": "spec.targets.patternType",
+      "text": "has to be either `LITERAL` (exact match) or `PREFIXED` (prefix match).",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
       "section": "DataQualityPolicy"
     },
     {
       "kind": "DataQualityPolicy",
       "path": "spec.actions",
-      "text": "defines what happens when a rule violation occurs:\n`block.enabled` (optional, defaults to false) - when true, blocks messages that violate rules from being produced. Only available if the configured cluster is a Conduktor Gateway cluster with the appropriate license.\n`mark.enabled` (optional, defaults to false) - when true, marks messages that violate rules with a header but allows production.",
+      "text": "defines what happens when a rule violation occurs:\n- `block.enabled` (optional, defaults to false) - when true, blocks messages that violate rules from being produced. Only available if the configured cluster is a Conduktor Gateway cluster with the appropriate license.\n- `mark.enabled` (optional, defaults to false) - when true, marks messages that violate rules with a header but allows production.",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
+    },
+    {
+      "kind": "DataQualityPolicy",
+      "path": "spec.actions.block.enabled",
+      "text": "(optional, defaults to false) - when true, blocks messages that violate rules from being produced. Only available if the configured cluster is a Conduktor Gateway cluster with the appropriate license.",
+      "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
+      "section": "DataQualityPolicy"
+    },
+    {
+      "kind": "DataQualityPolicy",
+      "path": "spec.actions.mark.enabled",
+      "text": "(optional, defaults to false) - when true, marks messages that violate rules with a header but allows production.",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#dataqualitypolicy",
       "section": "DataQualityPolicy"
     },
@@ -891,14 +975,14 @@
     {
       "kind": "Group",
       "path": "spec.externalGroups",
-      "text": "is a list of LDAP or OIDC groups to sync with this Console Group\nMembers added this way will not appear in `spec.members` but `spec.membersFromExternalGroups` instead",
+      "text": "is a list of LDAP or OIDC groups to sync with this Console Group\n- Members added this way will not appear in `spec.members` but `spec.membersFromExternalGroups` instead",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
       "section": "ConsoleGroup"
     },
     {
       "kind": "Group",
       "path": "spec.externalGroupRegex",
-      "text": "is a list of regex patterns that can match to a series of LDAP or OIDC groups to sync with this Console group. Members added this way will not appear in `spec.members` list.\nSupports regex patterns for dynamic group matching (e.g., `^TEAM-.*` to match all groups starting with \"TEAM-\")",
+      "text": "is a list of regex patterns that can match to a series of LDAP or OIDC groups to sync with this Console group. Members added this way will not appear in `spec.members` list.\n- Supports regex patterns for dynamic group matching (e.g., `^TEAM-.*` to match all groups starting with \"TEAM-\")",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#consolegroup",
       "section": "ConsoleGroup"
     },
@@ -961,14 +1045,14 @@
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.type",
-      "text": "(optional) must be one of [`ConfluentLike`, `Glue`]\nSee [Schema Registry Properties](https://docs.conduktor.io/guide/reference/console-reference#schema-registry) for the detailed list of options",
+      "text": "(optional) must be one of [`ConfluentLike`, `Glue`]\n- See [Schema Registry Properties](https://docs.conduktor.io/guide/reference/console-reference#schema-registry) for the detailed list of options",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
       "section": "KafkaCluster"
     },
     {
       "kind": "KafkaCluster",
       "path": "spec.kafkaFlavor.type",
-      "text": "(optional) must be one of [`Confluent`, `ConfluentPlatform`, `Aiven`, `Gateway`]\nSee [Kafka Provider Properties](https://docs.conduktor.io/guide/reference/console-reference#kafka-provider) for the detailed list of options",
+      "text": "(optional) must be one of [`Confluent`, `ConfluentPlatform`, `Aiven`, `Gateway`]\n- See [Kafka Provider Properties](https://docs.conduktor.io/guide/reference/console-reference#kafka-provider) for the detailed list of options",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#kafkacluster",
       "section": "KafkaCluster"
     },
@@ -982,7 +1066,7 @@
     {
       "kind": "KafkaCluster",
       "path": "spec.schemaRegistry.urls",
-      "text": "must be a single URL of a Kafka Connect cluster\n**Multiple URLs are not supported for now. Coming soon**",
+      "text": "must be a single URL of a Kafka Connect cluster\n- **Multiple URLs are not supported for now. Coming soon**",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry",
       "section": "Confluent or Confluent-like Registry"
     },
@@ -1003,7 +1087,7 @@
     {
       "kind": "KafkaCluster",
       "path": "spec.security.type",
-      "text": "(optional) must be one of [`BasicAuth`, `BearerToken`, `SSLAuth`]\nSee [HTTP Security Properties](https://docs.conduktor.io/guide/reference/console-reference#http-security-properties) for the detailed list of options",
+      "text": "(optional) must be one of [`BasicAuth`, `BearerToken`, `SSLAuth`]\n- See [HTTP Security Properties](https://docs.conduktor.io/guide/reference/console-reference#http-security-properties) for the detailed list of options",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#confluent-or-confluent-like-registry",
       "section": "Confluent or Confluent-like Registry"
     },
@@ -1143,7 +1227,7 @@
     {
       "kind": "PartnerZone",
       "path": "spec.underlyingCluster",
-      "text": "has to be a valid Console cluster technical ID where the cluster has to be defined under the Gateway defined by the `spec.gatewayClusterId`.\nWhen not specified, the value is inferred to be equal to the `spec.gatewayClusterId` field, hence selecting the main cluster behind Gateway by default.",
+      "text": "has to be a valid Console cluster technical ID where the cluster has to be defined under the Gateway defined by the `spec.gatewayClusterId`.\n- When not specified, the value is inferred to be equal to the `spec.gatewayClusterId` field, hence selecting the main cluster behind Gateway by default.",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
       "section": "Partner Zones"
     },
@@ -1157,7 +1241,7 @@
     {
       "kind": "PartnerZone",
       "path": "spec.authenticationMode.serviceAccount",
-      "text": "requirements depend on the authentication type:\n**PLAIN**: Any unique identifier for your partner (e.g., `partner-external-partner`). This will be created as a local Gateway service account automatically if it doesn't exist.\n**OAUTHBEARER**: Must match the \"sub\" claim in the partner's OAuth/OIDC token (e.g., `oauth-partner-service-account`). The partner needs to authenticate using their OAuth provider.\n**MTLS**: Must match the client's Distinguished Name (DN) from their certificate, unless you've modified `GATEWAY_SSL_PRINCIPAL_MAPPING_RULES` (e.g., `CN=partner-client,OU=Engineering,O=PartnerCorp,C=US`).",
+      "text": "requirements depend on the authentication type:\n- **PLAIN**: Any unique identifier for your partner (e.g., `partner-external-partner`). This will be created as a local Gateway service account automatically if it doesn't exist.\n- **OAUTHBEARER**: Must match the \"sub\" claim in the partner's OAuth/OIDC token (e.g., `oauth-partner-service-account`). The partner needs to authenticate using their OAuth provider.\n- **MTLS**: Must match the client's Distinguished Name (DN) from their certificate, unless you've modified `GATEWAY_SSL_PRINCIPAL_MAPPING_RULES` (e.g., `CN=partner-client,OU=Engineering,O=PartnerCorp,C=US`).",
       "url": "https://docs.conduktor.io/guide/reference/console-reference#partner-zones",
       "section": "Partner Zones"
     },
@@ -1283,7 +1367,56 @@
     {
       "kind": "ServiceAccount",
       "path": "spec.authorization.type",
-      "text": "has to be `KAFKA_ACL` (not supported for Aiven Kafka clusters) or `AIVEN_ACL` (is only supported for Aiven Kafka clusters).\n`spec.acls[].type` has to be a [valid Kafka resource type](https://kafka.apache.org/documentation/#operations_resources_and_protocols) .\n`spec.acls[].operations` has to contain only operations that are valid for the resource type.\n`spec.acls[].host` (optional), will default to `*`.\n`spec.acls[].permission` (optional), will default to `Allow`.\n`spec.acls[].resourceType` has to be a [valid resource type on Aiven Kafka](https://aiven.io/docs/products/kafka/concepts/acl)  for `TOPIC` or [a valid resource for](https://aiven.io/docs/products/kafka/karapace/concepts/acl-definition)  `SCHEMA`.\n`spec.acls[].name` has to be a valid resource name on Aiven Kafka. For schemas, it has to match `^(Config:|Subject:[A-Za-z0-9/_.*?-]+)`.\n`spec.acls[].permission` has to contain only operations that are valid for the resource type.",
+      "text": "has to be `KAFKA_ACL` (not supported for Aiven Kafka clusters) or `AIVEN_ACL` (is only supported for Aiven Kafka clusters).\n\nWhen set to `KAFKA_ACL`:\n- `spec.acls[].type` has to be a [valid Kafka resource type](https://kafka.apache.org/documentation/#operations_resources_and_protocols) .\n- `spec.acls[].operations` has to contain only operations that are valid for the resource type.\n- `spec.acls[].host` (optional), will default to `*`.\n- `spec.acls[].permission` (optional), will default to `Allow`.\n\nWhen set to `AIVEN_ACL`:\n- `spec.acls[].resourceType` has to be a [valid resource type on Aiven Kafka](https://aiven.io/docs/products/kafka/concepts/acl)  for `TOPIC` or [a valid resource for](https://aiven.io/docs/products/kafka/karapace/concepts/acl-definition)  `SCHEMA`.\n- `spec.acls[].name` has to be a valid resource name on Aiven Kafka. For schemas, it has to match `^(Config:|Subject:[A-Za-z0-9/_.*?-]+)`.\n- `spec.acls[].permission` has to contain only operations that are valid for the resource type.",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].type",
+      "text": "When `spec.authorization.type` is `KAFKA_ACL`: has to be a [valid Kafka resource type](https://kafka.apache.org/documentation/#operations_resources_and_protocols) .",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].operations",
+      "text": "When `spec.authorization.type` is `KAFKA_ACL`: has to contain only operations that are valid for the resource type.",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].host",
+      "text": "When `spec.authorization.type` is `KAFKA_ACL`: (optional), will default to `*`.",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].permission",
+      "text": "When `spec.authorization.type` is `KAFKA_ACL`: (optional), will default to `Allow`.",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].resourceType",
+      "text": "When `spec.authorization.type` is `AIVEN_ACL`: has to be a [valid resource type on Aiven Kafka](https://aiven.io/docs/products/kafka/concepts/acl)  for `TOPIC` or [a valid resource for](https://aiven.io/docs/products/kafka/karapace/concepts/acl-definition)  `SCHEMA`.",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].name",
+      "text": "When `spec.authorization.type` is `AIVEN_ACL`: has to be a valid resource name on Aiven Kafka. For schemas, it has to match `^(Config:|Subject:[A-Za-z0-9/_.*?-]+)`.",
+      "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
+      "section": "Service account"
+    },
+    {
+      "kind": "ServiceAccount",
+      "path": "spec.acls[].permission",
+      "text": "When `spec.authorization.type` is `AIVEN_ACL`: has to contain only operations that are valid for the resource type.",
       "url": "https://docs.conduktor.io/guide/reference/kafka-reference#service-account",
       "section": "Service account"
     },
@@ -1381,7 +1514,28 @@
     {
       "kind": "TopicPolicy",
       "path": "spec.policies",
-      "text": "require YAML paths that are paths to the [topic resource YAML](https://docs.conduktor.io/guide/reference/kafka-reference#topic). For example:\n`metadata.name` to create constraints on topic name\n`metadata.labels.<key>` to create constraints on topic label `<key>`\n`spec.partitions` to create constraints on partitions number\n`spec.replicationFactor` to create constraints on replication factor\n`spec.configs.<key>` to create constraints on topic config `<key>`",
+      "text": "require YAML paths that are paths to the [topic resource YAML](https://docs.conduktor.io/guide/reference/kafka-reference#topic). For example:\n- `metadata.name` to create constraints on topic name\n- `metadata.labels.<key>` to create constraints on topic label `<key>`\n- `spec.partitions` to create constraints on partitions number\n- `spec.replicationFactor` to create constraints on replication factor\n- `spec.configs.<key>` to create constraints on topic config `<key>`",
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy",
+      "section": "TopicPolicy"
+    },
+    {
+      "kind": "TopicPolicy",
+      "path": "metadata.name",
+      "text": "to create constraints on topic name",
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy",
+      "section": "TopicPolicy"
+    },
+    {
+      "kind": "TopicPolicy",
+      "path": "spec.partitions",
+      "text": "to create constraints on partitions number",
+      "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy",
+      "section": "TopicPolicy"
+    },
+    {
+      "kind": "TopicPolicy",
+      "path": "spec.replicationFactor",
+      "text": "to create constraints on replication factor",
       "url": "https://docs.conduktor.io/guide/reference/self-service-reference#topicpolicy",
       "section": "TopicPolicy"
     },

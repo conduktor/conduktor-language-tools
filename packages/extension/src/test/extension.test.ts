@@ -1817,5 +1817,32 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.match(text, /\[Confluent or Confluent-like Registry\]\([^)]*#confluent-or-confluent-like-registry\)/);
     assert.match(text, /\[AWS Glue registry\]/, 'each section the docs describe it in is named');
     assert.match(text, /\[Docs\]\([^)]*#kafkacluster\)/, 'the Docs link goes to the kind when sections differ');
+
+    const hoverIn = async (content: string, needle: string) => {
+      const opened = await vscode.workspace.openTextDocument({ language: 'yaml', content });
+      const found = await vscode.commands.executeCommand<vscode.Hover[]>(
+        'vscode.executeHoverProvider',
+        opened.uri,
+        opened.positionAt(content.indexOf(needle) + 1),
+      );
+      return found
+        .flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')))
+        .join('\n');
+    };
+    const unscoped = await hoverIn(
+      'apiVersion: v2\nkind: Connector\nmetadata:\n  name: c\n  connectCluster: somewhere\nspec:\n  config: {}\n',
+      'somewhere',
+    );
+    assert.doesNotMatch(unscoped, /not found/, 'without its cluster the Console was never asked');
+    const missing = await hoverIn(
+      'apiVersion: v2\nkind: Topic\nmetadata:\n  name: t\n  cluster: no-such-cluster\nspec:\n  partitions: 1\n',
+      'no-such-cluster',
+    );
+    assert.match(missing, /no-such-cluster`?: not found in the repository or the Console/);
+    const planted = await hoverIn(
+      'apiVersion: v2\nkind: Topic\nmetadata:\n  name: t\n  cluster: "a`[x](command:vscode.open?%5B%5D)"\nspec:\n  partitions: 1\n',
+      'cluster:',
+    );
+    assert.match(planted, /``a`\[x\]\(command:vscode\.open\?%5B%5D\)``/, 'a value stays inside its code span');
   });
 });

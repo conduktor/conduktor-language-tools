@@ -48,7 +48,7 @@ describe('reference pages', () => {
       {
         kind: 'User',
         path: 'spec.permissions',
-        text: `(optional) is a list of [permissions](${url}#permissions)\nSee [Topic](https://docs.conduktor.io/guide/reference/kafka-reference#topic)`,
+        text: `(optional) is a list of [permissions](${url}#permissions)\n- See [Topic](https://docs.conduktor.io/guide/reference/kafka-reference#topic)`,
         url: `${url}#consoleuser`,
         section: 'ConsoleUser',
       },
@@ -97,5 +97,48 @@ describe('reference pages', () => {
       ['ApplicationInstance', 'spec.cluster'],
       ['ApplicationInstancePermission', 'spec.resource'],
     ]);
+  });
+
+  it('reads nested field bullets as fields of their own, under the value that brings them in', () => {
+    const nested = [
+      '## Alerts',
+      '',
+      'An alert.',
+      '',
+      '- `spec.destination.type` can be `Slack` or `Webhook`. When set to:',
+      '  - `Slack`: a channel ID',
+      '  - `Webhook`:',
+      '    - `spec.destination.url` has to be a valid URL',
+      '- `spec.authorization.type` has to be `KAFKA_ACL` or `AIVEN_ACL`.',
+      '',
+      '  When set to `KAFKA_ACL`:',
+      '',
+      '  - `spec.acls[].host` (optional), will default to `*`.',
+      '',
+      '  When set to `AIVEN_ACL`:',
+      '',
+      '  - `spec.acls[].name` has to be a valid resource name.',
+      '- `spec.targets` defines the topics:',
+      '  - `cluster` is a valid Kafka cluster.',
+      '',
+    ].join('\n');
+    const read = parseReferencePage(nested, 'console-reference', { Alerts: 'Alert' });
+    const text = (path: string) => read.fields.find((f) => f.path === path)?.text;
+    expect(read.fields.map((f) => f.path)).toEqual([
+      'spec.destination.type',
+      'spec.destination.url',
+      'spec.authorization.type',
+      'spec.acls[].host',
+      'spec.acls[].name',
+      'spec.targets',
+      'spec.targets.cluster',
+    ]);
+    expect(text('spec.destination.url')).toBe('When `spec.destination.type` is `Webhook`: has to be a valid URL');
+    expect(text('spec.acls[].host')).toBe('When `spec.authorization.type` is `KAFKA_ACL`: (optional), will default to `*`.');
+    expect(text('spec.acls[].name')).toBe('When `spec.authorization.type` is `AIVEN_ACL`: has to be a valid resource name.');
+    expect(text('spec.targets.cluster')).toBe('is a valid Kafka cluster.');
+    expect(text('spec.destination.type')).toBe(
+      'can be `Slack` or `Webhook`. When set to:\n- `Slack`: a channel ID\n- `Webhook`:\n  - `spec.destination.url` has to be a valid URL',
+    );
   });
 });

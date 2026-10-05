@@ -65,18 +65,24 @@ export class FieldDocsHover implements vscode.HoverProvider {
     const docs = fieldDocs(resource.kind, path);
     const sections = new Set(docs.map((doc) => doc.url));
     const parts = [
-      [`**\`${dotted(path)}\`**`, schema?.type, schema?.required && 'required'].filter(Boolean).join(' · '),
+      [`**${code(dotted(path))}**`, schema?.type, schema?.required && 'required'].filter(Boolean).join(' · '),
       // The docs can describe a field once per variant, each in its own section: say which is which.
       ...docs.map((doc) => (sections.size > 1 ? `[${doc.section}](${doc.url}): ${doc.text}` : doc.text)),
     ];
-    if (schema?.default !== undefined) parts.push(`Default \`${JSON.stringify(schema.default)}\``);
+    if (schema?.default !== undefined) parts.push(`Default ${code(JSON.stringify(schema.default))}`);
     const reference = referenceAt(resource, state.spec.catalog, path);
     if (reference && reference.value !== '' && !reference.pattern && !reference.wildcard) {
       const target = await referenceTarget(state, this.sync, this.names, this.explorer, reference);
-      const where = target
-        ? `[open it ${target.where === 'repository' ? 'in the repository' : 'in the Console'}](command:vscode.open?${encodeURIComponent(JSON.stringify([target.uri]))})`
-        : 'not found in the repository or the Console';
-      parts.push(`References ${reference.kind} \`${reference.value}\`: ${where}`);
+      const named = `References ${reference.kind} ${code(reference.value)}`;
+      if (target) {
+        const open = `command:vscode.open?${encodeURIComponent(JSON.stringify([target.uri]))}`;
+        parts.push(
+          `${named}: [open it ${target.where === 'repository' ? 'in the repository' : 'in the Console'}](${open})`,
+        );
+      } else if (reference.parents && (await this.names.lookup(reference.kind, reference.parents)).checked) {
+        // Only a Console that answered can say a name is missing; without parents it was never asked.
+        parts.push(`${named}: not found in the repository or the Console`);
+      }
     }
     const section = sections.size === 1 ? docs[0]!.url : undefined;
     parts.push(`[Docs](${section ?? kindDoc(resource.kind)?.url ?? REFERENCE_URL})`);
@@ -88,6 +94,15 @@ function kindSummary(kind: string): string {
   const doc = kindDoc(kind);
   if (!doc) return `**${kind}**\n\n[Docs](${REFERENCE_URL})`;
   return [`**${kind}** — ${doc.summary}`, doc.facts.join(' · '), `[Docs](${doc.url})`].filter(Boolean).join('\n\n');
+}
+
+// A code span fenced longer than any backtick run inside it, so a value from the file cannot end it and add markdown
+// (the hover is trusted to run vscode.open).
+function code(text: string): string {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(longest + 1);
+  const pad = text.startsWith('`') || text.endsWith('`') ? ' ' : '';
+  return `${fence}${pad}${text}${pad}${fence}`;
 }
 
 function dotted(path: YamlPath): string {

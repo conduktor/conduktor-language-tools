@@ -25,4 +25,13 @@ describe('schemaAt', () => {
     expect(schemaAt(rootOf('Group'), {}, ['spec', 'permissions', 0, 'resourceType'])?.type).toMatch(/^one of /);
     expect(schemaAt(rootOf('Group'), {}, ['spec', 'permissions'])?.type).toBe('list of object');
   });
+
+  it('reads an untagged list item by the option its value names', () => {
+    const topic = { spec: { permissions: [{ resourceType: 'TOPIC' }] } };
+    const permissions = schemaAt(rootOf('Group'), topic, ['spec', 'permissions', 0, 'permissions']);
+    expect(permissions?.type).toMatch(/^list of one of .*topicConsume/);
+    expect(permissions?.type).not.toMatch(/clusterViewBroker/);
+    const platform = { spec: { permissions: [{ resourceType: 'PLATFORM' }] } };
+    expect(schemaAt(rootOf('Group'), platform, ['spec', 'permissions', 0, 'cluster'])).toBeUndefined();
+  });
 });
