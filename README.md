@@ -58,8 +58,13 @@ Stage changes as files before they reach the Console — the first step towards 
   outside the environment so the CLI never applies it. Folders from the older `<sync folder>/<connection>/` layout
   move into `environments/` on first use.
 - From then on the Explorer marks each resource: **A** new locally, **M** modified locally, **⚠** changed or deleted
-  on the Console since it was synced (found by **Refresh Local Changes**). Synced resources open as local files, and
+  on the Console since it was synced (found by **Refresh Local Changes**), and resources with no local copy dimmed
+  with a cloud icon, the way the file explorer dims what git ignores. Synced resources open as local files, and
   **Show Only Changes** filters the tree to them.
+- While editing, the editor title offers **Diff with Console** (what applying the document under the cursor would
+  change) and, on a modified sync-folder file, **Open Changes** (its edits since the last sync or apply, against a
+  read-only copy of the base). **Reveal in Conduktor Explorer** selects the open resource in the tree, switching to its
+  cluster if needed; set `conduktor.explorer.autoReveal` to have the tree follow the active editor.
 - **Saving a resource opened from the tree stages it** whenever it cannot apply straight away (dry-run mode, or once a
   sync folder exists): the edit is written to its file in the sync folder (secrets as placeholders), that file opens
   marked **M**, and the tree's copy reloads what the Console holds. **Edit Locally** does the same without editing
