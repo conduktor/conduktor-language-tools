@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { treeUri } from './decorations';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { ClusterSelection } from './clusterSelection';
@@ -125,12 +126,16 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
           treeItem.iconPath = new vscode.ThemeIcon('file-code', new vscode.ThemeColor(badge.color));
           treeItem.description = badge.label;
         }
+        if (!node.local) {
+          treeItem.iconPath = new vscode.ThemeIcon('cloud');
+          treeItem.resourceUri = treeUri(node.kind.kind, node.parents, node.name);
+        }
         const target = node.local ? vscode.Uri.parse(node.local.uri) : this.liveUri(node);
         treeItem.command = { command: 'vscode.open', title: 'Open', arguments: [target] };
         treeItem.tooltip = [
           `${node.kind.kind} ${[...node.parents, node.name].join(' / ')}`,
           badge?.tooltip,
-          node.local && 'Opens the local file',
+          node.local ? 'Opens the local file' : 'Only in the Console',
         ]
           .filter(Boolean)
           .join('\n');

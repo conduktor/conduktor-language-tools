@@ -1976,4 +1976,24 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await useWorkspaceSyncRoot(api);
     }
   });
+
+  test('dims what has no local copy, in the tree only', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const kind = state.spec.catalog.latest('Topic')!;
+    const consoleOnly: ResourceNode = { type: 'resource', kind, parents: ['local-kafka'], name: 'console-only' };
+    const item = api.explorer.getTreeItem(consoleOnly);
+    assert.strictEqual(item.resourceUri?.scheme, 'conduktor-tree');
+    assert.strictEqual((item.iconPath as vscode.ThemeIcon).id, 'cloud');
+    const synced = api.explorer.getTreeItem({
+      ...consoleOnly,
+      local: { status: 'synced', uri: vscode.Uri.file('/x.yaml').toString() },
+    });
+    assert.strictEqual(synced.resourceUri, undefined);
+    const decoration = (uri: vscode.Uri) =>
+      api.consoleOnly.provideFileDecoration(uri, new vscode.CancellationTokenSource().token);
+    assert.ok(decoration(item.resourceUri!), 'the tree item is dimmed');
+    assert.strictEqual(decoration(api.liveUri(consoleOnly)), undefined, 'a live document tab is not');
+  });
 });

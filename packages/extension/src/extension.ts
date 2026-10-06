@@ -34,6 +34,7 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
+import { ConsoleOnlyDecorations } from './explorer/decorations';
 import { FieldDocsHover } from './intel/fieldDocs';
 import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
 import { createStatusBar } from './statusBar';
@@ -54,6 +55,7 @@ export interface ExtensionApi {
   compare: Compare;
   applyAllChanges: () => Promise<UpsertItem[] | undefined>;
   names: Names;
+  consoleOnly: ConsoleOnlyDecorations;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
@@ -77,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const topicConfigs = new TopicConfigProvider(sessions, names);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
+  const consoleOnly = new ConsoleOnlyDecorations();
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
 
@@ -131,6 +134,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerCompletionItemProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
+    vscode.window.registerFileDecorationProvider(consoleOnly),
     new TopicConfigDiagnostics(sessions),
     vscode.commands.registerCommand(APPLY_PRESET, (uri: vscode.Uri, start: number, preset: TopicPreset) =>
       applyTopicPreset(uri, start, preset, sessions),
@@ -246,6 +250,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     clusters,
     compare,
     names,
+    consoleOnly,
   });
 }
 
