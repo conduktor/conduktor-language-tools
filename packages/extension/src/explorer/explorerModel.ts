@@ -113,6 +113,43 @@ export function idOf(node: ExplorerNode): string | undefined {
   }
 }
 
+/**
+ * A path that mirrors the tree (scope / group / kind / parents below the cluster / name), so each node's path is its
+ * ancestors' plus one segment, and a decoration on a resource can roll up to them.
+ */
+export function treePathOf(node: ExplorerNode): string | undefined {
+  const path = (...parts: string[]) => `/${parts.map(encodeURIComponent).join('/')}`;
+  switch (node.type) {
+    case 'scope':
+      return path(node.scope);
+    case 'group':
+      return path(node.scope, node.group);
+    case 'kind':
+    case 'parent':
+    case 'resource': {
+      const below = scopeOf(node.kind) === 'cluster' ? node.parents.slice(1) : node.parents;
+      const levels = node.type === 'kind' ? [] : below;
+      const name = node.type === 'resource' ? [node.name] : [];
+      return path(scopeOf(node.kind), node.kind.group, node.kind.kind, ...levels, ...name);
+    }
+    default:
+      return undefined;
+  }
+}
+
+/** The resource at a tree path, its parents below the cluster (the cluster being the selected one); else undefined. */
+export function resourceAtTreePath(
+  path: string,
+  catalog: KindCatalog,
+): { kind: KindVersion; parents: string[]; name: string } | undefined {
+  const [scope, group, kindName, ...rest] = path.split('/').slice(1).map(decodeURIComponent);
+  const kind = kindName ? catalog.latest(kindName) : undefined;
+  if (!kind || kind.group !== group || scopeOf(kind) !== scope) return undefined;
+  const levels = kind.parentPathParams.length - (scope === 'cluster' ? 1 : 0);
+  if (rest.length !== levels + 1) return undefined;
+  return { kind, parents: rest.slice(0, -1), name: rest.at(-1)! };
+}
+
 export function scopeOf(kind: KindVersion): Scope {
   return kind.parentPathParams[0] === 'cluster' ? 'cluster' : 'global';
 }

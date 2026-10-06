@@ -5,7 +5,9 @@ import {
   childrenOf,
   idOf,
   parentOf,
+  resourceAtTreePath,
   shownInTree,
+  treePathOf,
   type ExplorerNode,
   type ExplorerSource,
 } from '../src/explorer/explorerModel';
@@ -255,5 +257,25 @@ describe('shownInTree', () => {
     expect(shownInTree(catalog, 'c', true, node('remote'))).toBe(false);
     expect(shownInTree(catalog, 'c', false, node('remote'))).toBe(true);
     expect(shownInTree(catalog, 'other', false, node('edited', 'modified'))).toBe(false);
+  });
+});
+
+describe('tree paths', () => {
+  it("mirror the tree, so each ancestor's path is a prefix of a resource's", () => {
+    const connector = catalog.latest('Connector')!;
+    const resource: ExplorerNode = { type: 'resource', kind: connector, parents: ['c', 'k'], name: 'sink' };
+    const path = treePathOf(resource)!;
+    expect(resourceAtTreePath(path, catalog)).toEqual({ kind: connector, parents: ['k'], name: 'sink' });
+    let node: ExplorerNode | undefined = parentOf(resource, 'c');
+    while (node) {
+      const ancestor = treePathOf(node)!;
+      expect(path.startsWith(`${ancestor}/`), `${ancestor} above ${path}`).toBe(true);
+      expect(resourceAtTreePath(ancestor, catalog)).toBeUndefined();
+      node = parentOf(node, 'c');
+    }
+    const group = catalog.latest('Group')!;
+    const global = treePathOf({ type: 'resource', kind: group, parents: [], name: 'admins' })!;
+    expect(resourceAtTreePath(global, catalog)).toEqual({ kind: group, parents: [], name: 'admins' });
+    expect(treePathOf({ type: 'message', text: 'None' })).toBeUndefined();
   });
 });
