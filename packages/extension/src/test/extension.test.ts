@@ -2262,7 +2262,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok(existsSync(statePath), 'the state records it');
       await until(() => api.sync.entryAt(file)?.status === 'synced', 10_000);
 
-      // ctl tells resources apart by all their metadata: a first label makes it delete the topic and create it again.
+      // A ctl before conduktor/ctl#147 tells resources apart by all their metadata, so a first label makes it delete the
+      // topic and create it again; the confirmation must then say so. A fixed ctl just updates it.
       let asked = '';
       api.setConfirm(async (_message, detail) => {
         asked = detail ?? '';
@@ -2272,7 +2273,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       labelled.metadata.labels = { team: 'data' };
       writeFileSync(file.fsPath, stringify(labelled));
       await vscode.commands.executeCommand('conduktor.applyEnvironment');
-      assert.match(asked, new RegExp(`Deleted and created again, losing their data: Topic/${name}`));
+      assert.ok(
+        new RegExp(`Deleted and created again, losing their data: Topic/${name}`).test(asked) || !/Deleted/.test(asked),
+        `the confirmation never hides a delete: ${asked}`,
+      );
       api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
 
       rmSync(file.fsPath);
