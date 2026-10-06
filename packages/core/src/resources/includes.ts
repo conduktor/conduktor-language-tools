@@ -3,7 +3,6 @@ import { isRecord } from '../util';
 import type { Resource } from './types';
 
 const DESCRIPTION_FILE = 'conduktor.io/descriptionFile';
-const DESCRIPTION = 'conduktor.io/description';
 
 export class IncludeError extends Error {
   override name = 'IncludeError';
@@ -18,12 +17,11 @@ export function expandIncludes(resource: Resource, readInclude?: (path: string) 
   const { labels } = resource.metadata;
   if (resource.kind === 'Topic' && isRecord(labels) && typeof labels[DESCRIPTION_FILE] === 'string') {
     const { [DESCRIPTION_FILE]: descriptionFile, ...rest } = labels;
+    // The Console keeps a topic's description in metadata.description; it refuses the old conduktor.io/description
+    // label.
     return {
       ...resource,
-      metadata: {
-        ...resource.metadata,
-        labels: { ...rest, [DESCRIPTION]: read(descriptionFile as string, readInclude) },
-      },
+      metadata: { ...resource.metadata, labels: rest, description: read(descriptionFile as string, readInclude) },
     };
   }
   return resource;

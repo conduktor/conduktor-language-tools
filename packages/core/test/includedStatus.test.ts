@@ -47,12 +47,12 @@ describe('included files in status', () => {
 
   it('says which included files to write back when discarding', () => {
     expect(includeRestores(subject, applied)).toEqual([{ path: 's.avsc', content: 'A' }]);
-    const topic = (labels: Record<string, string>) =>
-      stringify({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 't', cluster: 'c', labels }, spec: {} });
+    const topic = (metadata: Record<string, unknown>) =>
+      stringify({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 't', cluster: 'c', ...metadata }, spec: {} });
     expect(
       includeRestores(
-        topic({ 'conduktor.io/descriptionFile': 'd.md' }),
-        topic({ 'conduktor.io/description': 'Applied text' }),
+        topic({ labels: { 'conduktor.io/descriptionFile': 'd.md' } }),
+        topic({ description: 'Applied text' }),
       ),
     ).toEqual([{ path: 'd.md', content: 'Applied text' }]);
     expect(includeRestores(applied, applied)).toEqual([]);
@@ -70,5 +70,27 @@ describe('included files in status', () => {
       writes: [{ path: 's.avsc', content: 'C' }],
     });
     expect(collapseIncludes(live, applied)).toEqual({ resource: live, writes: [] });
+  });
+
+  it("syncs a Topic's description back into its descriptionFile", () => {
+    const local = stringify({
+      apiVersion: 'v2',
+      kind: 'Topic',
+      metadata: { name: 't', cluster: 'c', labels: { team: 'a', 'conduktor.io/descriptionFile': 'd.md' } },
+      spec: { partitions: 1 },
+    });
+    const live = {
+      apiVersion: 'v2',
+      kind: 'Topic',
+      metadata: { name: 't', cluster: 'c', labels: { team: 'a' }, description: 'From the Console' },
+      spec: { partitions: 1 },
+    };
+    expect(collapseIncludes(live, local)).toEqual({
+      resource: {
+        ...live,
+        metadata: { name: 't', cluster: 'c', labels: { team: 'a', 'conduktor.io/descriptionFile': 'd.md' } },
+      },
+      writes: [{ path: 'd.md', content: 'From the Console' }],
+    });
   });
 });

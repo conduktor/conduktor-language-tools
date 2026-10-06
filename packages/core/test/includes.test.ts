@@ -28,11 +28,10 @@ describe('expandIncludes', () => {
     });
   });
 
-  it('reads a Topic descriptionFile label into the description label', () => {
-    expect(expandIncludes(topic, (p) => `contents of ${p}`).metadata.labels).toEqual({
-      team: 'a',
-      'conduktor.io/description': 'contents of docs/orders.md',
-    });
+  it('reads a Topic descriptionFile label into metadata.description, where the Console keeps it', () => {
+    const { metadata } = expandIncludes(topic, (p) => `contents of ${p}`);
+    expect(metadata.labels).toEqual({ team: 'a' });
+    expect(metadata.description).toBe('contents of docs/orders.md');
   });
 
   it('leaves resources without includes untouched', () => {

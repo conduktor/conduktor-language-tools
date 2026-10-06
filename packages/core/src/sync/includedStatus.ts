@@ -6,7 +6,6 @@ import { syncStatus, type SyncStatus } from './status';
 
 const SCHEMA_FILE = 'schemaFile';
 const DESCRIPTION_FILE = 'conduktor.io/descriptionFile';
-const DESCRIPTION = 'conduktor.io/description';
 
 /** The resource with its included files read in, as YAML; undefined when it includes nothing or cannot be read. */
 export function expandedText(text: string, readInclude: (path: string) => string): string | undefined {
@@ -42,7 +41,7 @@ export function includeRestores(base: string, applied: string): { path: string; 
   const to = resourceOf(applied);
   if (!from || !to) return [];
   return includes(from).flatMap(({ path, field }) => {
-    const content = field === SCHEMA_FILE ? specOf(to).schema : labelsOf(to)[DESCRIPTION];
+    const content = field === SCHEMA_FILE ? specOf(to).schema : to.metadata.description;
     return typeof content === 'string' ? [{ path, content }] : [];
   });
 }
@@ -62,10 +61,13 @@ export function collapseIncludes(
     if (field === SCHEMA_FILE && typeof specOf(resource).schema === 'string') {
       writes.push({ path, content: specOf(resource).schema as string });
       resource = { ...resource, spec: renamed(specOf(resource), 'schema', SCHEMA_FILE, path) };
-    } else if (field === DESCRIPTION_FILE && typeof labelsOf(resource)[DESCRIPTION] === 'string') {
-      writes.push({ path, content: labelsOf(resource)[DESCRIPTION] as string });
-      const labels = renamed(labelsOf(resource), DESCRIPTION, DESCRIPTION_FILE, path);
-      resource = { ...resource, metadata: { ...resource.metadata, labels } };
+    } else if (field === DESCRIPTION_FILE && typeof resource.metadata.description === 'string') {
+      writes.push({ path, content: resource.metadata.description });
+      const { description: _description, ...metadata } = resource.metadata;
+      resource = {
+        ...resource,
+        metadata: { ...metadata, labels: { ...labelsOf(resource), [DESCRIPTION_FILE]: path } },
+      };
     }
   }
   return { resource, writes };
