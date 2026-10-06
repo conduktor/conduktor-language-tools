@@ -2012,10 +2012,17 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(synced.resourceUri?.scheme, 'conduktor-tree');
       assert.strictEqual(look(synced.resourceUri!), undefined, 'synced reads as normal');
 
+      // A collapsed kind shows the dot only from decorations VS Code already holds, so a change names each resource.
+      const announced: string[] = [];
+      const listening = api.treeDecorations.onDidChangeFileDecorations((uris) => {
+        for (const changed of Array.isArray(uris) ? uris : uris ? [uris] : []) announced.push(changed.toString());
+      });
       const edited = parse(readFileSync(uri.fsPath, 'utf8'));
       edited.spec.displayName = 'Edited here';
       writeFileSync(uri.fsPath, stringify(edited));
       await api.sync.refresh();
+      listening.dispose();
+      assert.ok(announced.includes(synced.resourceUri!.toString()), announced.join('\n'));
       assert.deepStrictEqual(look(synced.resourceUri!), {
         badge: 'M',
         color: 'gitDecoration.modifiedResourceForeground',
@@ -2036,6 +2043,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       });
       const kindItem = api.explorer.getTreeItem({ type: 'kind', kind: clusterKind, parents: [] });
       assert.strictEqual(look(kindItem.resourceUri!), undefined, 'a kind gets only what rolls up from below');
+      assert.strictEqual(kindItem.tooltip, 'KafkaCluster v2', 'never the raw tree path');
       assert.strictEqual(
         decoration(api.liveUri({ type: 'resource', kind: clusterKind, parents: [], name: 'local-gateway' })),
         undefined,

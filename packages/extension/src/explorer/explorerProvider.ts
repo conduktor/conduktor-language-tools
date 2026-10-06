@@ -4,14 +4,7 @@ import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { ClusterSelection } from './clusterSelection';
 import { toLiveUriParts } from '../liveFs/uris';
-import {
-  childrenOf,
-  idOf,
-  parentOf,
-  shownInTree,
-  type ExplorerNode,
-  type ResourceNode,
-} from './explorerModel';
+import { childrenOf, idOf, parentOf, shownInTree, type ExplorerNode, type ResourceNode } from './explorerModel';
 
 const { Collapsed, Expanded, None } = vscode.TreeItemCollapsibleState;
 
@@ -95,6 +88,8 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     if (id) treeItem.id = id;
     // Decorations colour labels by this URI, and roll a resource's state up its path to the kind and cluster.
     treeItem.resourceUri = treeUriOf(node);
+    // Without one, a tree item with a resourceUri hovers with that URI's path.
+    treeItem.tooltip ??= [treeItem.label, treeItem.description].filter((part) => typeof part === 'string').join(' ');
     return treeItem;
   }
 
@@ -122,7 +117,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
         return treeItem;
       }
       case 'group':
-        return item(node.group, Collapsed, 'folder', 'group');
+        return item(node.group, Collapsed, 'library', 'group');
       case 'kind': {
         const treeItem = item(node.kind.kind, Collapsed, 'symbol-class', 'kind');
         treeItem.description = `v${node.kind.version}`;

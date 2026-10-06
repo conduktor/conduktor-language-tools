@@ -12,9 +12,10 @@ export function treeUriOf(node: ExplorerNode): vscode.Uri | undefined {
   return path === undefined ? undefined : vscode.Uri.from({ scheme: TREE_SCHEME, path });
 }
 
+// No decoration tooltips: the tree items say the same in their own, and VS Code would repeat them.
 const DIMMED = new vscode.FileDecoration(
   undefined,
-  'Only in the Console',
+  undefined,
   new vscode.ThemeColor('gitDecoration.ignoredResourceForeground'),
 );
 
@@ -39,7 +40,7 @@ export const LOCAL_LOOKS: Readonly<Record<string, { badge: string; color: string
  * when asked, so it is as current as the folder's last scan.
  */
 export class TreeDecorations implements vscode.FileDecorationProvider, vscode.Disposable {
-  private readonly changed = new vscode.EventEmitter<undefined>();
+  private readonly changed = new vscode.EventEmitter<vscode.Uri[] | undefined>();
   readonly onDidChangeFileDecorations = this.changed.event;
   private readonly listeners: vscode.Disposable[];
 
@@ -48,8 +49,24 @@ export class TreeDecorations implements vscode.FileDecorationProvider, vscode.Di
     private readonly sync: SyncFolder,
     private readonly clusters: ClusterSelection,
   ) {
-    const all = () => this.changed.fire(undefined);
-    this.listeners = [sync.onDidChange(all), clusters.onDidChange(all), sessions.onDidChange(all)];
+    const announce = () => this.announce();
+    this.listeners = [sync.onDidChange(announce), clusters.onDidChange(announce), sessions.onDidChange(announce)];
+    setTimeout(announce, 0);
+  }
+
+  // VS Code draws a collapsed kind's dot only from child decorations it already holds, and a clear drops them all; so
+  // after the clear (for the dimming) every local resource in view is named, as the git extension names its files.
+  private announce(): void {
+    this.changed.fire(undefined);
+    const state = this.sessions.current();
+    if (state.status !== 'ready') return;
+    const cluster = this.clusters.current();
+    const uris = this.sync.list().flatMap((entry) => {
+      const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
+      if (!kind || (scopeOf(kind) === 'cluster' && entry.parents[0] !== cluster)) return [];
+      return treeUriOf({ type: 'resource', kind, parents: entry.parents, name: entry.name }) ?? [];
+    });
+    if (uris.length > 0) this.changed.fire(uris);
   }
 
   provideFileDecoration(uri: vscode.Uri, _token: vscode.CancellationToken): vscode.FileDecoration | undefined {
@@ -58,12 +75,13 @@ export class TreeDecorations implements vscode.FileDecorationProvider, vscode.Di
     const at = resourceAtTreePath(uri.path, state.spec.catalog);
     if (!at) return undefined;
     const cluster = this.clusters.current();
-    const parents = scopeOf(at.kind) === 'cluster' ? [cluster ?? '', ...at.parents] : at.parents;
+    if (scopeOf(at.kind) === 'cluster' && !cluster) return undefined;
+    const parents = scopeOf(at.kind) === 'cluster' ? [cluster!, ...at.parents] : at.parents;
     const entry = this.sync.entryFor(at.kind.kind, parents, at.name);
     if (!entry) return DIMMED;
     const look = LOCAL_LOOKS[entry.drift ?? entry.status];
     if (!look) return undefined;
-    const decoration = new vscode.FileDecoration(look.badge, look.tooltip, new vscode.ThemeColor(look.color));
+    const decoration = new vscode.FileDecoration(look.badge, undefined, new vscode.ThemeColor(look.color));
     decoration.propagate = true;
     return decoration;
   }

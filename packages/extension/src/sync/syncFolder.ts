@@ -69,6 +69,7 @@ const ROOT_KEY = 'conduktor.syncRoot';
 export class SyncFolder implements vscode.Disposable {
   private entries: LocalEntry[] = [];
   private entriesByUri = new Map<string, LocalEntry>();
+  private entriesByName = new Map<string, LocalEntry>();
   private otherFiles: vscode.Uri[] = [];
   private bootstrapping = false;
   private drift = new Map<string, Drift>();
@@ -213,9 +214,7 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   entryFor(kind: string, parents: readonly string[], name: string): LocalEntry | undefined {
-    return this.entries.find(
-      (entry) => entry.kind === kind && entry.name === name && sameParents(entry.parents, parents),
-    );
+    return this.entriesByName.get(entryKey(kind, parents, name));
   }
 
   contains(uri: vscode.Uri): boolean {
@@ -454,6 +453,12 @@ export class SyncFolder implements vscode.Disposable {
   private setEntries(entries: LocalEntry[]): void {
     this.entries = entries;
     this.entriesByUri = new Map(entries.map((entry) => [entry.uri.toString(), entry]));
+    // Two files can describe the same resource; the first found wins, as when the list was searched.
+    this.entriesByName = new Map();
+    for (const entry of entries) {
+      const key = entryKey(entry.kind, entry.parents, entry.name);
+      if (!this.entriesByName.has(key)) this.entriesByName.set(key, entry);
+    }
     this.changed.fire();
   }
 
@@ -775,6 +780,10 @@ function withPlaceholders(text: string, parents: readonly string[]): string {
   } catch {
     return text;
   }
+}
+
+function entryKey(kind: string, parents: readonly string[], name: string): string {
+  return JSON.stringify([kind, parents, name]);
 }
 
 function sameParents(a: readonly string[], b: readonly string[]): boolean {

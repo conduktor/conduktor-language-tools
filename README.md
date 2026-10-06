@@ -58,7 +58,8 @@ Stage changes as files before they reach the Console — the first step towards 
   outside the environment so the CLI never applies it. Folders from the older `<sync folder>/<connection>/` layout
   move into `environments/` on first use.
 - From then on the Explorer shows each resource's state the way the file explorer shows git's: dimmed with a cloud
-  when it is only in the Console, a check when synced, and a coloured label with a letter for a local copy not applied
+  when it is only in the Console, a check for a synced copy (edited or not), and a coloured label with a letter for a
+  local copy not applied
   yet — **M** edited, **A** new, **⚠** changed or deleted on the Console since it was synced (found by **Refresh Local
   Changes**). Those roll up as a dot to the kind, group and cluster, so a collapsed tree shows where the work is.
   Synced resources open as local files, and **Show Only Changes** filters the tree to them.
