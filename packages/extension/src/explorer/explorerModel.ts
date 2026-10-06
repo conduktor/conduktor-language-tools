@@ -183,7 +183,20 @@ export function isInView(
 }
 
 function relevantChanges(source: ExplorerSource): LocalResource[] {
-  return (source.local ?? []).filter(
-    (r) => isInView(source.catalog, source.cluster, r) && (r.mark.status !== 'synced' || r.mark.drift),
-  );
+  return (source.local ?? []).filter((r) => isInView(source.catalog, source.cluster, r) && isChange(r.mark));
+}
+
+function isChange(mark: LocalMark): boolean {
+  return mark.status !== 'synced' || !!mark.drift;
+}
+
+/** Whether the tree shows this resource: in the selected cluster, and not filtered out by Show Only Changes. */
+export function shownInTree(
+  catalog: KindCatalog,
+  cluster: string | undefined,
+  onlyChanges: boolean,
+  node: ResourceNode,
+): boolean {
+  if (!isInView(catalog, cluster, { kind: node.kind.kind, parents: node.parents })) return false;
+  return !onlyChanges || (!!node.local && isChange(node.local));
 }

@@ -36,9 +36,9 @@ describe('manifest', () => {
 
   it('offers both diffs in the editor title, each where it means something', () => {
     const title = manifest.contributes.menus['editor/title'] as { command: string; when: string }[];
-    expect(title.find((m) => m.command === 'conduktor.diffWithLive')?.when).toContain('conduktor.activeResource');
-    expect(title.find((m) => m.command === 'conduktor.openChanges')?.when).toContain(
-      "conduktor.activeLocal == 'modified'",
+    expect(title.find((m) => m.command === 'conduktor.diffWithLive')?.when).toBe(
+      'resource in conduktor.resourceDocuments',
     );
+    expect(title.find((m) => m.command === 'conduktor.openChanges')?.when).toBe('resource in conduktor.modifiedFiles');
   });
 });

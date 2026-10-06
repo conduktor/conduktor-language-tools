@@ -16,7 +16,11 @@ function nodeFor(uri: vscode.Uri, sessions: SessionManager, sync: SyncFolder): R
     const ref = parseLiveUriParts(uri.authority, uri.path);
     const kind =
       ref && ref.connectionId === state.connection.id && state.spec.catalog.resolve(`v${ref.version}`, ref.kind);
-    return kind ? { type: 'resource', kind, parents: ref.parents, name: ref.name } : undefined;
+    if (!kind) return undefined;
+    // The tree marks a resource by its local copy, live document or not.
+    const copy = sync.entryFor(kind.kind, ref.parents, ref.name);
+    const local = copy && { status: copy.status, drift: copy.drift, uri: copy.uri.toString() };
+    return { type: 'resource', kind, parents: ref.parents, name: ref.name, ...(local && { local }) };
   }
   const entry = sync.entryAt(uri);
   const kind = entry && state.spec.catalog.resolve(entry.apiVersion, entry.kind);
@@ -50,20 +54,30 @@ export class Reveal implements vscode.Disposable {
       void vscode.window.showInformationMessage('This file is not a resource of the current connection.');
       return;
     }
-    if (scopeOf(node.kind) === 'cluster' && node.parents[0] !== this.clusters.current())
-      await this.clusters.set(node.parents[0]);
-    if (!this.explorer.shows(node)) {
+    const elsewhere = scopeOf(node.kind) === 'cluster' && node.parents[0] !== this.clusters.current();
+    // Checked before the cluster changes, so a resource the filter hides leaves the tree as it was.
+    if (!this.explorer.shows(node, elsewhere ? node.parents[0] : undefined)) {
       void vscode.window.showInformationMessage('Show Only Changes hides it; Show All to see it in the Explorer.');
       return;
     }
-    await this.view.reveal(node, { select: true, focus: true, expand: false });
+    if (elsewhere) await this.clusters.set(node.parents[0]);
+    try {
+      await this.view.reveal(node, { select: true, focus: true, expand: false });
+    } catch {
+      void vscode.window.showInformationMessage(
+        `${node.kind.kind} ${node.name} is not in the Explorer: it is not on the Console, or its list could not be read.`,
+      );
+    }
   }
 
   // Following the editor never changes the tree's cluster or filter, nor opens the view: like the file explorer's
   // auto reveal, it only selects what the tree already shows.
   private async follow(uri: vscode.Uri): Promise<void> {
     const node = this.view.visible ? nodeFor(uri, this.sessions, this.sync) : undefined;
-    if (node && this.explorer.shows(node)) await this.view.reveal(node, { select: true, focus: false, expand: false });
+    if (node && this.explorer.shows(node))
+      await Promise.resolve(this.view.reveal(node, { select: true, focus: false, expand: false })).catch(
+        () => undefined,
+      );
   }
 
   dispose(): void {

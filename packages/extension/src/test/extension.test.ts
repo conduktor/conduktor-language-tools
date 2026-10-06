@@ -2028,6 +2028,11 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       editor.selection = new vscode.Selection(inSecond, inSecond);
       await vscode.commands.executeCommand('conduktor.diffWithLive');
       assert.match(diffTab()?.modified.path ?? '', /second-doc/);
+      // The editor title's toolbar passes its own context object after the URI.
+      await vscode.window.showTextDocument(doc);
+      editor.selection = new vscode.Selection(inSecond, inSecond);
+      await vscode.commands.executeCommand('conduktor.diffWithLive', doc.uri, { groupId: 0, editorIndex: 0 });
+      assert.match(diffTab()?.modified.path ?? '', /second-doc/);
     } finally {
       await vscode.commands.executeCommand('workbench.action.closeAllEditors');
       await useWorkspaceSyncRoot(api);
@@ -2071,6 +2076,14 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await vscode.commands.executeCommand('conduktor.revealInExplorer');
       assert.strictEqual(api.clusters.current(), 'local-kafka');
       await until(() => selected() === `Topic/local-kafka/${topic!.metadata.name}`, 10_000);
+
+      // Show Only Changes hides a synced resource: the command neither switches the cluster nor selects anything.
+      await api.clusters.set('local-gateway');
+      await vscode.commands.executeCommand('conduktor.showOnlyChanges');
+      await vscode.window.showTextDocument(topicFile);
+      await vscode.commands.executeCommand('conduktor.revealInExplorer');
+      assert.strictEqual(api.clusters.current(), 'local-gateway', 'a hidden resource does not move the tree');
+      await vscode.commands.executeCommand('conduktor.showAll');
     } finally {
       await settings.update('explorer.autoReveal', undefined, vscode.ConfigurationTarget.Global);
       await api.clusters.set('local-kafka');

@@ -7,8 +7,8 @@ import { toLiveUriParts } from '../liveFs/uris';
 import {
   childrenOf,
   idOf,
-  isInView,
   parentOf,
+  shownInTree,
   type ExplorerNode,
   type LocalMark,
   type ResourceNode,
@@ -116,12 +116,10 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     return parentOf(node, this.clusters.current());
   }
 
-  /** Whether the tree shows this resource now: in the selected cluster, and not filtered out by Show Only Changes. */
-  shows(node: ResourceNode): boolean {
+  /** Whether the tree shows this resource, now or once the given cluster is selected. */
+  shows(node: ResourceNode, cluster = this.clusters.current()): boolean {
     const state = this.sessions.current();
-    const resource = { kind: node.kind.kind, parents: node.parents };
-    if (state.status !== 'ready' || !isInView(state.spec.catalog, this.clusters.current(), resource)) return false;
-    return !this.onlyChanges || (!!node.local && (node.local.status !== 'synced' || !!node.local.drift));
+    return state.status === 'ready' && shownInTree(state.spec.catalog, cluster, this.onlyChanges, node);
   }
 
   private itemFor(node: ExplorerNode): vscode.TreeItem {

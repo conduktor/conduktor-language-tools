@@ -34,7 +34,7 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
-import { ActiveResourceContext } from './editing/activeResource';
+import { DocumentContexts } from './editing/documentContexts';
 import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
 import { ConsoleOnlyDecorations } from './explorer/decorations';
 import { Reveal } from './explorer/reveal';
@@ -140,13 +140,13 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
     vscode.window.registerFileDecorationProvider(consoleOnly),
-    new ActiveResourceContext(sessions, sync),
+    new DocumentContexts(sessions, sync),
     reveal,
     vscode.commands.registerCommand('conduktor.revealInExplorer', (uri?: vscode.Uri) => {
       const target = activeUri(uri);
       return target ? reveal.reveal(target) : undefined;
     }),
-    vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, new BaseContent()),
+    vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, new BaseContent(sync)),
     vscode.commands.registerCommand('conduktor.openChanges', (uri?: vscode.Uri) => {
       const target = activeUri(uri);
       return target ? openChanges(sync, target) : undefined;
@@ -190,9 +190,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       const target = activeUri(uri);
       return target ? resources.apply(target) : undefined;
     }),
-    vscode.commands.registerCommand('conduktor.diffWithLive', (uri?: vscode.Uri, index?: number) => {
+    // The editor title's toolbar passes its own { groupId, editorIndex } where a CodeLens passes a document index.
+    vscode.commands.registerCommand('conduktor.diffWithLive', (uri?: vscode.Uri, index?: unknown) => {
       const target = activeUri(uri);
-      return target ? compare.diffWithLive(target, index) : undefined;
+      return target ? compare.diffWithLive(target, typeof index === 'number' ? index : undefined) : undefined;
     }),
     ...[false, true].map((editable) =>
       vscode.workspace.registerFileSystemProvider(

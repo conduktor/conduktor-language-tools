@@ -45,8 +45,11 @@ export class Compare implements vscode.TextDocumentContentProvider, vscode.Dispo
     const document = await vscode.workspace.openTextDocument(uri);
     const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env });
     // Without an index (the editor title, the palette) the document under the cursor is the one meant.
-    const editor = vscode.window.activeTextEditor;
-    const cursor = editor?.document.uri.toString() === uri.toString() ? document.offsetAt(editor.selection.active) : 0;
+    const shown = (editor: vscode.TextEditor | undefined) => editor?.document.uri.toString() === uri.toString();
+    const editor = shown(vscode.window.activeTextEditor)
+      ? vscode.window.activeTextEditor
+      : vscode.window.visibleTextEditors.find(shown);
+    const cursor = editor ? document.offsetAt(editor.selection.active) : 0;
     const target =
       index === undefined
         ? (documents.find((d) => d.start <= cursor && cursor <= d.end) ?? documents[0])

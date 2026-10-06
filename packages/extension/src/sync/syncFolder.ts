@@ -638,6 +638,12 @@ export class SyncFolder implements vscode.Disposable {
     return this.entryAt(uri) ? this.baseOf(uri) : undefined;
   }
 
+  isBaseCopy(uri: vscode.Uri): boolean {
+    const syncRoot = this.syncRoot();
+    const base = syncRoot && `${syncRoot.path.replace(/\/+$/, '')}/${STATE_DIR}/base/`;
+    return !!syncRoot && !!base && uri.scheme === syncRoot.scheme && uri.path.startsWith(base);
+  }
+
   // From the file's own path, never from the current connection: a request that finishes after a switch still writes
   // its base copy beside the file it belongs to.
   private baseOf(uri: vscode.Uri, copy: 'base' | 'applied' = 'base'): vscode.Uri | undefined {

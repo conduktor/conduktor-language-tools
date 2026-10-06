@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { buildSpec, ConsoleError, type Resource } from '@conduktor/vscode-core';
 import { describe, expect, it } from 'vitest';
-import { childrenOf, idOf, parentOf, type ExplorerNode, type ExplorerSource } from '../src/explorer/explorerModel';
+import {
+  childrenOf,
+  idOf,
+  parentOf,
+  shownInTree,
+  type ExplorerNode,
+  type ExplorerSource,
+} from '../src/explorer/explorerModel';
 
 const { catalog } = buildSpec(
   readFileSync(new URL('../../core/snapshot/public-api-doc.yaml', import.meta.url), 'utf8'),
@@ -221,5 +228,32 @@ describe('parentOf and idOf', () => {
       idOf({ type: 'kind', kind: topic, parents: ['c'] }),
     );
     expect(idOf({ type: 'message', text: 'None' })).toBeUndefined();
+  });
+});
+
+describe('shownInTree', () => {
+  it('agrees with the tree: the selected cluster, and Show Only Changes keeping changed resources only', async () => {
+    const topic = catalog.latest('Topic')!;
+    const node = (name: string, status?: 'synced' | 'modified'): ExplorerNode & { type: 'resource' } => ({
+      type: 'resource',
+      kind: topic,
+      parents: ['c'],
+      name,
+      ...(status && { local: { status, uri: `file:///${name}.yaml` } }),
+    });
+    const local = (['edited', 'same'] as const).map((name) => ({
+      kind: 'Topic',
+      parents: ['c'],
+      name,
+      mark: { status: name === 'edited' ? ('modified' as const) : ('synced' as const), uri: `file:///${name}.yaml` },
+    }));
+    const changesOnly = source({}, { cluster: 'c', local, onlyChanges: true });
+    const listed = await childrenOf(changesOnly, { type: 'kind', kind: topic, parents: ['c'] });
+    expect(listed.flatMap((n) => (n.type === 'resource' ? [n.name] : []))).toEqual(['edited']);
+    expect(shownInTree(catalog, 'c', true, node('edited', 'modified'))).toBe(true);
+    expect(shownInTree(catalog, 'c', true, node('same', 'synced'))).toBe(false);
+    expect(shownInTree(catalog, 'c', true, node('remote'))).toBe(false);
+    expect(shownInTree(catalog, 'c', false, node('remote'))).toBe(true);
+    expect(shownInTree(catalog, 'other', false, node('edited', 'modified'))).toBe(false);
   });
 });

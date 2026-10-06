@@ -414,12 +414,12 @@
         },
         {
           "command": "conduktor.diffWithLive",
-          "when": "conduktor.activeResource",
+          "when": "resource in conduktor.resourceDocuments",
           "group": "navigation"
         },
         {
           "command": "conduktor.openChanges",
-          "when": "conduktor.activeLocal == 'modified'",
+          "when": "resource in conduktor.modifiedFiles",
           "group": "navigation"
         }
       ],
@@ -478,21 +478,21 @@
       "editor/title/context": [
         {
           "command": "conduktor.revealInExplorer",
-          "when": "conduktor.activeResource",
+          "when": "resource in conduktor.resourceDocuments",
           "group": "2_files"
         }
       ],
       "editor/context": [
         {
           "command": "conduktor.revealInExplorer",
-          "when": "conduktor.activeResource",
+          "when": "resource in conduktor.resourceDocuments",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
           "command": "conduktor.revealInExplorer",
-          "when": "resourceLangId == yaml && conduktor.syncFolder",
+          "when": "resource in conduktor.syncFiles",
           "group": "navigation"
         }
       ]

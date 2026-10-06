@@ -6,7 +6,11 @@ export const BASE_SCHEME = 'conduktor-base';
 
 /** The base a sync-folder file was synced or applied as, read-only. */
 export class BaseContent implements vscode.TextDocumentContentProvider {
+  constructor(private readonly sync: SyncFolder) {}
+
   provideTextDocumentContent(uri: vscode.Uri): string {
+    // Only base copies: any other path behind this scheme would make it a viewer for any file on the disk.
+    if (!this.sync.isBaseCopy(uri.with({ scheme: 'file' }))) return '';
     try {
       return readFileSync(uri.fsPath, 'utf8');
     } catch {
@@ -19,7 +23,11 @@ export class BaseContent implements vscode.TextDocumentContentProvider {
 export async function openChanges(sync: SyncFolder, uri: vscode.Uri): Promise<void> {
   const base = sync.baseUri(uri);
   const entry = sync.entryAt(uri);
-  if (!base || !entry || entry.status === 'new') {
+  if (!entry) {
+    void vscode.window.showInformationMessage('Open Changes compares a sync-folder file with its last sync or apply.');
+    return;
+  }
+  if (!base || entry.status === 'new') {
     void vscode.window.showInformationMessage('This file is new, so there is nothing to compare it with.');
     return;
   }
