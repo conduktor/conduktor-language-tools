@@ -154,3 +154,22 @@ describe('referencedVariables', () => {
     expect(referencedVariables('a: ${A}\nb: ${B:-x}\nc: $${C}\nd: ${A}\n')).toEqual(['A', 'B']);
   });
 });
+
+describe('drift and server-managed fields', () => {
+  const subject = (spec: Record<string, unknown>): Resource => ({
+    apiVersion: 'v2',
+    kind: 'Subject',
+    metadata: { name: 's', cluster: 'c' },
+    spec: { format: 'AVRO', schema: 'A', ...spec },
+  });
+
+  it('ignores what the Console fills in itself', () => {
+    expect(driftOf(stringify(subject({})), subject({ id: 14, version: 1, guid: 'g' }))).toBeUndefined();
+    const user: Resource = { apiVersion: 'v2', kind: 'User', metadata: { name: 'u' }, spec: {} };
+    expect(driftOf(stringify(user), { ...user, metadata: { name: 'u', lastLoginDate: 'today' } })).toBeUndefined();
+  });
+
+  it('still sees a change to what was written', () => {
+    expect(driftOf(stringify(subject({})), subject({ schema: 'B', id: 15, version: 2 }))).toBe('changed');
+  });
+});

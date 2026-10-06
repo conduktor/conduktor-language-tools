@@ -801,11 +801,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       );
       const preview = await api.applyAllChanges();
       const outcome = preview?.find((item) => item.document.resource?.metadata.name === name)?.outcome;
-      // An unreadable include fails before any request, so any answer from the Console shows the file was read.
-      assert.ok(
-        outcome?.status === 'ok' || (outcome?.status === 'error' && outcome.httpStatus !== undefined),
-        JSON.stringify(outcome),
-      );
+      // The description is read from the file next to it, and sent where the Console accepts it.
+      assert.strictEqual(outcome?.status, 'ok', JSON.stringify(outcome));
     } finally {
       await useWorkspaceSyncRoot(api);
       await Promise.resolve(vscode.workspace.fs.delete(elsewhere, { recursive: true })).catch(() => undefined);
@@ -841,6 +838,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       const applied = await api.applyAllChanges();
       await api.sync.refresh();
       assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced', JSON.stringify(applied?.map((i) => i.outcome)));
+      await api.sync.refresh({ drift: true });
+      assert.strictEqual(api.sync.entryAt(uri)?.drift, undefined, 'what the Console fills in itself is not drift');
 
       writeFileSync(file, schema('edited'));
       await api.sync.refresh();
