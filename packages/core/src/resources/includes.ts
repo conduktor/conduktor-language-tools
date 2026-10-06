@@ -17,11 +17,15 @@ export function expandIncludes(resource: Resource, readInclude?: (path: string) 
   const { labels } = resource.metadata;
   if (resource.kind === 'Topic' && isRecord(labels) && typeof labels[DESCRIPTION_FILE] === 'string') {
     const { [DESCRIPTION_FILE]: descriptionFile, ...rest } = labels;
-    // The Console keeps a topic's description in metadata.description; it refuses the old conduktor.io/description
-    // label.
+    const { labels: _labels, ...metadata } = resource.metadata;
+    // The Console keeps a topic's description in metadata.description and refuses a conduktor.io/description label.
     return {
       ...resource,
-      metadata: { ...resource.metadata, labels: rest, description: read(descriptionFile as string, readInclude) },
+      metadata: {
+        ...metadata,
+        ...(Object.keys(rest).length > 0 && { labels: rest }),
+        description: read(descriptionFile as string, readInclude),
+      },
     };
   }
   return resource;

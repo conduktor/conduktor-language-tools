@@ -775,15 +775,15 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test("reads each file's includes next to it when the sync folder is outside the workspace", async () => {
     const api = await activate();
-    api.setConfirm(async () => undefined);
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     assert.strictEqual(state.connection.mode, 'apply');
     await api.clusters.set('local-kafka');
     const elsewhere = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-includes-')));
     await api.sync.setSyncRoot(elsewhere);
+    const name = `vscode-include-${Date.now()}`;
     try {
-      const name = `vscode-include-${Date.now()}`;
       const uri = await api.sync.writeNew(
         state.spec.catalog.latest('Topic')!,
         ['local-kafka'],
@@ -801,9 +801,14 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       );
       const preview = await api.applyAllChanges();
       const outcome = preview?.find((item) => item.document.resource?.metadata.name === name)?.outcome;
-      // The description is read from the file next to it, and sent where the Console accepts it.
+      // The description is read from the file next to it, and sent where the Console keeps it.
       assert.strictEqual(outcome?.status, 'ok', JSON.stringify(outcome));
+      const live = await state.client.get(`/public/kafka/v2/cluster/local-kafka/topic/${name}`);
+      assert.strictEqual(live.metadata.description, 'Read from the file next to it');
+      await api.sync.refresh({ drift: true });
+      assert.strictEqual(api.sync.entryAt(uri)?.drift, undefined, 'an applied description is not drift');
     } finally {
+      await state.client.delete(`/public/kafka/v2/cluster/local-kafka/topic/${name}`).catch(() => undefined);
       await useWorkspaceSyncRoot(api);
       await Promise.resolve(vscode.workspace.fs.delete(elsewhere, { recursive: true })).catch(() => undefined);
     }

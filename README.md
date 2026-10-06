@@ -209,7 +209,8 @@ Files you write here work with `conduktor apply`, and the reverse:
 - `${VAR}` and `${VAR:-default}` are expanded from VS Code's environment, and `$${VAR}` passes a literal `${VAR}`
   through — the same rules as the CLI.
 - `spec.schemaFile` on a `Subject` and the `conduktor.io/descriptionFile` label on a `Topic` (sent as
-  `metadata.description`, where the Console keeps it) are read from files,
+  `metadata.description`, where the Console keeps it; `conduktor apply` still sends a `conduktor.io/description` label,
+  which the Console refuses, until the CLI follows) are read from files,
   relative to the root of the workspace folder holding the YAML (where you would run the CLI), or to the YAML's own
   folder when it is outside the workspace. A path that leads outside that folder, through `..` or a symlink, is
   refused, so a cloned repository cannot send other files to the Console. In the sync folder, an apply also records

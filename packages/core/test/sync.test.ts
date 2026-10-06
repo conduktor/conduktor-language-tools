@@ -172,4 +172,59 @@ describe('drift and server-managed fields', () => {
   it('still sees a change to what was written', () => {
     expect(driftOf(stringify(subject({})), subject({ schema: 'B', id: 15, version: 2 }))).toBe('changed');
   });
+
+  it("keeps what the user sets, such as a policy's group", () => {
+    const policy: Resource = {
+      apiVersion: 'v1',
+      kind: 'DataQualityPolicy',
+      metadata: { name: 'p', group: 'a' },
+      spec: {},
+    };
+    expect(driftOf(stringify(policy), { ...policy, metadata: { name: 'p', group: 'b' } })).toBe('changed');
+  });
+
+  it('ignores the application labels the Console adds to what an application owns', () => {
+    const topic: Resource = {
+      apiVersion: 'v2',
+      kind: 'Topic',
+      metadata: { name: 't', cluster: 'c', labels: { team: 'a' } },
+      spec: { partitions: 1, replicationFactor: 1 },
+    };
+    const owned = {
+      ...topic,
+      metadata: {
+        ...topic.metadata,
+        labels: { team: 'a', 'conduktor.io/application': 'app', 'conduktor.io/application-instance': 'app-dev' },
+      },
+    };
+    expect(driftOf(stringify(topic), owned)).toBeUndefined();
+    expect(driftOf(stringify(topic), { ...owned, metadata: { ...owned.metadata, labels: { team: 'b' } } })).toBe(
+      'changed',
+    );
+  });
+
+  it("reads a Topic's configs and defaulted replication the way the Console returns them", () => {
+    const written: Resource = {
+      apiVersion: 'v2',
+      kind: 'Topic',
+      metadata: { name: 't', cluster: 'c' },
+      spec: { partitions: 1, configs: { 'retention.ms': 60000 } },
+    };
+    const live = { ...written, spec: { partitions: 1, replicationFactor: 3, configs: { 'retention.ms': '60000' } } };
+    expect(driftOf(stringify(written), live)).toBeUndefined();
+    expect(driftOf(stringify(written), { ...live, spec: { ...live.spec, configs: { 'retention.ms': '1' } } })).toBe(
+      'changed',
+    );
+  });
+
+  it('ignores what the Console records on a partner zone', () => {
+    const zone: Resource = {
+      apiVersion: 'v2',
+      kind: 'PartnerZone',
+      metadata: { name: 'z' },
+      spec: { displayName: 'Z' },
+    };
+    const live = { ...zone, metadata: { name: 'z', id: 'i', updatedAt: 'now', status: 'READY', failedReason: '' } };
+    expect(driftOf(stringify(zone), live)).toBeUndefined();
+  });
 });

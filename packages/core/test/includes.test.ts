@@ -34,6 +34,14 @@ describe('expandIncludes', () => {
     expect(metadata.description).toBe('contents of docs/orders.md');
   });
 
+  it('leaves no empty labels behind when the descriptionFile was the only one', () => {
+    const only: Resource = {
+      ...topic,
+      metadata: { name: 'x', cluster: 'c', labels: { 'conduktor.io/descriptionFile': 'd.md' } },
+    };
+    expect(expandIncludes(only, () => 'text').metadata).toEqual({ name: 'x', cluster: 'c', description: 'text' });
+  });
+
   it('leaves resources without includes untouched', () => {
     const plain: Resource = { ...topic, metadata: { name: 'x', cluster: 'c' } };
     expect(expandIncludes(plain)).toBe(plain);
