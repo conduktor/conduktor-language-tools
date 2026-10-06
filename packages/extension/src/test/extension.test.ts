@@ -1996,4 +1996,41 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.ok(decoration(item.resourceUri!), 'the tree item is dimmed');
     assert.strictEqual(decoration(api.liveUri(consoleOnly)), undefined, 'a live document tab is not');
   });
+
+  test('opens local changes against the base, and diffs the document under the cursor', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-changes-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(root));
+    const diffTab = () =>
+      vscode.window.tabGroups.activeTabGroup.activeTab?.input as vscode.TabInputTextDiff | undefined;
+    try {
+      const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
+      const base = readFileSync(uri.fsPath, 'utf8');
+      const edited = parse(base);
+      edited.spec.displayName = 'Edited locally';
+      writeFileSync(uri.fsPath, stringify(edited));
+      await api.sync.refresh();
+      await vscode.window.showTextDocument(uri);
+      await vscode.commands.executeCommand('conduktor.openChanges');
+      const changes = diffTab();
+      assert.strictEqual(changes?.original.scheme, 'conduktor-base');
+      assert.strictEqual(changes?.modified.toString(), uri.toString());
+      assert.strictEqual((await vscode.workspace.openTextDocument(changes.original)).getText(), base);
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+      const two =
+        'apiVersion: v2\nkind: Topic\nmetadata: { name: first-doc, cluster: local-kafka }\nspec: { partitions: 1 }\n---\napiVersion: v2\nkind: Topic\nmetadata: { name: second-doc, cluster: local-kafka }\nspec: { partitions: 1 }\n';
+      const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content: two });
+      const editor = await vscode.window.showTextDocument(doc);
+      const inSecond = doc.positionAt(two.indexOf('second-doc'));
+      editor.selection = new vscode.Selection(inSecond, inSecond);
+      await vscode.commands.executeCommand('conduktor.diffWithLive');
+      assert.match(diffTab()?.modified.path ?? '', /second-doc/);
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+      await useWorkspaceSyncRoot(api);
+    }
+  });
 });

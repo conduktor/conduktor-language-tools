@@ -34,6 +34,8 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
+import { ActiveResourceContext } from './editing/activeResource';
+import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
 import { ConsoleOnlyDecorations } from './explorer/decorations';
 import { FieldDocsHover } from './intel/fieldDocs';
 import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
@@ -135,6 +137,12 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
     vscode.window.registerFileDecorationProvider(consoleOnly),
+    new ActiveResourceContext(sessions, sync),
+    vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, new BaseContent()),
+    vscode.commands.registerCommand('conduktor.openChanges', (uri?: vscode.Uri) => {
+      const target = activeUri(uri);
+      return target ? openChanges(sync, target) : undefined;
+    }),
     new TopicConfigDiagnostics(sessions),
     vscode.commands.registerCommand(APPLY_PRESET, (uri: vscode.Uri, start: number, preset: TopicPreset) =>
       applyTopicPreset(uri, start, preset, sessions),

@@ -633,6 +633,11 @@ export class SyncFolder implements vscode.Disposable {
     if (!(await fileExists(ignore))) await write(ignore, '*\n');
   }
 
+  /** The base copy a file in the folder is compared with, if it has one. */
+  baseUri(uri: vscode.Uri): vscode.Uri | undefined {
+    return this.entryAt(uri) ? this.baseOf(uri) : undefined;
+  }
+
   // From the file's own path, never from the current connection: a request that finishes after a switch still writes
   // its base copy beside the file it belongs to.
   private baseOf(uri: vscode.Uri, copy: 'base' | 'applied' = 'base'): vscode.Uri | undefined {

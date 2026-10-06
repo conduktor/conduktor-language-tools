@@ -43,9 +43,14 @@ export class Compare implements vscode.TextDocumentContentProvider, vscode.Dispo
       return;
     }
     const document = await vscode.workspace.openTextDocument(uri);
-    const target = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env }).find(
-      (d) => index === undefined || d.index === index,
-    );
+    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env });
+    // Without an index (the editor title, the palette) the document under the cursor is the one meant.
+    const editor = vscode.window.activeTextEditor;
+    const cursor = editor?.document.uri.toString() === uri.toString() ? document.offsetAt(editor.selection.active) : 0;
+    const target =
+      index === undefined
+        ? (documents.find((d) => d.start <= cursor && cursor <= d.end) ?? documents[0])
+        : documents.find((d) => d.index === index);
     if (!target) {
       void vscode.window.showWarningMessage('No Conduktor resource to compare in this file.');
       return;

@@ -131,6 +131,12 @@
         "icon": "$(diff)"
       },
       {
+        "command": "conduktor.openChanges",
+        "title": "Open Changes",
+        "category": "Conduktor",
+        "icon": "$(git-compare)"
+      },
+      {
         "command": "conduktor.copyToWorkspace",
         "title": "Copy to Workspace\u2026",
         "category": "Conduktor",
@@ -394,6 +400,16 @@
         {
           "command": "conduktor.editLocally",
           "when": "resourceScheme =~ /^conduktor(-edit)?$/",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.diffWithLive",
+          "when": "conduktor.activeResource",
+          "group": "navigation"
+        },
+        {
+          "command": "conduktor.openChanges",
+          "when": "conduktor.activeLocal == 'modified'",
           "group": "navigation"
         }
       ],
