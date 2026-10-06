@@ -2165,4 +2165,38 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await useWorkspaceSyncRoot(api);
     }
   });
+
+  test('runs ctl for an environment, in Docker or from PATH', async function () {
+    const localImage = spawnSync('docker', ['image', 'inspect', 'conduktor/conduktor-ctl:local']).status === 0;
+    if (!localImage && spawnSync('conduktor', ['version']).error) return this.skip();
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-cli-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(root));
+    const settings = vscode.workspace.getConfiguration('conduktor.cli');
+    if (localImage) await settings.update('image', 'conduktor/conduktor-ctl:local', vscode.ConfigurationTarget.Global);
+    try {
+      const [topic] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+      await api.sync.syncResource(state.spec.catalog.latest('Topic')!, ['local-kafka'], topic!.metadata.name);
+      const run = await api.cli.run('plan');
+      assert.strictEqual(run?.exitCode, 0, run?.stderr);
+      assert.match(
+        run.stdout,
+        new RegExp(`Topic/${topic!.metadata.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: NotChanged`),
+      );
+      assert.ok(
+        !existsSync(join(root, '.conduktor', 'state', `${api.sync.environment()}.json`)),
+        'a plan keeps no state',
+      );
+
+      await settings.update('runner', 'path', vscode.ConfigurationTarget.Global);
+      await settings.update('path', join(root, 'no-such-ctl'), vscode.ConfigurationTarget.Global);
+      await assert.rejects(api.cli.run('plan'), /was not found/);
+    } finally {
+      for (const key of ['image', 'runner', 'path'])
+        await settings.update(key, undefined, vscode.ConfigurationTarget.Global);
+      await useWorkspaceSyncRoot(api);
+    }
+  });
 });

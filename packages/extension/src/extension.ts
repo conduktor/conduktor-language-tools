@@ -34,6 +34,7 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
+import { CliRunner } from './cli/runner';
 import { DocumentContexts } from './editing/documentContexts';
 import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
 import { TreeDecorations } from './explorer/decorations';
@@ -60,6 +61,7 @@ export interface ExtensionApi {
   names: Names;
   treeDecorations: TreeDecorations;
   explorerView: vscode.TreeView<ExplorerNode>;
+  cli: CliRunner;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
@@ -84,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
   const treeDecorations = new TreeDecorations(sessions, sync, clusters);
+  const cli = new CliRunner(sessions, connections, sync);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
   const reveal = new Reveal(explorerView, explorer, clusters, sessions, sync);
@@ -140,6 +143,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
     treeDecorations,
+    cli,
     vscode.window.registerFileDecorationProvider(treeDecorations),
     new DocumentContexts(sessions, sync),
     reveal,
@@ -270,6 +274,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     names,
     treeDecorations,
     explorerView,
+    cli,
   });
 }
 

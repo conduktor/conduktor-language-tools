@@ -65,6 +65,26 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Select the active editor's resource in the Conduktor Explorer, as `explorer.autoReveal` does for files. Only what the tree already shows: it never switches the cluster or opens the view."
+        },
+        "conduktor.cli.runner": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "docker",
+            "path"
+          ],
+          "default": "auto",
+          "markdownDescription": "How Plan and Apply run `ctl`: in Docker (the pinned image), from `conduktor.cli.path`, or `auto` — Docker when it answers, else the path."
+        },
+        "conduktor.cli.image": {
+          "type": "string",
+          "default": "conduktor/conduktor-ctl:v0.9.2",
+          "markdownDescription": "The `ctl` image Plan and Apply run in Docker; pin the one your workflows use."
+        },
+        "conduktor.cli.path": {
+          "type": "string",
+          "default": "conduktor",
+          "markdownDescription": "The `conduktor` CLI to run when Docker is not used."
         }
       }
     },
