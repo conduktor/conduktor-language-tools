@@ -2190,6 +2190,13 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         'a plan keeps no state',
       );
 
+      if (!spawnSync('conduktor', ['version']).error) {
+        // An image that cannot be pulled: auto mode runs the CLI from PATH instead.
+        await settings.update('image', 'conduktor/conduktor-ctl:no-such-tag', vscode.ConfigurationTarget.Global);
+        const fallback = await api.cli.run('plan');
+        assert.strictEqual(fallback?.exitCode, 0, fallback?.stderr);
+      }
+
       await settings.update('runner', 'path', vscode.ConfigurationTarget.Global);
       await settings.update('path', join(root, 'no-such-ctl'), vscode.ConfigurationTarget.Global);
       await assert.rejects(api.cli.run('plan'), /was not found/);
@@ -2254,6 +2261,19 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok(await exists(name), 'applied to the Console');
       assert.ok(existsSync(statePath), 'the state records it');
       await until(() => api.sync.entryAt(file)?.status === 'synced', 10_000);
+
+      // ctl tells resources apart by all their metadata: a first label makes it delete the topic and create it again.
+      let asked = '';
+      api.setConfirm(async (_message, detail) => {
+        asked = detail ?? '';
+        return undefined;
+      });
+      const labelled = parse(readFileSync(file.fsPath, 'utf8'));
+      labelled.metadata.labels = { team: 'data' };
+      writeFileSync(file.fsPath, stringify(labelled));
+      await vscode.commands.executeCommand('conduktor.applyEnvironment');
+      assert.match(asked, new RegExp(`Deleted and created again, losing their data: Topic/${name}`));
+      api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
 
       rmSync(file.fsPath);
       await api.sync.refresh();

@@ -39,6 +39,7 @@ import {
   type Drift,
   type KindVersion,
   type Resource,
+  type StateResource,
   type SyncStatus,
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
@@ -401,14 +402,17 @@ export class SyncFolder implements vscode.Disposable {
     await this.refresh();
   }
 
-  /** Files the CLI applied, each as it is on disk now, with one rescan after them all. */
-  async markAppliedFiles(uris: readonly vscode.Uri[]): Promise<void> {
+  /**
+   * After the CLI applied: each applied file as it is on disk now, and the base copies of what it deleted, with one
+   * rescan after them all.
+   */
+  async markAppliedFiles(uris: readonly vscode.Uri[], deleted: readonly StateResource[]): Promise<void> {
     const texts = await readAll(uris);
     for (const [i, uri] of uris.entries()) {
       const text = texts[i];
       if (text !== undefined) await this.recordApplied(uri, text);
     }
-    await this.forgetRemoved();
+    if (deleted.length > 0) await this.forgetDeleted(deleted);
     await this.refresh();
   }
 
@@ -422,15 +426,19 @@ export class SyncFolder implements vscode.Disposable {
     this.drift.delete(uri.toString());
   }
 
-  // After an apply deletes what a removed file described, its base copies would otherwise outlive it.
-  private async forgetRemoved(): Promise<void> {
+  // Only what ctl's state says it deleted, and whose file is gone: a base copy is the record of a pending delete.
+  private async forgetDeleted(deleted: readonly StateResource[]): Promise<void> {
     const syncRoot = this.syncRoot();
     const env = this.environment();
-    if (!syncRoot || !env) return;
+    const state = this.sessions.current();
+    if (!syncRoot || !env || state.status !== 'ready') return;
+    const gone = new Set(deleted.map((r) => JSON.stringify([r.kind, r.parents, r.name])));
     const baseRoot = vscode.Uri.joinPath(syncRoot, baseDir(env));
     const copies = await vscode.workspace.findFiles(new vscode.RelativePattern(baseRoot, '**/*.{yaml,yml}'));
     for (const copy of copies) {
       const file = vscode.Uri.joinPath(this.requireRoot(), copy.path.slice(baseRoot.path.length + 1));
+      const identity = identify((await read(copy)) ?? '', state);
+      if (!identity || !gone.has(JSON.stringify([identity.kind, identity.parents, identity.name]))) continue;
       if (await fileExists(file)) continue;
       await remove(copy);
       const applied = this.baseOf(file, 'applied');
@@ -665,7 +673,7 @@ export class SyncFolder implements vscode.Disposable {
     await write(uri, `${current}${separator}${missing.join('\n')}\n`);
   }
 
-  private async ensureStateDir(): Promise<void> {
+  async ensureStateDir(): Promise<void> {
     const ignore = vscode.Uri.joinPath(this.requireSyncRoot(), STATE_DIR, '.gitignore');
     if (!(await fileExists(ignore))) await write(ignore, '*\n');
   }

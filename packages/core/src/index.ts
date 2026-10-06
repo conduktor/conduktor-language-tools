@@ -140,7 +140,17 @@ export {
   type Answers,
   type Choice,
 } from './templates';
-export { cliCommand, readCliOutput, type CliCommand, type CliOutcome, type CliRunnerChoice } from './cli';
+export {
+  cliCommand,
+  cliEnvironment,
+  leftState,
+  planWarnings,
+  readCliOutput,
+  type CliCommand,
+  type CliOutcome,
+  type CliRunnerChoice,
+  type StateResource,
+} from './cli';
 export {
   fieldDocs,
   headingSlug,

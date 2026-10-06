@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cliCommand } from '../src/cli';
+import { cliCommand, cliEnvironment } from '../src/cli';
 
 const docker = { kind: 'docker' as const, image: 'conduktor/conduktor-ctl:v0.9.2', platform: 'darwin' as const };
 const base = { env: 'dev', syncRoot: '/repo-on-host', consoleUrl: 'http://localhost:8080' };
@@ -10,7 +10,7 @@ describe('cliCommand', () => {
       ...base,
       action: 'plan',
       runner: docker,
-      envFile: '/repo-on-host/environments/dev/.env',
+      variables: ['CDK_SECRET_X', 'TEAM'],
     });
     expect(plan.command).toBe('docker');
     expect(plan.args).toEqual([
@@ -24,8 +24,10 @@ describe('cliCommand', () => {
       'CDK_BASE_URL',
       '-e',
       'CDK_API_KEY',
-      '--env-file',
-      '/repo-on-host/environments/dev/.env',
+      '-e',
+      'CDK_SECRET_X',
+      '-e',
+      'TEAM',
       'conduktor/conduktor-ctl:v0.9.2',
       'apply',
       '-r',
@@ -76,5 +78,26 @@ describe('cliCommand', () => {
     expect(remote.env.CDK_BASE_URL).toBe('https://console.example.com');
     const loopback = cliCommand({ ...base, consoleUrl: 'http://127.0.0.1:8080/', action: 'plan', runner: docker });
     expect(loopback.env.CDK_BASE_URL).toBe('http://host.docker.internal:8080/');
+  });
+
+  it('gives ctl the bound Console only: no CDK_ setting from the shell or the .env reaches it', () => {
+    const env = cliEnvironment(
+      {
+        PATH: '/bin',
+        CDK_STATE_REMOTE_URI: 's3://prod/state',
+        CDK_DEBUG: 'true',
+        CDK_USER: 'me',
+        CDK_BASE_URL: 'https://prod',
+      },
+      { CDK_API_KEY: 'from-env-file', CDK_SECRET_TOPIC_X: 's3cret', TEAM: 'data' },
+      { CDK_BASE_URL: 'http://localhost:8080', CDK_API_KEY: 'bound' },
+    );
+    expect(env).toEqual({
+      PATH: '/bin',
+      CDK_SECRET_TOPIC_X: 's3cret',
+      TEAM: 'data',
+      CDK_BASE_URL: 'http://localhost:8080',
+      CDK_API_KEY: 'bound',
+    });
   });
 });

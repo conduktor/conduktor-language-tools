@@ -133,13 +133,20 @@ config hover.
 `ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r --enable-state`, Plan with
 `--dry-run`. `ctl`'s state lives in the sync folder's git-ignored `.conduktor/state/<env>.json`, so a file removed since
 the last apply is deleted on the Console. The output streams to the **Conduktor CLI** panel, failures land as Problems
-on their files, and after an Apply each applied file is recorded as synced. Apply asks first, and only in apply mode.
+on their files, and after an Apply each applied file is recorded as synced. Apply runs only in apply mode, plans first
+and asks, listing every resource it would delete — and warning when it would delete and create one again: `ctl` tells
+the resources it applied apart by all their metadata, so a changed `metadata.description` or a first label reads as a
+different resource and the old one is deleted, losing its data. An Apply cannot be cancelled once it runs (`ctl` would
+skip saving its state).
 
 - **Where `ctl` runs:** `conduktor.cli.runner` is `auto` (Docker when it answers, else `conduktor.cli.path`), `docker`
-  or `path`. In Docker the `conduktor.cli.image` image runs (default `conduktor/conduktor-ctl:v0.9.2`), the sync
-  folder mounted, a `localhost` Console reached as `host.docker.internal`.
+  or `path`. In Docker the `conduktor.cli.image` image runs (default `conduktor/conduktor-ctl:v0.9.2`, pulled on first
+  use; `auto` falls back to the path when it cannot be), the sync folder mounted, a `localhost` Console reached as
+  `host.docker.internal`.
 - **Credentials:** the Console and token of the bound connection, the token passed through the environment only;
-  `${VAR}` values from `environments/<env>/.env`.
+  `${VAR}` values from `environments/<env>/.env`. No other `CDK_` setting, from your shell or the `.env`, reaches `ctl`
+  (a `CDK_STATE_REMOTE_URI` would point it at another state, `CDK_DEBUG` would log the token); `${CDK_SECRET_…}`
+  values are the exception.
 - **A topic's `descriptionFile`** needs `ctl` with conduktor/ctl#146: build it and set `conduktor.cli.image` to that
   local image (`docker build -t conduktor/conduktor-ctl:local .` in a ctl checkout) until a release has it.
 - **`ctl` limits:** Plan shows results, not diffs (`ctl`'s `--print-diff` fails for anything the Console does not have
