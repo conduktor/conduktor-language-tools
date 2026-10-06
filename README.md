@@ -127,6 +127,25 @@ document chose, so `spec.kafkaFlavor.key` is described for `type: Confluent`. Wh
 variant (a schema registry's `security.type`), each text names its section. A Topic's `spec.configs` keep the topic
 config hover.
 
+## CLI runner
+
+**Plan Environment with CLI** and **Apply Environment with CLI** (the Explorer's `…` menu, or the command palette) run
+`ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r --enable-state`, Plan with
+`--dry-run`. `ctl`'s state lives in the sync folder's git-ignored `.conduktor/state/<env>.json`, so a file removed since
+the last apply is deleted on the Console. The output streams to the **Conduktor CLI** panel, failures land as Problems
+on their files, and after an Apply each applied file is recorded as synced. Apply asks first, and only in apply mode.
+
+- **Where `ctl` runs:** `conduktor.cli.runner` is `auto` (Docker when it answers, else `conduktor.cli.path`), `docker`
+  or `path`. In Docker the `conduktor.cli.image` image runs (default `conduktor/conduktor-ctl:v0.9.2`), the sync
+  folder mounted, a `localhost` Console reached as `host.docker.internal`.
+- **Credentials:** the Console and token of the bound connection, the token passed through the environment only;
+  `${VAR}` values from `environments/<env>/.env`.
+- **A topic's `descriptionFile`** needs `ctl` with conduktor/ctl#146: build it and set `conduktor.cli.image` to that
+  local image (`docker build -t conduktor/conduktor-ctl:local .` in a ctl checkout) until a release has it.
+- **`ctl` limits:** Plan shows results, not diffs (`ctl`'s `--print-diff` fails for anything the Console does not have
+  yet; **Diff with Live** shows one file's), and an environment emptied of every file is not applied (`ctl` stops
+  before its deletes).
+
 ## AI agents
 
 Coding agents get the same live schema and dry run as the editor, so they write resources the Console accepts instead

@@ -1,6 +1,7 @@
 # Conduktor for VS Code — local GitOps
 
-Status: phase 1 (bootstrap) implemented 2026-10-04; phases 2–4 record decisions and are specified when started ·
+Status: phase 1 (bootstrap) implemented 2026-10-04, phase 2 (CLI runner) 2026-10-06; phases 3–4 record decisions and
+are specified when started ·
 builds on the [sync folder](2026-10-02-sync-folder-design.md).
 
 ## Intent
@@ -82,7 +83,9 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
   `environments/<env>/.env`.
 - Output in a panel; failures map back to their files as Problems.
 - State: `--enable-state` makes a removed file a delete. Bootstrapped resources enter the state at the first apply
-  (each comes back NotChanged). Where the state file lives is decided in this phase.
+  (each comes back NotChanged). It lives in the sync folder's git-ignored `.conduktor/state/<env>.json` (decided
+  2026-10-06). There is no Validate (ctl has none); Plan runs without `--print-diff`, which ctl fails for resources the
+  Console does not have yet.
 
 ## Phase 3 — Repository init (decided)
 
