@@ -2262,7 +2262,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok(existsSync(statePath), 'the state records it');
       await until(() => api.sync.entryAt(file)?.status === 'synced', 10_000);
 
-      // A ctl before conduktor/ctl#147 tells resources apart by all their metadata, so a first label makes it delete the
+      // A ctl without conduktor/ctl#148 tells resources apart by all their metadata, so a first label makes it delete the
       // topic and create it again; the confirmation must then say so. A fixed ctl just updates it.
       let asked = '';
       api.setConfirm(async (_message, detail) => {

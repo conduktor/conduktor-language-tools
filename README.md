@@ -147,10 +147,10 @@ skip saving its state).
   `${VAR}` values from `environments/<env>/.env`. No other `CDK_` setting, from your shell or the `.env`, reaches `ctl`
   (a `CDK_STATE_REMOTE_URI` would point it at another state, `CDK_DEBUG` would log the token); `${CDK_SECRET_…}`
   values are the exception.
-- **Fixes not released yet:** conduktor/ctl#146 (a topic's `descriptionFile`) and #147 (resources whose metadata
-  changed are no longer deleted and recreated; diffs for creates; emptied folders apply their deletes). Build them and
-  set `conduktor.cli.image` to that local image (`docker build -t conduktor/conduktor-ctl:local .` in a ctl checkout of
-  #147's branch) until a release has them.
+- **Fixes not released yet:** conduktor/ctl#146 (a topic's `descriptionFile`), #148 (resources whose metadata changed
+  are no longer deleted and recreated) and #149 (diffs for creates; emptied folders apply their deletes). Build them
+  and set `conduktor.cli.image` to that local image (`docker build -t conduktor/conduktor-ctl:local .` in a ctl
+  checkout with all three) until a release has them.
 - **With v0.9.2:** Plan shows results, not diffs (its `--print-diff` fails for anything the Console does not have yet;
   **Diff with Live** shows one file's), an environment emptied of every file is not applied, and a changed description
   or first label deletes and recreates the resource — which Apply's confirmation names.
