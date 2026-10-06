@@ -34,6 +34,7 @@ import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
+import { registerCliCommands } from './cli/commands';
 import { CliRunner } from './cli/runner';
 import { DocumentContexts } from './editing/documentContexts';
 import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
@@ -144,6 +145,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
     treeDecorations,
     cli,
+    ...registerCliCommands(cli, sync, sessions, confirm),
     vscode.window.registerFileDecorationProvider(treeDecorations),
     new DocumentContexts(sessions, sync),
     reveal,

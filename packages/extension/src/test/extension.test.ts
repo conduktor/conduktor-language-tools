@@ -2199,4 +2199,92 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await useWorkspaceSyncRoot(api);
     }
   });
+
+  test('plans and applies an environment with ctl, creates and deletes alike', async function () {
+    if (spawnSync('docker', ['image', 'inspect', 'conduktor/conduktor-ctl:local']).status !== 0) return this.skip();
+    const api = await activate();
+    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
+    // Adding an already active connection reloads twice; wait until it is ready and stays so.
+    const ready = () => {
+      const current = api.sessions.current();
+      return current.status === 'ready' && current.connection.id === 'smoke-apply';
+    };
+    for (let calm = 0; calm < 3; calm = ready() ? calm + 1 : 0)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-cli-apply-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(root));
+    const settings = vscode.workspace.getConfiguration('conduktor.cli');
+    await settings.update('image', 'conduktor/conduktor-ctl:local', vscode.ConfigurationTarget.Global);
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const name = `vscode-cli-${Date.now()}`;
+    const bad = `${name}-bad`;
+    const topicPath = (topic: string) => `/public/kafka/v2/cluster/local-kafka/topic/${topic}`;
+    const exists = (topic: string) =>
+      state.client.get(topicPath(topic)).then(
+        () => true,
+        () => false,
+      );
+    const results = (outcomes: { kind: string; name: string; result: string }[] | undefined, topic: string) =>
+      (outcomes ?? []).filter((o) => o.kind === 'Topic' && o.name === topic).map((o) => o.result);
+    const topic = (topicName: string) =>
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: topicName, cluster: 'local-kafka' },
+        spec: { partitions: 1, replicationFactor: 1 },
+      });
+    try {
+      // ctl stops at an empty folder before working out deletes, so the environment keeps one resource throughout.
+      const [kept] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+      await api.sync.syncResource(topicKind, ['local-kafka'], kept!.metadata.name);
+      const file = await api.sync.writeNew(topicKind, ['local-kafka'], topic(name), name);
+      const statePath = join(root, '.conduktor', 'state', `${api.sync.environment()}.json`);
+
+      const planned =
+        await vscode.commands.executeCommand<{ kind: string; name: string; result: string }[]>(
+          'conduktor.planEnvironment',
+        );
+      assert.deepStrictEqual(results(planned, name), ['Created'], JSON.stringify(planned));
+      assert.ok(!existsSync(statePath), 'a plan keeps no state');
+
+      await vscode.commands.executeCommand('conduktor.applyEnvironment');
+      assert.ok(await exists(name), 'applied to the Console');
+      assert.ok(existsSync(statePath), 'the state records it');
+      await until(() => api.sync.entryAt(file)?.status === 'synced', 10_000);
+
+      rmSync(file.fsPath);
+      await api.sync.refresh();
+      const removal =
+        await vscode.commands.executeCommand<{ kind: string; name: string; result: string }[]>(
+          'conduktor.planEnvironment',
+        );
+      assert.deepStrictEqual(results(removal, name), ['Deleted']);
+      await vscode.commands.executeCommand('conduktor.applyEnvironment');
+      assert.ok(!(await exists(name)), 'a removed file is deleted');
+
+      // The Console's dry run does not check config values, but it does check that the cluster exists.
+      const broken = await api.sync.writeNew(
+        topicKind,
+        ['no-such-cluster'],
+        stringify({
+          apiVersion: 'v2',
+          kind: 'Topic',
+          metadata: { name: bad, cluster: 'no-such-cluster' },
+          spec: { partitions: 1, replicationFactor: 1 },
+        }),
+        bad,
+      );
+      await vscode.commands.executeCommand('conduktor.planEnvironment');
+      const problems = vscode.languages.getDiagnostics(broken).filter((d) => d.source === 'ctl');
+      assert.ok(problems.length > 0, 'the failure is a Problem on its file');
+    } finally {
+      for (const topicName of [name, bad]) await state.client.delete(topicPath(topicName)).catch(() => undefined);
+      await settings.update('image', undefined, vscode.ConfigurationTarget.Global);
+      await useWorkspaceSyncRoot(api);
+      await api.connections.setActive('smoke');
+    }
+  });
 });

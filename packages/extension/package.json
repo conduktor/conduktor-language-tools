@@ -195,6 +195,16 @@
         "icon": "$(repo-pull)"
       },
       {
+        "command": "conduktor.planEnvironment",
+        "title": "Plan Environment with CLI",
+        "category": "Conduktor"
+      },
+      {
+        "command": "conduktor.applyEnvironment",
+        "title": "Apply Environment with CLI",
+        "category": "Conduktor"
+      },
+      {
         "command": "conduktor.syncLocally",
         "title": "Sync Locally",
         "category": "Conduktor",
@@ -354,6 +364,16 @@
         {
           "command": "conduktor.setSyncFolder",
           "when": "view == conduktor.explorer && conduktor.mode",
+          "group": "3_sync"
+        },
+        {
+          "command": "conduktor.planEnvironment",
+          "when": "view == conduktor.explorer && conduktor.syncFolder",
+          "group": "3_sync"
+        },
+        {
+          "command": "conduktor.applyEnvironment",
+          "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == apply",
           "group": "3_sync"
         }
       ],

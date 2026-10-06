@@ -34,7 +34,8 @@ export function cliCommand(options: {
     '-r',
     '-f',
     environmentDir(env),
-    ...(action === 'plan' ? ['--dry-run', '--print-diff'] : []),
+    // Not --print-diff: ctl fails it for any resource the Console does not have yet, so no plan could create.
+    ...(action === 'plan' ? ['--dry-run'] : []),
     '--enable-state',
     '--state-file',
     stateFile,

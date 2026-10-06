@@ -32,7 +32,6 @@ describe('cliCommand', () => {
       '-f',
       'environments/dev',
       '--dry-run',
-      '--print-diff',
       '--enable-state',
       '--state-file',
       '/repo/.conduktor/state/dev.json',
@@ -54,6 +53,8 @@ describe('cliCommand', () => {
     ]);
     expect(apply.args).not.toContain('--dry-run');
     expect(apply.args).not.toContain('--print-diff');
+    // ctl's --print-diff fails any resource the Console does not have yet, so a plan with a create would fail.
+    expect(cliCommand({ ...base, action: 'plan', runner: docker }).args).not.toContain('--print-diff');
     expect(apply.args.at(-3)).toBe('--enable-state');
   });
 

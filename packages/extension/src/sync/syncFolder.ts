@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { parse, stringify } from 'yaml';
 import {
+  baseDir,
   basePathOf,
   collectResources,
   ConsoleError,
@@ -396,6 +397,22 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   async markApplied(uri: vscode.Uri, text: string): Promise<void> {
+    await this.recordApplied(uri, text);
+    await this.refresh();
+  }
+
+  /** Files the CLI applied, each as it is on disk now, with one rescan after them all. */
+  async markAppliedFiles(uris: readonly vscode.Uri[]): Promise<void> {
+    const texts = await readAll(uris);
+    for (const [i, uri] of uris.entries()) {
+      const text = texts[i];
+      if (text !== undefined) await this.recordApplied(uri, text);
+    }
+    await this.forgetRemoved();
+    await this.refresh();
+  }
+
+  private async recordApplied(uri: vscode.Uri, text: string): Promise<void> {
     const base = this.baseOf(uri);
     if (base) await write(base, text);
     // What the included files held goes with it, so a later edit to them shows and drift compares like with like.
@@ -403,7 +420,22 @@ export class SyncFolder implements vscode.Disposable {
     const expanded = includes(text) ? expandedText(text, includeReaderFor(uri) ?? unreadable) : undefined;
     if (applied) await (expanded === undefined ? remove(applied) : write(applied, expanded));
     this.drift.delete(uri.toString());
-    await this.refresh();
+  }
+
+  // After an apply deletes what a removed file described, its base copies would otherwise outlive it.
+  private async forgetRemoved(): Promise<void> {
+    const syncRoot = this.syncRoot();
+    const env = this.environment();
+    if (!syncRoot || !env) return;
+    const baseRoot = vscode.Uri.joinPath(syncRoot, baseDir(env));
+    const copies = await vscode.workspace.findFiles(new vscode.RelativePattern(baseRoot, '**/*.{yaml,yml}'));
+    for (const copy of copies) {
+      const file = vscode.Uri.joinPath(this.requireRoot(), copy.path.slice(baseRoot.path.length + 1));
+      if (await fileExists(file)) continue;
+      await remove(copy);
+      const applied = this.baseOf(file, 'applied');
+      if (applied) await remove(applied);
+    }
   }
 
   async discard(uri: vscode.Uri): Promise<void> {
