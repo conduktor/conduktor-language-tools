@@ -4,7 +4,15 @@ import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { ClusterSelection } from './clusterSelection';
 import { toLiveUriParts } from '../liveFs/uris';
-import { childrenOf, type ExplorerNode, type LocalMark, type ResourceNode } from './explorerModel';
+import {
+  childrenOf,
+  idOf,
+  isInView,
+  parentOf,
+  type ExplorerNode,
+  type LocalMark,
+  type ResourceNode,
+} from './explorerModel';
 
 const { Collapsed, Expanded, None } = vscode.TreeItemCollapsibleState;
 
@@ -98,6 +106,25 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   }
 
   getTreeItem(node: ExplorerNode): vscode.TreeItem {
+    const treeItem = this.itemFor(node);
+    const id = idOf(node);
+    if (id) treeItem.id = id;
+    return treeItem;
+  }
+
+  getParent(node: ExplorerNode): ExplorerNode | undefined {
+    return parentOf(node, this.clusters.current());
+  }
+
+  /** Whether the tree shows this resource now: in the selected cluster, and not filtered out by Show Only Changes. */
+  shows(node: ResourceNode): boolean {
+    const state = this.sessions.current();
+    const resource = { kind: node.kind.kind, parents: node.parents };
+    if (state.status !== 'ready' || !isInView(state.spec.catalog, this.clusters.current(), resource)) return false;
+    return !this.onlyChanges || (!!node.local && (node.local.status !== 'synced' || !!node.local.drift));
+  }
+
+  private itemFor(node: ExplorerNode): vscode.TreeItem {
     switch (node.type) {
       case 'scope': {
         if (node.scope === 'global') return item('Global', Expanded, 'globe', 'scope.global');

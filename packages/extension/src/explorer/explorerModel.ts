@@ -74,6 +74,45 @@ export async function childrenOf(source: ExplorerSource, node?: ExplorerNode): P
   }
 }
 
+/** The node above this one, as childrenOf builds the tree: what a reveal walks up through. */
+export function parentOf(node: ExplorerNode, cluster: string | undefined): ExplorerNode | undefined {
+  switch (node.type) {
+    case 'resource':
+    case 'parent': {
+      const parents = node.type === 'resource' ? node.parents : node.parents.slice(0, -1);
+      const kindLevel = scopeOf(node.kind) === 'cluster' ? 1 : 0;
+      return parents.length > kindLevel
+        ? { type: 'parent', kind: node.kind, parents }
+        : { type: 'kind', kind: node.kind, parents };
+    }
+    case 'kind':
+      return { type: 'group', group: node.kind.group, scope: scopeOf(node.kind) };
+    case 'group':
+      return node.scope === 'cluster'
+        ? { type: 'scope', scope: 'cluster', ...(cluster && { cluster }) }
+        : { type: 'scope', scope: 'global' };
+    default:
+      return undefined;
+  }
+}
+
+/** A stable id for a tree item, the same whatever its local status, so a reveal and the expanded state find it. */
+export function idOf(node: ExplorerNode): string | undefined {
+  switch (node.type) {
+    case 'scope':
+      return `scope:${node.scope}`;
+    case 'group':
+      return `group:${node.scope}:${node.group}`;
+    case 'kind':
+    case 'parent':
+      return `${node.type}:${node.kind.kind}:${node.parents.join('/')}`;
+    case 'resource':
+      return `resource:${node.kind.kind}:${node.parents.join('/')}:${node.name}`;
+    default:
+      return undefined;
+  }
+}
+
 export function scopeOf(kind: KindVersion): Scope {
   return kind.parentPathParams[0] === 'cluster' ? 'cluster' : 'global';
 }

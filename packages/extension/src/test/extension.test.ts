@@ -2033,4 +2033,49 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await useWorkspaceSyncRoot(api);
     }
   });
+
+  test('reveals the open resource in the Explorer, by command or automatically', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-reveal-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(root));
+    await api.clusters.set('local-kafka');
+    const selected = () => {
+      const [node] = api.explorerView.selection;
+      return node?.type === 'resource' ? `${node.kind.kind}/${[...node.parents, node.name].join('/')}` : undefined;
+    };
+    const settings = vscode.workspace.getConfiguration('conduktor');
+    const clusterKind = state.spec.catalog.latest('KafkaCluster')!;
+    try {
+      const gateway = await api.sync.syncResource(clusterKind, [], 'local-gateway');
+      await vscode.window.showTextDocument(gateway);
+      await vscode.commands.executeCommand('conduktor.revealInExplorer');
+      await until(() => selected() === 'KafkaCluster/local-gateway', 10_000);
+
+      await settings.update('explorer.autoReveal', true, vscode.ConfigurationTarget.Global);
+      const kafka = await api.sync.syncResource(clusterKind, [], 'local-kafka');
+      await vscode.window.showTextDocument(kafka);
+      await until(() => selected() === 'KafkaCluster/local-kafka', 10_000);
+
+      const [topic] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+      const topicFile = await api.sync.syncResource(
+        state.spec.catalog.latest('Topic')!,
+        ['local-kafka'],
+        topic!.metadata.name,
+      );
+      await api.clusters.set('local-gateway');
+      await vscode.window.showTextDocument(topicFile);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.strictEqual(api.clusters.current(), 'local-gateway', 'following the editor never switches the cluster');
+      await vscode.commands.executeCommand('conduktor.revealInExplorer');
+      assert.strictEqual(api.clusters.current(), 'local-kafka');
+      await until(() => selected() === `Topic/local-kafka/${topic!.metadata.name}`, 10_000);
+    } finally {
+      await settings.update('explorer.autoReveal', undefined, vscode.ConfigurationTarget.Global);
+      await api.clusters.set('local-kafka');
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+      await useWorkspaceSyncRoot(api);
+    }
+  });
 });

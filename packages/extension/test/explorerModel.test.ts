@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { buildSpec, ConsoleError, type Resource } from '@conduktor/vscode-core';
 import { describe, expect, it } from 'vitest';
-import { childrenOf, type ExplorerNode, type ExplorerSource } from '../src/explorer/explorerModel';
+import { childrenOf, idOf, parentOf, type ExplorerNode, type ExplorerSource } from '../src/explorer/explorerModel';
 
 const { catalog } = buildSpec(
   readFileSync(new URL('../../core/snapshot/public-api-doc.yaml', import.meta.url), 'utf8'),
@@ -189,5 +189,37 @@ describe('childrenOf with a sync folder', () => {
         n.type === 'resource' ? n.name : n.type === 'message' ? n.text : '',
       ),
     ).toEqual(['Failed to load', 'a', 'b', 'c']);
+  });
+});
+
+describe('parentOf and idOf', () => {
+  it('walks a resource up to its scope, through every level the tree shows', () => {
+    const connector = catalog.latest('Connector')!;
+    const chain: ExplorerNode[] = [];
+    let node: ExplorerNode | undefined = { type: 'resource', kind: connector, parents: ['c', 'k'], name: 'sink' };
+    while (node) {
+      chain.push(node);
+      node = parentOf(node, 'c');
+    }
+    expect(chain.map((n) => n.type)).toEqual(['resource', 'parent', 'kind', 'group', 'scope']);
+    expect(chain.at(-1)).toEqual({ type: 'scope', scope: 'cluster', cluster: 'c' });
+    expect(chain[2]).toEqual({ type: 'kind', kind: connector, parents: ['c'] });
+    const group = catalog.latest('Group')!;
+    expect(parentOf({ type: 'kind', kind: group, parents: [] }, 'c')).toEqual({
+      type: 'group',
+      group: group.group,
+      scope: 'global',
+    });
+  });
+
+  it('gives each node an id that a change of local status does not move', () => {
+    const topic = catalog.latest('Topic')!;
+    const node: ExplorerNode = { type: 'resource', kind: topic, parents: ['c'], name: 't' };
+    expect(idOf({ ...node, local: { status: 'modified', uri: 'file:///t.yaml' } })).toBe(idOf(node));
+    expect(idOf({ type: 'kind', kind: topic, parents: ['c'] })).not.toBe(idOf(node));
+    expect(idOf({ type: 'parent', kind: topic, parents: ['c'] })).not.toBe(
+      idOf({ type: 'kind', kind: topic, parents: ['c'] }),
+    );
+    expect(idOf({ type: 'message', text: 'None' })).toBeUndefined();
   });
 });

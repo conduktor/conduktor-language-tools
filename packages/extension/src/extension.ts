@@ -37,6 +37,7 @@ import { SnippetCompletionProvider } from './intel/snippets';
 import { ActiveResourceContext } from './editing/activeResource';
 import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
 import { ConsoleOnlyDecorations } from './explorer/decorations';
+import { Reveal } from './explorer/reveal';
 import { FieldDocsHover } from './intel/fieldDocs';
 import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
 import { createStatusBar } from './statusBar';
@@ -58,6 +59,7 @@ export interface ExtensionApi {
   applyAllChanges: () => Promise<UpsertItem[] | undefined>;
   names: Names;
   consoleOnly: ConsoleOnlyDecorations;
+  explorerView: vscode.TreeView<ExplorerNode>;
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
@@ -84,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const consoleOnly = new ConsoleOnlyDecorations();
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
+  const reveal = new Reveal(explorerView, explorer, clusters, sessions, sync);
 
   context.subscriptions.push(
     output,
@@ -138,6 +141,11 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
     vscode.window.registerFileDecorationProvider(consoleOnly),
     new ActiveResourceContext(sessions, sync),
+    reveal,
+    vscode.commands.registerCommand('conduktor.revealInExplorer', (uri?: vscode.Uri) => {
+      const target = activeUri(uri);
+      return target ? reveal.reveal(target) : undefined;
+    }),
     vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, new BaseContent()),
     vscode.commands.registerCommand('conduktor.openChanges', (uri?: vscode.Uri) => {
       const target = activeUri(uri);
@@ -259,6 +267,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     compare,
     names,
     consoleOnly,
+    explorerView,
   });
 }
 

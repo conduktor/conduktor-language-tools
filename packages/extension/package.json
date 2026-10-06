@@ -60,6 +60,11 @@
               }
             }
           }
+        },
+        "conduktor.explorer.autoReveal": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Select the active editor's resource in the Conduktor Explorer, as `explorer.autoReveal` does for files. Only what the tree already shows: it never switches the cluster or opens the view."
         }
       }
     },
@@ -135,6 +140,11 @@
         "title": "Open Changes",
         "category": "Conduktor",
         "icon": "$(git-compare)"
+      },
+      {
+        "command": "conduktor.revealInExplorer",
+        "title": "Reveal in Conduktor Explorer",
+        "category": "Conduktor"
       },
       {
         "command": "conduktor.copyToWorkspace",
@@ -463,6 +473,27 @@
           "command": "conduktor.selectCluster",
           "when": "view == conduktor.explorer && viewItem == scope.cluster",
           "group": "inline"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "conduktor.revealInExplorer",
+          "when": "conduktor.activeResource",
+          "group": "2_files"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "conduktor.revealInExplorer",
+          "when": "conduktor.activeResource",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "conduktor.revealInExplorer",
+          "when": "resourceLangId == yaml && conduktor.syncFolder",
+          "group": "navigation"
         }
       ]
     },
