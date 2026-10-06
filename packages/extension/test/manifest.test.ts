@@ -26,4 +26,11 @@ describe('manifest', () => {
   it('needs the VS Code version that has the MCP server provider API', () => {
     expect(manifest.engines.vscode).toBe('^1.101.0');
   });
+
+  it('gives Add Connection its own icon, not a second plus beside New Resource', () => {
+    const icon = (command: string) =>
+      manifest.contributes.commands.find((c: { command: string }) => c.command === command)?.icon;
+    expect(icon('conduktor.addConnection')).toBe('$(plug)');
+    expect(icon('conduktor.newResource')).toBe('$(add)');
+  });
 });

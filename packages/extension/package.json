@@ -68,7 +68,7 @@
         "command": "conduktor.addConnection",
         "title": "Add Connection",
         "category": "Conduktor",
-        "icon": "$(add)"
+        "icon": "$(plug)"
       },
       {
         "command": "conduktor.removeConnection",
