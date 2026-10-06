@@ -140,7 +140,7 @@ export {
   type Answers,
   type Choice,
 } from './templates';
-export { cliCommand, type CliCommand, type CliRunnerChoice } from './cli';
+export { cliCommand, readCliOutput, type CliCommand, type CliOutcome, type CliRunnerChoice } from './cli';
 export {
   fieldDocs,
   headingSlug,
