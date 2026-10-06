@@ -36,7 +36,7 @@ import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
 import { DocumentContexts } from './editing/documentContexts';
 import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
-import { ConsoleOnlyDecorations } from './explorer/decorations';
+import { TreeDecorations } from './explorer/decorations';
 import { Reveal } from './explorer/reveal';
 import { FieldDocsHover } from './intel/fieldDocs';
 import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
@@ -58,7 +58,7 @@ export interface ExtensionApi {
   compare: Compare;
   applyAllChanges: () => Promise<UpsertItem[] | undefined>;
   names: Names;
-  consoleOnly: ConsoleOnlyDecorations;
+  treeDecorations: TreeDecorations;
   explorerView: vscode.TreeView<ExplorerNode>;
 }
 
@@ -83,7 +83,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const topicConfigs = new TopicConfigProvider(sessions, names);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
-  const consoleOnly = new ConsoleOnlyDecorations();
+  const treeDecorations = new TreeDecorations(sessions, sync, clusters);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
   const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
   const reveal = new Reveal(explorerView, explorer, clusters, sessions, sync);
@@ -139,7 +139,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.languages.registerCompletionItemProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, topicConfigs),
     vscode.languages.registerHoverProvider({ language: 'yaml' }, new FieldDocsHover(sessions, sync, names, explorer)),
-    vscode.window.registerFileDecorationProvider(consoleOnly),
+    treeDecorations,
+    vscode.window.registerFileDecorationProvider(treeDecorations),
     new DocumentContexts(sessions, sync),
     reveal,
     vscode.commands.registerCommand('conduktor.revealInExplorer', (uri?: vscode.Uri) => {
@@ -267,7 +268,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     clusters,
     compare,
     names,
-    consoleOnly,
+    treeDecorations,
     explorerView,
   });
 }

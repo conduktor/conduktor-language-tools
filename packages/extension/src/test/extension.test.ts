@@ -1977,24 +1977,90 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
-  test('dims what has no local copy, in the tree only', async () => {
+  test("shows each resource's state git-style, rolled up to its parents, in the tree only", async () => {
     const api = await activate();
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
-    const kind = state.spec.catalog.latest('Topic')!;
-    const consoleOnly: ResourceNode = { type: 'resource', kind, parents: ['local-kafka'], name: 'console-only' };
-    const item = api.explorer.getTreeItem(consoleOnly);
-    assert.strictEqual(item.resourceUri?.scheme, 'conduktor-tree');
-    assert.strictEqual((item.iconPath as vscode.ThemeIcon).id, 'cloud');
-    const synced = api.explorer.getTreeItem({
-      ...consoleOnly,
-      local: { status: 'synced', uri: vscode.Uri.file('/x.yaml').toString() },
-    });
-    assert.strictEqual(synced.resourceUri, undefined);
+    const root = mkdtempSync(join(tmpdir(), 'conduktor-states-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(root));
+    await api.clusters.set('local-kafka');
     const decoration = (uri: vscode.Uri) =>
-      api.consoleOnly.provideFileDecoration(uri, new vscode.CancellationTokenSource().token);
-    assert.ok(decoration(item.resourceUri!), 'the tree item is dimmed');
-    assert.strictEqual(decoration(api.liveUri(consoleOnly)), undefined, 'a live document tab is not');
+      api.treeDecorations.provideFileDecoration(uri, new vscode.CancellationTokenSource().token);
+    const look = (uri: vscode.Uri) => {
+      const found = decoration(uri);
+      return (
+        found && {
+          badge: found.badge,
+          color: (found.color as vscode.ThemeColor | undefined)?.id,
+          up: !!found.propagate,
+        }
+      );
+    };
+    const clusterKind = state.spec.catalog.latest('KafkaCluster')!;
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    try {
+      const uri = await api.sync.syncResource(clusterKind, [], 'local-gateway');
+      const mark = (status: 'synced' | 'modified') => ({ status, uri: uri.toString() });
+      const synced = api.explorer.getTreeItem({
+        type: 'resource',
+        kind: clusterKind,
+        parents: [],
+        name: 'local-gateway',
+        local: mark('synced'),
+      });
+      assert.strictEqual((synced.iconPath as vscode.ThemeIcon).id, 'check');
+      assert.strictEqual(synced.resourceUri?.scheme, 'conduktor-tree');
+      assert.strictEqual(look(synced.resourceUri!), undefined, 'synced reads as normal');
+
+      const edited = parse(readFileSync(uri.fsPath, 'utf8'));
+      edited.spec.displayName = 'Edited here';
+      writeFileSync(uri.fsPath, stringify(edited));
+      await api.sync.refresh();
+      assert.deepStrictEqual(look(synced.resourceUri!), {
+        badge: 'M',
+        color: 'gitDecoration.modifiedResourceForeground',
+        up: true,
+      });
+
+      const remote = api.explorer.getTreeItem({
+        type: 'resource',
+        kind: clusterKind,
+        parents: [],
+        name: 'local-kafka',
+      });
+      assert.strictEqual((remote.iconPath as vscode.ThemeIcon).id, 'cloud');
+      assert.deepStrictEqual(look(remote.resourceUri!), {
+        badge: undefined,
+        color: 'gitDecoration.ignoredResourceForeground',
+        up: false,
+      });
+      const kindItem = api.explorer.getTreeItem({ type: 'kind', kind: clusterKind, parents: [] });
+      assert.strictEqual(look(kindItem.resourceUri!), undefined, 'a kind gets only what rolls up from below');
+      assert.strictEqual(
+        decoration(api.liveUri({ type: 'resource', kind: clusterKind, parents: [], name: 'local-gateway' })),
+        undefined,
+        'an editor tab is never decorated',
+      );
+
+      const [topic] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
+      await api.sync.syncResource(topicKind, ['local-kafka'], topic!.metadata.name);
+      const topicItem = api.explorer.getTreeItem({
+        type: 'resource',
+        kind: topicKind,
+        parents: ['local-kafka'],
+        name: topic!.metadata.name,
+      });
+      assert.strictEqual(look(topicItem.resourceUri!), undefined);
+      await api.clusters.set('local-gateway');
+      assert.strictEqual(
+        look(topicItem.resourceUri!)?.color,
+        'gitDecoration.ignoredResourceForeground',
+        'read in the selected cluster',
+      );
+    } finally {
+      await api.clusters.set('local-kafka');
+      await useWorkspaceSyncRoot(api);
+    }
   });
 
   test('opens local changes against the base, and diffs the document under the cursor', async () => {

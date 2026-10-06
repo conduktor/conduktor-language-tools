@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { treeUri } from './decorations';
+import { LOCAL_LOOKS, treeUriOf } from './decorations';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { ClusterSelection } from './clusterSelection';
@@ -10,26 +10,10 @@ import {
   parentOf,
   shownInTree,
   type ExplorerNode,
-  type LocalMark,
   type ResourceNode,
 } from './explorerModel';
 
 const { Collapsed, Expanded, None } = vscode.TreeItemCollapsibleState;
-
-const BADGES: Record<string, { label: string; color: string; tooltip: string }> = {
-  new: { label: 'A', color: 'gitDecoration.addedResourceForeground', tooltip: 'New locally, not on the Console yet' },
-  modified: { label: 'M', color: 'gitDecoration.modifiedResourceForeground', tooltip: 'Changed locally, not applied' },
-  changed: {
-    label: '⚠',
-    color: 'gitDecoration.conflictingResourceForeground',
-    tooltip: 'Changed on the Console since it was synced',
-  },
-  deleted: {
-    label: '⚠',
-    color: 'gitDecoration.conflictingResourceForeground',
-    tooltip: 'Deleted from the Console since it was synced; applying creates it again',
-  },
-};
 
 export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<ExplorerNode | undefined>();
@@ -109,6 +93,8 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     const treeItem = this.itemFor(node);
     const id = idOf(node);
     if (id) treeItem.id = id;
+    // Decorations colour labels by this URI, and roll a resource's state up its path to the kind and cluster.
+    treeItem.resourceUri = treeUriOf(node);
     return treeItem;
   }
 
@@ -145,21 +131,14 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       case 'parent':
         return item(node.parents.at(-1)!, Collapsed, 'server', 'parent');
       case 'resource': {
-        const badge = node.local && badgeFor(node.local);
-        const treeItem = item(node.name, None, 'file-code', node.local ? `resource.${node.local.status}` : 'resource');
-        if (badge) {
-          treeItem.iconPath = new vscode.ThemeIcon('file-code', new vscode.ThemeColor(badge.color));
-          treeItem.description = badge.label;
-        }
-        if (!node.local) {
-          treeItem.iconPath = new vscode.ThemeIcon('cloud');
-          treeItem.resourceUri = treeUri(node.kind.kind, node.parents, node.name);
-        }
+        const look = node.local && LOCAL_LOOKS[node.local.drift ?? node.local.status];
+        const icon = !node.local ? 'cloud' : node.local.status === 'new' ? 'file-code' : 'check';
+        const treeItem = item(node.name, None, icon, node.local ? `resource.${node.local.status}` : 'resource');
         const target = node.local ? vscode.Uri.parse(node.local.uri) : this.liveUri(node);
         treeItem.command = { command: 'vscode.open', title: 'Open', arguments: [target] };
         treeItem.tooltip = [
           `${node.kind.kind} ${[...node.parents, node.name].join(' / ')}`,
-          badge?.tooltip,
+          look?.tooltip,
           node.local ? 'Opens the local file' : 'Only in the Console',
         ]
           .filter(Boolean)
@@ -179,11 +158,6 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     this.listeners.forEach((listener) => listener.dispose());
     this.changed.dispose();
   }
-}
-
-function badgeFor(mark: LocalMark) {
-  if (mark.drift) return BADGES[mark.drift];
-  return mark.status === 'synced' ? undefined : BADGES[mark.status];
 }
 
 function item(label: string, state: vscode.TreeItemCollapsibleState, icon: string, contextValue: string) {
