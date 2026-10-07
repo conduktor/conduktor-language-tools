@@ -9,6 +9,10 @@ is friendly, but it does not cover every API resource and changes made there do 
 gives you the CLI's resource model with an editor's help: what exists, what a resource looks like, whether your YAML
 is valid, and what applying it would change. Git comes with VS Code.
 
+It is an interactive editor with two modes. In **dev**, explore a Console and change it: apply, save live documents,
+delete. In **prod**, everything but changing it: open any Conduktor YAML from anywhere — a GitOps repository, a pull
+request you are reviewing — and check it against the Console, which validates it on open and save.
+
 > **Status:** proof of concept, slice (a) of the [design](docs/specs/2026-10-02-slice-a-design.md) — demos and
 > click-ops against non-production Consoles. Not on the Marketplace yet; build the `.vsix` yourself (below).
 
@@ -18,9 +22,9 @@ is valid, and what applying it would change. Git comes with VS Code.
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Connect**               | Add a Console with a personal access token (PAT) or an admin API key. The status bar shows the connection, what the token can reach and the connection's mode.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Browse**                | An Explorer view in two parts: **Global** resources (users, groups, applications, policies, clusters…) and the resources of one **Cluster**, picked with **Select Cluster** (connectors keep their Connect cluster level). Built from the Console's own OpenAPI, so it always matches its version.                                                                                                                                                                                                                                                                                                                                                 |
-| **Open and edit**         | Click a resource to open it as YAML. In `apply` mode the document is editable: saving runs a dry run, shows what will change, asks, then applies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Open and edit**         | Click a resource to open it as YAML. In dev mode, saving runs a dry run, shows what will change, asks, then applies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **Create**                | **New Resource…** (the `+` on a kind or cluster) starts from a repository template or builds the document from the kind's schema: it asks which variant where a kind has them (a cluster's Kafka flavour and Schema Registry, an alert's type, a data quality rule's language), fills the required fields (from the published example where it fits), lists the optional ones as comments, and fills in the parents and a free name. In an empty YAML document, or after a `---` line, completion offers the same as snippets — `Conduktor: <Kind>` and one per variant — with tab stops on the name, a choice of clusters and the values to fill. |
-| **Validate and complete** | Any YAML file with a Console `apiVersion` and `kind` gets the connected Console's JSON Schema: completion, hover and errors, per document in multi-document files. Kubernetes, Argo CD and Helm documents in the same file are left alone.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Validate and complete** | Any YAML file with a Console `apiVersion` and `kind` gets the connected Console's JSON Schema: completion, hover and errors, per document in multi-document files. Kubernetes, Argo CD and Helm documents in the same file are left alone. Files are also dry-run against the Console when opened and saved, and **Validate Folder against Console** checks a whole folder. See [Checking against the Console](#checking-against-the-console).                                                                                                                                                                                                     |
 | **Dry run, apply, diff**  | CodeLenses above every resource: **Dry run**, **Apply** (dry run, confirmation, apply) and **Diff with Live**. The last result shows in the lens and at the end of the line; failures land in Problems.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Into git**              | **Copy to Workspace…** saves a live resource as a file. The output channel prints the matching `conduktor apply -f … --dry-run` for CI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Delete**                | **Delete from Console** on a resource in the tree, with confirmation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -29,6 +33,20 @@ is valid, and what applying it would change. Git comes with VS Code.
 | **Topic configs**         | In a Topic's `spec.configs`: completion of Kafka's topic configs with their docs and defaults, hovers linking to the Kafka docs, and Problems for unknown keys and values Kafka would refuse. Under `spec`, presets (high throughput, durable, compacted, retention…) and the Console's topic templates set partitions, replication and configs in one go. See [Topic configs](#topic-configs).                                                                                                                                                                                                                                                    |
 | **Field docs**            | Hover any field of a Console resource for its type, allowed values and whether it is required, the reference docs' text for it, where a reference points (with a link to open it) and a Docs link; hover `kind` for a summary of the kind. See [Field docs](#field-docs).                                                                                                                                                                                                                                                                                                                                                                          |
 | **Agents**                | Tools for Copilot agent mode and Claude Code: kinds, schemas, validation, dry runs and live resources. See [AI agents](#ai-agents).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+## Checking against the Console
+
+- **On open and save:** every Conduktor YAML file you open or save is dry-run against the connection, a couple at a
+  time, and the results land where a **Dry run** puts them: Problems and the end of each resource's line. Live
+  documents, the sync folder's `.conduktor/` copies and files of another environment are left out. Turn it off with
+  `conduktor.validation.onOpenAndSave`.
+- **Validate Folder against Console** (right-click a folder in the Explorer, or the command palette) dry-runs every
+  Conduktor YAML under it, leaving out `.git`, `node_modules` and `.conduktor`, as one plan: a resource waiting for one
+  created in another of its files reads as pending, not failed. Progress can be cancelled; failures go to Problems and
+  the output.
+- **`${VAR}` values** come from the nearest `.env` above the file — up to its workspace folder, its repository root or
+  your home folder, whichever comes first — over VS Code's own environment. A `.env` is read literally (`NAME=value`,
+  no expansion), as the CLI runner reads it.
 
 ## Local sync folder
 
@@ -69,10 +87,10 @@ Stage changes as files before they reach the Console — the first step towards 
   read-only copy of the base). **Reveal in Conduktor Explorer** selects the open resource in the tree, switching to its
   cluster if needed; set `conduktor.explorer.autoReveal` to have the tree follow the active editor while the view is
   open (it never switches the cluster).
-- **Saving a resource opened from the tree stages it** whenever it cannot apply straight away (dry-run mode, or once a
+- **Saving a resource opened from the tree stages it** whenever it cannot apply straight away (prod mode, or once a
   sync folder exists): the edit is written to its file in the sync folder (secrets as placeholders), that file opens
   marked **M**, and the tree's copy reloads what the Console holds. **Edit Locally** does the same without editing
-  first, and **New Resource…** writes into the folder. Only apply mode without a sync folder applies on save.
+  first, and **New Resource…** writes into the folder. Only dev mode without a sync folder applies on save.
 - Apply one resource from its file or the tree, or **Apply All Changes**: every new or modified file in dependency
   order, one at a time, stopping at the first failure. Each success becomes the new base. **Discard Local Changes**
   goes back to the base; **Re-sync from Console** replaces the file with what the Console holds.
@@ -133,7 +151,7 @@ config hover.
 **Plan Environment with CLI** and **Apply Environment with CLI** (the Explorer's `…` menu, or the command palette) run
 `ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r`, Plan with `--dry-run`.
 The output streams to the **Conduktor CLI** panel, failures land as Problems on their files, and after an Apply each
-applied file is recorded as synced. Apply runs only in apply mode, plans first and asks. An Apply cannot be cancelled
+applied file is recorded as synced. Apply runs only in dev mode, plans first and asks. An Apply cannot be cancelled
 once it runs.
 
 - **No deletes:** `ctl` runs without its state, so it creates and updates but never deletes. A file removed since it
@@ -208,19 +226,18 @@ Then run **Developer: Reload Window** in VS Code. Every build is version 0.0.1, 
 2. **Select Cluster** (the server icon on the view's title bar; picked for you when there is only one), then expand
    **Cluster → kafka → Topic** and open a topic. **Global** holds everything that is not in a cluster.
 3. Use **New Resource…** on a cluster, edit the template, then **Dry run** and **Diff with Live**.
-4. **Conduktor: Change Mode** → **Apply** to let the connection change the Console; **Apply** then appears in the
-   CodeLens, live documents become editable, and **Delete from Console** appears in the tree.
+4. **Conduktor: Change Mode** → **Dev** to let the connection change the Console; **Apply** then appears in the
+   CodeLens, saving a live document applies it, and **Delete from Console** appears in the tree.
 
 ### Modes
 
-| Mode                | Browse and open | Dry run, diff | Apply, save live documents, delete |
-| ------------------- | --------------- | ------------- | ---------------------------------- |
-| `read-only`         | ✓               |               |                                    |
-| `dry-run` (default) | ✓               | ✓             |                                    |
-| `apply`             | ✓               | ✓             | ✓, after a confirmation            |
+| Mode             | Browse, dry run, diff, validate, plan, sync locally | Apply, save live documents, delete, Apply Environment |
+| ---------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `prod` (default) | ✓                                                   |                                                       |
+| `dev`            | ✓                                                   | ✓, after a confirmation                               |
 
-Use `apply` on non-production Consoles. The status bar turns to the warning colour when a connection is in `apply`
-mode.
+Use `dev` on non-production Consoles. The status bar turns to the warning colour when a connection is in `dev` mode.
+Connections saved with the earlier modes are read as `dev` (`apply`) or `prod` (`dry-run`, `read-only`).
 
 ### Tokens and what they reach
 
