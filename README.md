@@ -130,30 +130,43 @@ config hover.
 ## CLI runner
 
 **Plan Environment with CLI** and **Apply Environment with CLI** (the Explorer's `…` menu, or the command palette) run
-`ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r --enable-state`, Plan with
-`--dry-run`. `ctl`'s state lives in the sync folder's git-ignored `.conduktor/state/<env>.json`, so a file removed since
-the last apply is deleted on the Console. The output streams to the **Conduktor CLI** panel, failures land as Problems
-on their files, and after an Apply each applied file is recorded as synced. Apply runs only in apply mode, plans first
-and asks, listing every resource it would delete — and warning when it would delete and create one again: `ctl` tells
-the resources it applied apart by all their metadata, so a changed `metadata.description` or a first label reads as a
-different resource and the old one is deleted, losing its data. An Apply cannot be cancelled once it runs (`ctl` would
-skip saving its state).
+`ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r`, Plan with `--dry-run`.
+The output streams to the **Conduktor CLI** panel, failures land as Problems on their files, and after an Apply each
+applied file is recorded as synced. Apply runs only in apply mode, plans first and asks. An Apply cannot be cancelled
+once it runs.
 
+- **No deletes:** `ctl` runs without its state, so it creates and updates but never deletes. A file removed since it
+  was synced is listed after a Plan and in Apply's confirmation as removed from the folder and left on the Console;
+  delete it on the Console if it should go.
 - **Where `ctl` runs:** `conduktor.cli.runner` is `auto` (Docker when it answers, else `conduktor.cli.path`), `docker`
   or `path`. In Docker the `conduktor.cli.image` image runs (default `conduktor/conduktor-ctl:v0.9.2`, pulled on first
   use; `auto` falls back to the path when it cannot be), the sync folder mounted, a `localhost` Console reached as
   `host.docker.internal`.
 - **Credentials:** the Console and token of the bound connection, the token passed through the environment only;
   `${VAR}` values from `environments/<env>/.env`. No other `CDK_` setting, from your shell or the `.env`, reaches `ctl`
-  (a `CDK_STATE_REMOTE_URI` would point it at another state, `CDK_DEBUG` would log the token); `${CDK_SECRET_…}`
-  values are the exception.
-- **Fixes not released yet:** conduktor/ctl#146 (a topic's `descriptionFile`), #148 (resources whose metadata changed
-  are no longer deleted and recreated) and #149 (diffs for creates; emptied folders apply their deletes). Build them
-  and set `conduktor.cli.image` to that local image (`docker build -t conduktor/conduktor-ctl:local .` in a ctl
-  checkout with all three) until a release has them.
+  (`CDK_STATE_ENABLED` would turn its state on, `CDK_DEBUG` would log the token); `${CDK_SECRET_…}` values are the
+  exception.
 - **With v0.9.2:** Plan shows results, not diffs (its `--print-diff` fails for anything the Console does not have yet;
-  **Diff with Live** shows one file's), an environment emptied of every file is not applied, and a changed description
-  or first label deletes and recreates the resource — which Apply's confirmation names.
+  **Diff with Live** shows one file's), and a topic's `conduktor.io/descriptionFile` is sent as a label the Console
+  refuses (fixed in conduktor/ctl#146, not released yet).
+
+## GitOps repository
+
+**Set Up GitOps Repository** (the Explorer's `…` menu, or the command palette) turns a bootstrapped sync folder into a
+repository a pipeline can run:
+
+- `git init` on `main` when the folder is not in a repository yet; inside a larger one, its files go there instead.
+- `ci/plan.sh <env>` and `ci/apply.sh <env>`: the same `ctl` command as Plan and Apply, run with the `conduktor` CLI
+  (`CONDUKTOR_CLI` names another) and `CDK_BASE_URL` / `CDK_API_KEY` from the environment, `${VAR}` values from
+  `environments/<env>/.env`.
+- `.github/workflows/conduktor-plan.yml` plans every environment on a pull request; `conduktor-apply.yml` applies it on
+  a push to `main`, one apply at a time per environment. Each job installs the pinned `ctl` release and reads its
+  secrets from a GitHub Environment of the same name: `CDK_BASE_URL`, `CDK_API_KEY` and each variable in the
+  environment's `.env.example`. GitHub's runners must reach the Console, so with a local one the CLI runner stands in.
+- A README, and `.env` files ignored.
+
+Running it again brings back its own scripts and workflows as generated and leaves everything else alone: a file of
+yours under one of those names, and an edited README, are kept and named in the report.
 
 ## AI agents
 
@@ -322,5 +335,5 @@ From the [design](docs/specs/2026-10-02-slice-a-design.md):
 - **Slice (a), next:** upgrade a PAT to an admin key, run the CLI's actions (topic empty, connector restart, …),
   consumer groups and offset resets for admin keys.
 - **Git sync:** commit staged changes from the sync folder, explicit deletions, and conflict handling for drift.
-- **Slice (b), GitOps:** a repository template with plan-on-PR and apply-on-merge GitHub Actions.
+- **Slice (b), GitOps:** a GitOps mode, where saves go to a branch and a local pull request view plans and merges it.
 - **Slice (c), self-service:** ownership-aware validation for application teams.

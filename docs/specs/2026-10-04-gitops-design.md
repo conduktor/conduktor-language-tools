@@ -1,7 +1,7 @@
 # Conduktor for VS Code — local GitOps
 
-Status: phase 1 (bootstrap) implemented 2026-10-04, phase 2 (CLI runner) 2026-10-06; phases 3–4 record decisions and
-are specified when started ·
+Status: phase 1 (bootstrap) implemented 2026-10-04, phase 2 (CLI runner) 2026-10-06, phase 3 (repository init) and
+`ctl` without state 2026-10-07; phase 4 records decisions and is specified when started ·
 builds on the [sync folder](2026-10-02-sync-folder-design.md).
 
 ## Intent
@@ -16,7 +16,7 @@ actions.
 ## Phases
 
 1. **Bootstrap** — Sync Everything into a repository layout (below).
-2. **CLI runner** — validate, plan and apply an environment with `ctl` from VS Code.
+2. **CLI runner** — plan and apply an environment with `ctl` from VS Code.
 3. **Repository init** — git, workflows and the scripts they share with the local runner.
 4. **GitOps mode** — saves go to a branch; a local pull request view plans it; merging applies it.
 
@@ -31,6 +31,8 @@ actions.
   .conduktor/.gitignore                          *
   .conduktor/base/<env>/<same path>              the version last synced or applied
   .gitignore                                     .env, environments/*/.env
+  ci/plan.sh, ci/apply.sh                        what the pipelines run (phase 3)
+  .github/workflows/conduktor-{plan,apply}.yml   plan on pull requests, apply on merge to main (phase 3)
 ```
 
 `conduktor apply -f environments/<env> -r` must apply exactly the environment's resources: `ctl` loads every `.yaml`
@@ -76,23 +78,31 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
 
 ## Phase 2 — CLI runner (decided)
 
-- Runs the pinned `conduktor/conduktor-ctl` image — the one the workflows use — with the environment folder mounted;
-  falls back to `conduktor` on PATH when Docker is not available.
-- Commands per environment: **Validate** and **Plan** (`apply -r --dry-run --print-diff`), **Apply**
-  (`apply -r --enable-state`). Connection and token come from the bound connection; `${VAR}` values from
+- Runs the pinned `conduktor/conduktor-ctl` image with the sync folder mounted; falls back to `conduktor` on PATH when
+  Docker is not available.
+- Commands per environment: **Plan** (`apply -r -f environments/<env> --dry-run`) and **Apply** (the same without
+  `--dry-run`). There is no Validate (ctl has none), and no `--print-diff`, which ctl fails for resources the Console
+  does not have yet. Connection and token come from the bound connection; `${VAR}` values from
   `environments/<env>/.env`.
 - Output in a panel; failures map back to their files as Problems.
-- State: `--enable-state` makes a removed file a delete. Bootstrapped resources enter the state at the first apply
-  (each comes back NotChanged). It lives in the sync folder's git-ignored `.conduktor/state/<env>.json` (decided
-  2026-10-06). There is no Validate (ctl has none); Plan runs without `--print-diff`, which ctl fails for resources the
-  Console does not have yet.
+- **No state, no deletes** (Matt, 2026-10-07; this replaces the 2026-10-06 `--enable-state` decision). ctl's state
+  told resources apart by all their metadata, deleting and recreating any whose description or labels changed
+  (conduktor/ctl#148), and a pipeline has no shared copy of it. Without it, removing a file deletes nothing: Plan and
+  Apply's confirmation list the files removed since they were synced as left on the Console, and deleting stays a
+  Console action.
 
 ## Phase 3 — Repository init (decided)
 
-- `git init` if needed, `.gitignore`, a README, and workflows that plan on pull requests and apply on merge to `main`.
+- **Set Up GitOps Repository**: `git init` on `main` if needed (inside a larger repository, its files go there), the
+  `.env` ignores, a README, and workflows that plan on pull requests and apply on merge to `main`.
 - Workflows call shared scripts (`ci/plan.sh <env>`, `ci/apply.sh <env>`) so the local runner and GitHub run the same
-  commands. GitHub's runners cannot reach a local Console, so the local runner stands in until a reachable Console
-  exists.
+  commands. The scripts are generated from the arguments the runner builds (Matt, 2026-10-07), so the extension keeps
+  its own runner, Windows included; they call `conduktor`, and the workflows install the pinned release binary — the
+  ctl image is Alpine, where GitHub's checkout action cannot run.
+- Each workflow job reads its secrets from a GitHub Environment named after the environment: `CDK_BASE_URL`,
+  `CDK_API_KEY` and each variable of its `.env.example`. GitHub's runners cannot reach a local Console, so the local
+  runner stands in until a reachable Console exists.
+- Generated scripts and workflows carry a mark; running Set Up again rewrites those and keeps any other existing file.
 
 ## Phase 4 — GitOps mode (decided)
 
