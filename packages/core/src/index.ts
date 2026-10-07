@@ -151,6 +151,7 @@ export {
   type CliOutcome,
   type CliRunnerChoice,
 } from './cli';
+export { CI_SCRIPTS, ciScript, GENERATED_MARK } from './gitops';
 export {
   fieldDocs,
   headingSlug,
