@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { stringify } from 'yaml';
 import {
+  canChange,
   describeError,
   itemPath,
   kebabCase,
@@ -80,7 +81,7 @@ async function deleteResource(
   onDeleted: () => void,
 ): Promise<void> {
   const state = sessions.current();
-  if (state.status !== 'ready' || state.connection.mode !== 'apply') {
+  if (state.status !== 'ready' || !canChange(state.connection.mode)) {
     void vscode.window.showWarningMessage('Deleting needs a connection in apply mode ("Conduktor: Change Mode").');
     return;
   }

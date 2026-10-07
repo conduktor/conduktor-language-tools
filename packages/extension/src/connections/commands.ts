@@ -13,9 +13,12 @@ import type { ConnectionStore } from './connectionStore';
 import type { SessionManager } from './session';
 
 const MODES: (vscode.QuickPickItem & { mode: ConnectionMode })[] = [
-  { mode: 'dry-run', label: 'Dry run', description: 'Browse and dry-run; never changes the Console' },
-  { mode: 'read-only', label: 'Read only', description: 'Browse and open only' },
-  { mode: 'apply', label: 'Apply', description: 'May change the Console after confirmation (non-production)' },
+  { mode: 'prod', label: 'Prod', description: 'Never changes the Console: browse, dry run, diff, plan' },
+  {
+    mode: 'dev',
+    label: 'Dev',
+    description: 'Can change the Console: apply, save live documents, delete, after a confirmation',
+  },
 ];
 
 export function registerConnectionCommands(store: ConnectionStore, sessions: SessionManager): vscode.Disposable[] {

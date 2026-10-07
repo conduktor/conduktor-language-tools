@@ -43,7 +43,6 @@ async function run(tool: ToolDefinition, input: Record<string, unknown>, session
 export function toolContext(state: Ready): ToolContext {
   return {
     connectionName: state.connection.name,
-    mode: state.connection.mode,
     catalog: state.spec.catalog,
     schema: state.spec.schema,
     client: state.client,

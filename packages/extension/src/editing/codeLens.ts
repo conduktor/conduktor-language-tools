@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { catalogDocuments } from '@conduktor/vscode-core';
+import { canChange, catalogDocuments } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import type { Action, ResourceController } from './resourceController';
 import { outcomeLabel } from './summary';
@@ -21,8 +21,8 @@ export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode
 
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     const state = this.sessions.current();
-    if (state.status !== 'ready' || state.connection.mode === 'read-only') return [];
-    const canApply = state.connection.mode === 'apply';
+    if (state.status !== 'ready') return [];
+    const canApply = canChange(state.connection.mode);
     const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env });
     const lineOf = (offset: number) => document.lineAt(document.positionAt(offset).line).range;
     const lens = (offset: number, title: string, command: string, ...args: unknown[]) =>

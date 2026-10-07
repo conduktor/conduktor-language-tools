@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { stringify } from 'yaml';
-import { ConsoleError, describeError, itemPath, parentsOf } from '@conduktor/vscode-core';
+import { canChange, ConsoleError, describeError, itemPath, parentsOf } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import { parseLiveUriParts, type LiveRef } from './uris';
 
@@ -23,11 +23,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
 
   stat(uri: vscode.Uri): vscode.FileStat {
     const state = this.sessions.current();
-    const writable =
-      this.editable &&
-      state.status === 'ready' &&
-      state.connection.mode !== 'read-only' &&
-      state.connection.id === uri.authority;
+    const writable = this.editable && state.status === 'ready' && state.connection.id === uri.authority;
     return {
       type: vscode.FileType.File,
       ctime: 0,
@@ -71,11 +67,10 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
     if (state.status !== 'ready' || state.connection.id !== ref.connectionId) {
       throw vscode.FileSystemError.Unavailable('Switch to this connection to save its resources.');
     }
-    if (state.connection.mode === 'read-only') throw vscode.FileSystemError.NoPermissions(uri);
     const text = new TextDecoder().decode(content);
-    // Saving applies only in apply mode without a sync folder; otherwise the edit is staged as a local file and the
+    // Saving applies only in dev mode without a sync folder; otherwise the edit is staged as a local file and the
     // live document reloads what the Console holds.
-    const applies = state.connection.mode === 'apply' && !this.staging();
+    const applies = canChange(state.connection.mode) && !this.staging();
     try {
       await (applies ? this.save(text, ref.name) : this.stage(ref, text));
     } catch (error) {

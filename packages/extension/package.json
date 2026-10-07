@@ -53,9 +53,12 @@
               "mode": {
                 "type": "string",
                 "enum": [
-                  "read-only",
-                  "dry-run",
-                  "apply"
+                  "prod",
+                  "dev"
+                ],
+                "enumDescriptions": [
+                  "Never changes the Console: browse, dry run, diff, plan",
+                  "Can change the Console: apply, save live documents, delete, after a confirmation"
                 ]
               }
             }
@@ -353,7 +356,7 @@
         },
         {
           "command": "conduktor.applyAllChanges",
-          "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == apply",
+          "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == dev",
           "group": "navigation"
         },
         {
@@ -373,7 +376,7 @@
         },
         {
           "command": "conduktor.applyEnvironment",
-          "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == apply",
+          "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == dev",
           "group": "3_sync"
         }
       ],
@@ -404,7 +407,7 @@
         },
         {
           "command": "conduktor.applyFile",
-          "when": "conduktor.mode == apply"
+          "when": "conduktor.mode == dev"
         },
         {
           "command": "conduktor.syncLocally",
@@ -428,18 +431,18 @@
         },
         {
           "command": "conduktor.applyAllChanges",
-          "when": "conduktor.syncFolder && conduktor.mode == apply"
+          "when": "conduktor.syncFolder && conduktor.mode == dev"
         }
       ],
       "editor/title": [
         {
           "command": "conduktor.dryRunFile",
-          "when": "resourceLangId == yaml && conduktor.mode && conduktor.mode != read-only",
+          "when": "resourceLangId == yaml && conduktor.mode",
           "group": "navigation"
         },
         {
           "command": "conduktor.applyFile",
-          "when": "resourceLangId == yaml && conduktor.mode == apply",
+          "when": "resourceLangId == yaml && conduktor.mode == dev",
           "group": "navigation"
         },
         {
@@ -481,7 +484,7 @@
         },
         {
           "command": "conduktor.deleteResource",
-          "when": "view == conduktor.explorer && viewItem == resource && conduktor.mode == apply",
+          "when": "view == conduktor.explorer && viewItem == resource && conduktor.mode == dev",
           "group": "9_delete"
         },
         {
@@ -506,7 +509,7 @@
         },
         {
           "command": "conduktor.applyLocal",
-          "when": "view == conduktor.explorer && viewItem =~ /^resource\\.(new|modified)$/ && conduktor.mode == apply",
+          "when": "view == conduktor.explorer && viewItem =~ /^resource\\.(new|modified)$/ && conduktor.mode == dev",
           "group": "inline"
         },
         {

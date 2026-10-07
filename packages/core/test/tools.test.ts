@@ -24,7 +24,6 @@ function context(overrides: Partial<ToolContext> = {}) {
   };
   const ctx: ToolContext = {
     connectionName: 'local',
-    mode: 'dry-run',
     catalog: snapshotCatalog,
     schema,
     client,
@@ -203,12 +202,6 @@ describe('conduktor_dry_run', () => {
         error: "Group not found: Group with id 'team-a' not found",
       },
     ]);
-  });
-
-  it('refuses on a read-only connection', async () => {
-    const { ctx, client } = context({ mode: 'read-only' });
-    await expect(tool('conduktor_dry_run').run({ yaml: topic('{}') }, ctx)).rejects.toThrow(/read-only/);
-    expect(client.upsert).not.toHaveBeenCalled();
   });
 });
 

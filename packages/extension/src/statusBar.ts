@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { describeToken } from '@conduktor/vscode-core';
+import { canChange, describeToken } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from './connections/session';
 
 export function createStatusBar(sessions: SessionManager): vscode.Disposable {
@@ -28,7 +28,7 @@ export function createStatusBar(sessions: SessionManager): vscode.Disposable {
     item.backgroundColor =
       state.status === 'error'
         ? new vscode.ThemeColor('statusBarItem.errorBackground')
-        : connection.mode === 'apply'
+        : canChange(connection.mode)
           ? new vscode.ThemeColor('statusBarItem.warningBackground')
           : undefined;
     item.show();

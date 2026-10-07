@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
+  canChange,
   catalogDocuments,
   planDocuments,
   splitPolicyMessages,
@@ -182,10 +183,8 @@ export class ResourceController implements vscode.Disposable {
       return undefined;
     }
     const { name, mode } = state.connection;
-    if (mode === 'read-only' || (apply && mode !== 'apply')) {
-      void vscode.window.showWarningMessage(
-        `${name} is in ${mode} mode. Use "Conduktor: Change Mode" to ${apply ? 'apply' : 'dry-run'}.`,
-      );
+    if (apply && !canChange(mode)) {
+      void vscode.window.showWarningMessage(`${name} is in prod mode. Use "Conduktor: Change Mode" to apply.`);
       return undefined;
     }
     return state;

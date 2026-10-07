@@ -67,7 +67,6 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   liveUri(node: ResourceNode): vscode.Uri {
     const state = this.sessions.current();
     if (state.status !== 'ready') throw new Error('Not connected');
-    const editable = state.connection.mode !== 'read-only';
     return vscode.Uri.from(
       toLiveUriParts(
         {
@@ -77,7 +76,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
           parents: node.parents,
           name: node.name,
         },
-        { editable },
+        { editable: true },
       ),
     );
   }

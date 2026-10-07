@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { rangeOf, readCliOutput, type CliOutcome } from '@conduktor/vscode-core';
+import { canChange, rangeOf, readCliOutput, type CliOutcome } from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
@@ -72,7 +72,7 @@ export function registerCliCommands(
         void vscode.window.showWarningMessage('Connect to a Console and choose a sync folder first.');
         return undefined;
       }
-      if (state.connection.mode !== 'apply') {
+      if (!canChange(state.connection.mode)) {
         void vscode.window.showWarningMessage(
           `${state.connection.name} is not in apply mode; Plan shows what would change.`,
         );

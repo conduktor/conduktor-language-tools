@@ -7,7 +7,6 @@ const spec = buildSpec(readFileSync(snapshotPath, 'utf8'), 'snapshot');
 export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
   return {
     connectionName: 'fake',
-    mode: 'dry-run',
     catalog: spec.catalog,
     schema: spec.schema,
     client: {

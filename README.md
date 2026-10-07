@@ -173,8 +173,8 @@ a secret: passwords, tokens, keys and credential headers such as `Authorization`
   `export CONDUKTOR_TOKEN=<personal access token>` before starting `claude`. It adds the same tools (run by a copy
   of `dist/mcp-server.js` that the extension keeps in VS Code's global storage, refreshed when the extension updates)
   and the Console's MCP server.
-- **Any other MCP client:** run `node packages/extension/dist/mcp-server.js` with `CONDUKTOR_URL`, `CONDUKTOR_TOKEN`,
-  and optionally `CONDUKTOR_MODE` (`dry-run` by default; `read-only` turns dry runs off) and `CONDUKTOR_NAME`.
+- **Any other MCP client:** run `node packages/extension/dist/mcp-server.js` with `CONDUKTOR_URL`, `CONDUKTOR_TOKEN`
+  and optionally `CONDUKTOR_NAME`.
 
 Tokens are never written to a file: VS Code adds them when it starts a server, and the copied config uses
 `${CONDUKTOR_TOKEN}`. Secret values (passwords, SASL configs, keys) are redacted before an agent sees a resource, and

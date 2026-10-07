@@ -66,7 +66,6 @@ export function registerClaudeCodeConfigCommand(
     const config = claudeCodeConfig({
       url: state.client.baseUrl,
       name: state.connection.name,
-      mode: state.connection.mode,
       serverPath,
     });
     await vscode.env.clipboard.writeText(JSON.stringify(config, null, 2));

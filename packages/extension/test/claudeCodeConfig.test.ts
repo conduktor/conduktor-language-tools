@@ -5,7 +5,6 @@ describe('claudeCodeConfig', () => {
   const config = claudeCodeConfig({
     url: 'http://localhost:8080',
     name: 'local',
-    mode: 'dry-run',
     serverPath: '/storage/mcp/mcp-server.js',
   });
 
@@ -16,7 +15,6 @@ describe('claudeCodeConfig', () => {
       env: {
         CONDUKTOR_URL: 'http://localhost:8080',
         CONDUKTOR_NAME: 'local',
-        CONDUKTOR_MODE: 'dry-run',
         CONDUKTOR_TOKEN: '${CONDUKTOR_TOKEN}',
       },
     });

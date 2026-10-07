@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ConsoleClient, loadSpec, workspaceFile, type ConnectionMode, type ToolContext } from '@conduktor/vscode-core';
+import { ConsoleClient, loadSpec, workspaceFile, type ToolContext } from '@conduktor/vscode-core';
 import { createConduktorServer } from './server';
 
 declare const CONDUKTOR_VERSION: string;
 
-const MODES: readonly ConnectionMode[] = ['read-only', 'dry-run', 'apply'];
 const noCache = { read: async () => undefined, write: async () => undefined };
 
 async function main(): Promise<void> {
@@ -18,7 +17,6 @@ async function main(): Promise<void> {
     userAgent: `ConduktorMCP/${CONDUKTOR_VERSION}`,
   });
   const connectionName = process.env.CONDUKTOR_NAME || new URL(client.baseUrl).host;
-  const mode = modeFrom(process.env.CONDUKTOR_MODE);
   const readRelative = (file: string) => readFileSync(workspaceFile(process.cwd(), file), 'utf8');
 
   let context: Promise<ToolContext> | undefined;
@@ -32,7 +30,6 @@ async function main(): Promise<void> {
       if (spec.liveError) console.error(`Using the ${spec.source} OpenAPI for ${connectionName}: ${spec.liveError}`);
       return {
         connectionName,
-        mode,
         catalog: spec.catalog,
         schema: spec.schema,
         client,
@@ -42,13 +39,6 @@ async function main(): Promise<void> {
     }));
 
   await createConduktorServer(loadContext, CONDUKTOR_VERSION).connect(new StdioServerTransport());
-}
-
-function modeFrom(value: string | undefined): ConnectionMode {
-  if (value === undefined || value === '') return 'dry-run';
-  if ((MODES as readonly string[]).includes(value)) return value as ConnectionMode;
-  console.error(`Unknown CONDUKTOR_MODE "${value}"; using dry-run.`);
-  return 'dry-run';
 }
 
 main().catch((error: unknown) => {

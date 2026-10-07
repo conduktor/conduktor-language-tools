@@ -75,6 +75,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
 
   const output = new Output();
   const connections = new ConnectionStore(context);
+  void connections.migrate();
   const sessions = new SessionManager(context, connections, output);
   const compare = new Compare(sessions);
   const resources = new ResourceController(sessions, output, compare, confirm, (uri) => sync.foreignEnvironment(uri));

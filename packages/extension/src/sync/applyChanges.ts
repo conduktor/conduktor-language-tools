@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import {
+  canChange,
   catalogDocuments,
   planDocuments,
   upsertDocuments,
@@ -24,7 +25,7 @@ export async function applyAllChanges(
   cluster: string | undefined,
 ): Promise<UpsertItem[] | undefined> {
   const state = sessions.current();
-  if (state.status !== 'ready' || state.connection.mode !== 'apply') {
+  if (state.status !== 'ready' || !canChange(state.connection.mode)) {
     void vscode.window.showWarningMessage('Applying needs a connection in apply mode ("Conduktor: Change Mode").');
     return undefined;
   }

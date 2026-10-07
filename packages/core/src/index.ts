@@ -50,7 +50,7 @@ export {
   type ValueAt,
   type YamlPath,
 } from './resources/yamlPaths';
-export type { ConnectionMode } from './connectionMode';
+export { canChange, migrateMode, type ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';
 export { schemaAt, type FieldSchema } from './openapi/schemaAt';

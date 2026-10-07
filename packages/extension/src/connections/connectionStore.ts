@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ConnectionMode } from '@conduktor/vscode-core';
+import { migrateMode, type ConnectionMode } from '@conduktor/vscode-core';
 
 export interface Connection {
   id: string;
@@ -25,7 +25,16 @@ export class ConnectionStore implements vscode.Disposable {
   }
 
   all(): Connection[] {
-    return vscode.workspace.getConfiguration(SECTION).get<Connection[]>(SETTING, []);
+    return vscode.workspace
+      .getConfiguration(SECTION)
+      .get<Connection[]>(SETTING, [])
+      .map((connection) => ({ ...connection, mode: migrateMode(connection.mode) }));
+  }
+
+  /** Writes back modes stored before there were two, so the settings file holds only dev and prod. */
+  async migrate(): Promise<void> {
+    const stored = vscode.workspace.getConfiguration(SECTION).get<Connection[]>(SETTING, []);
+    if (stored.some((connection) => connection.mode !== migrateMode(connection.mode))) await this.save(this.all());
   }
 
   active(): Connection | undefined {

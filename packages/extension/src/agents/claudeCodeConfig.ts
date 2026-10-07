@@ -1,11 +1,8 @@
-import type { ConnectionMode } from '@conduktor/vscode-core';
-
 const TOKEN = '${CONDUKTOR_TOKEN}';
 
 export interface ClaudeCodeConnection {
   url: string;
   name: string;
-  mode: ConnectionMode;
   serverPath: string;
 }
 
@@ -19,7 +16,6 @@ export function claudeCodeConfig(connection: ClaudeCodeConnection) {
         env: {
           CONDUKTOR_URL: connection.url,
           CONDUKTOR_NAME: connection.name,
-          CONDUKTOR_MODE: connection.mode,
           CONDUKTOR_TOKEN: TOKEN,
         },
       },

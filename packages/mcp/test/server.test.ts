@@ -44,10 +44,10 @@ describe('Conduktor MCP server', () => {
   });
 
   it('reports tool errors as errors the agent can read', async () => {
-    const client = await connect(fakeContext({ mode: 'read-only' }));
+    const client = await connect(fakeContext());
     const result = await client.callTool({ name: 'conduktor_dry_run', arguments: { yaml: 'kind: Topic' } });
     expect(result.isError).toBe(true);
-    expect(text(result)).toMatch(/read-only/);
+    expect(text(result)).toMatch(/No Conduktor resources found/);
     expect((await client.callTool({ name: 'nope', arguments: {} })).isError).toBe(true);
   });
 });

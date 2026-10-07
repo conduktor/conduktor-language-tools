@@ -143,7 +143,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 (baseUrl && apiKey ? suite : suite.skip)('Conduktor extension against a live Console', () => {
   test('connects, browses, opens a topic and dry-runs it unchanged', async () => {
     const api = await activate();
-    await api.connections.add({ id: 'smoke', name: 'smoke', url: baseUrl!, mode: 'dry-run' }, apiKey!);
+    await api.connections.add({ id: 'smoke', name: 'smoke', url: baseUrl!, mode: 'prod' }, apiKey!);
     await until(() => !['none', 'loading'].includes(api.sessions.current().status));
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status === 'error' ? state.message : state.status);
@@ -166,6 +166,14 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
     const live = await vscode.workspace.openTextDocument(api.liveUri(topic));
     assert.match(live.getText(), /kind: Topic/);
+    const titles = (
+      (await vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', live.uri)) ?? []
+    ).map((lens) => lens.command?.title ?? '');
+    assert.ok(
+      titles.some((title) => title.includes('Dry run')),
+      titles.join(', '),
+    );
+    assert.ok(!titles.some((title) => title.includes('Apply')), `prod never offers Apply: ${titles.join(', ')}`);
     assert.strictEqual(live.languageId, 'yaml');
     assert.strictEqual(
       vscode.workspace.fs.isWritableFileSystem(live.uri.scheme),
@@ -186,7 +194,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await useWorkspaceSyncRoot(api);
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
-    assert.strictEqual(state.connection.mode, 'dry-run');
+    assert.strictEqual(state.connection.mode, 'prod');
     const topicKind = state.spec.catalog.latest('Topic')!;
     const [existing] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
     const name = existing!.metadata.name;
@@ -234,7 +242,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
   test('creates, edits, diffs and deletes a topic in apply mode', async () => {
     const api = await activate();
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
-    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
     await until(() => {
       const current = api.sessions.current();
       return current.status === 'ready' && current.connection.id === 'smoke-apply';
@@ -348,7 +356,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     await until(() => {
       const current = api.sessions.current();
-      return current.status === 'ready' && current.connection.mode === 'apply';
+      return current.status === 'ready' && current.connection.mode === 'dev';
     });
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
@@ -729,7 +737,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const api = await activate();
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
-    assert.strictEqual(state.connection.mode, 'apply');
+    assert.strictEqual(state.connection.mode, 'dev');
     await useWorkspaceSyncRoot(api);
     const root = api.sync.root()!;
     const id = `vscode-base-${Date.now()}`;
@@ -801,7 +809,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
-    assert.strictEqual(state.connection.mode, 'apply');
+    assert.strictEqual(state.connection.mode, 'dev');
     await api.clusters.set('local-kafka');
     const elsewhere = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-includes-')));
     await api.sync.setSyncRoot(elsewhere);
@@ -842,7 +850,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
-    assert.strictEqual(state.connection.mode, 'apply');
+    assert.strictEqual(state.connection.mode, 'dev');
     await api.clusters.set('local-kafka');
     const elsewhere = vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-included-')));
     await api.sync.setSyncRoot(elsewhere);
@@ -1098,6 +1106,51 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok(of('Topic').some((e) => e.parents[0] === 'local-gateway'));
     } finally {
       await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('reads connections stored with the old modes as dev or prod, and writes them back', async () => {
+    const api = await activate();
+    const settings = vscode.workspace.getConfiguration('conduktor');
+    const before = settings.inspect<unknown[]>('connections')?.globalValue;
+    const legacy = ['apply', 'dry-run', 'read-only', 'something'].map((mode) => ({
+      id: `legacy-${mode}`,
+      name: `legacy-${mode}`,
+      url: 'http://localhost:1',
+      mode,
+    }));
+    try {
+      await settings.update(
+        'connections',
+        [...((before as object[]) ?? []), ...legacy],
+        vscode.ConfigurationTarget.Global,
+      );
+      const modes = () =>
+        Object.fromEntries(
+          api.connections
+            .all()
+            .filter((c) => c.id.startsWith('legacy-'))
+            .map((c) => [c.id, c.mode]),
+        );
+      assert.deepStrictEqual(modes(), {
+        'legacy-apply': 'dev',
+        'legacy-dry-run': 'prod',
+        'legacy-read-only': 'prod',
+        'legacy-something': 'prod',
+      });
+      await api.connections.migrate();
+      const stored = vscode.workspace
+        .getConfiguration('conduktor')
+        .get<{ id: string; mode: string }[]>('connections', [])
+        .filter((c) => c.id.startsWith('legacy-'));
+      assert.deepStrictEqual(
+        stored.map((c) => c.mode),
+        ['dev', 'prod', 'prod', 'prod'],
+      );
+    } finally {
+      await settings.update('connections', before, vscode.ConfigurationTarget.Global);
+      // Changing the connections reloads the session; the tests after this one expect it ready.
+      await until(() => api.sessions.current().status === 'ready');
     }
   });
 
@@ -1403,7 +1456,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
-    assert.strictEqual(state.connection.mode, 'apply');
+    assert.strictEqual(state.connection.mode, 'dev');
     const name = `vscode-applied-${Date.now()}`;
     await api.names.lookup('Group', []);
     const doc = await vscode.workspace.openTextDocument({
@@ -2022,7 +2075,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const start = api.sessions.current();
     if (start.status !== 'ready') assert.fail(start.status);
     // The test profile keeps the connection list between runs, not the stored tokens: add it again.
-    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
     const switchTo = async (id: string) => {
       const now = api.sessions.current();
       if (now.status === 'ready' && now.connection.id === id) return;
@@ -2300,7 +2353,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     if (spawnSync('docker', ['version']).status !== 0) return this.skip();
     const api = await activate();
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
-    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
     // Adding an already active connection reloads twice; wait until it is ready and stays so.
     const ready = () => {
       const current = api.sessions.current();

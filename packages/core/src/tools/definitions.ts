@@ -128,11 +128,6 @@ const dryRun: ToolDefinition = {
     'dry run, tell the user it is ready and that they apply it from the editor; never say it has been applied.',
   inputSchema: { type: 'object', properties: YAML_OR_PATH },
   async run(input, context) {
-    if (context.mode === 'read-only') {
-      throw new ToolError(
-        `${context.connectionName} is read-only, so dry runs are off. The user can change that with "Conduktor: Change Mode".`,
-      );
-    }
     const documents = resourceDocuments(input, context);
     for (const { resource } of documents) {
       const [path] = resource ? redactedPaths(resource) : [];
