@@ -17,7 +17,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
-import { itemPath, parentsOf, upsertTarget, type Resource } from '@conduktor/vscode-core';
+import { itemPath, parentsOf, syncPath, upsertTarget, type Resource } from '@conduktor/vscode-core';
 import type { ExtensionApi } from '../extension';
 import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
 
@@ -35,6 +35,29 @@ async function useWorkspaceSyncRoot(api: ExtensionApi): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder, 'the smoke test runs in a workspace folder');
   await api.sync.setSyncRoot(vscode.Uri.joinPath(folder.uri, 'conduktor'));
+}
+
+// A repository the size of a big Console's, without a Console that big: topic files written straight into the folder.
+async function seedTopics(api: ExtensionApi, cluster: string, count: number): Promise<void> {
+  const state = api.sessions.current();
+  if (state.status !== 'ready') assert.fail(state.status);
+  const kind = state.spec.catalog.latest('Topic')!;
+  const root = api.sync.root()!.fsPath;
+  for (let i = 0; i < count; i++) {
+    const name = `seeded-${String(i).padStart(5, '0')}`;
+    const file = join(root, syncPath(kind, [cluster], name));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(
+      file,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name, cluster },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+  }
+  await api.sync.refresh();
 }
 
 async function until(condition: () => boolean, timeoutMs = 30_000): Promise<void> {
@@ -1374,6 +1397,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-names-'))));
     try {
       await api.sync.syncEverything(['Topic']);
+      await seedTopics(api, 'local-gateway', 1500);
       const local = api.sync.list().filter((e) => e.kind === 'Topic' && e.parents[0] === 'local-gateway');
       assert.ok(local.length > 1000, `${local.length} gateway topics in the repository`);
       // A service account with 20 ACLs looks its topics up 20 times on every check.
@@ -1462,6 +1486,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-docs-'))));
     try {
       await api.sync.syncEverything(['Topic']);
+      await seedTopics(api, 'local-gateway', 1500);
       const first = Date.now();
       const documents = await api.names.repoDocuments('Topic');
       const cold = Date.now() - first;
@@ -1597,6 +1622,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-lens-cost-'))));
     try {
       await api.sync.syncEverything(['KafkaCluster', 'Topic']);
+      await seedTopics(api, 'local-gateway', 1500);
       const cluster = api.sync.entryFor('KafkaCluster', [], 'local-gateway')!;
       const doc = await vscode.workspace.openTextDocument(cluster.uri);
       const lens = () => vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', doc.uri);
