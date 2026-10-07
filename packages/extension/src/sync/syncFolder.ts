@@ -270,10 +270,24 @@ export class SyncFolder implements vscode.Disposable {
     return environments(config)[this.requireEnvironment()]?.kinds ?? defaultKinds(state.spec.catalog);
   }
 
-  /** Bootstraps the environment: every chosen kind, globally and in every cluster, under the never-overwrite rules. */
+  /** The Kafka clusters this environment holds, from conduktor.yaml; every cluster when undefined. */
+  async managedClusters(): Promise<string[] | undefined> {
+    const config = await read(vscode.Uri.joinPath(this.requireSyncRoot(), REPO_CONFIG));
+    const clusters = environments(config)[this.requireEnvironment()]?.clusters;
+    return clusters && clusters.length > 0 ? clusters : undefined;
+  }
+
+  /**
+   * Bootstraps the environment: every chosen kind, globally and in the chosen clusters (every one by default), under
+   * the never-overwrite rules. The clusters are recorded in conduktor.yaml for the next run.
+   */
   async syncEverything(
     kinds: readonly string[],
-    options: { cancelled?: () => boolean; onProgress?: (stage: BootstrapStage) => void } = {},
+    options: {
+      clusters?: readonly string[];
+      cancelled?: () => boolean;
+      onProgress?: (stage: BootstrapStage) => void;
+    } = {},
   ): Promise<BootstrapResult> {
     await this.requireChosen();
     const state = this.ready();
@@ -285,12 +299,14 @@ export class SyncFolder implements vscode.Disposable {
     const config = withEnvironment(await read(configUri), this.requireEnvironment(), {
       console: state.client.baseUrl,
       kinds: [...kinds],
+      clusters: options.clusters ? [...options.clusters] : null,
     });
     await write(configUri, config);
     await this.ensureIgnored(['.env', `${ENVIRONMENTS_DIR}/*/.env`]);
     await this.refresh();
 
     const { fetched, skipped, builtIn, cancelled } = await collectResources(state.client, state.spec.catalog, kinds, {
+      clusters: options.clusters,
       concurrency: 4,
       onProgress: options.onProgress,
       cancelled: () => switched() || (options.cancelled?.() ?? false),

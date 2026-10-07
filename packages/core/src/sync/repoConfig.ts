@@ -8,6 +8,8 @@ export const REPO_CONFIG = 'conduktor.yaml';
 export interface EnvironmentConfig {
   console?: string;
   kinds?: string[];
+  /** The Kafka clusters it holds, besides global resources; every cluster when absent. */
+  clusters?: string[];
 }
 
 export function environments(text: string | undefined): Record<string, EnvironmentConfig> {
@@ -22,6 +24,9 @@ export function environments(text: string | undefined): Record<string, Environme
         {
           ...(typeof env.console === 'string' && { console: env.console }),
           ...(Array.isArray(env.kinds) && { kinds: env.kinds.filter((k): k is string => typeof k === 'string') }),
+          ...(Array.isArray(env.clusters) && {
+            clusters: env.clusters.filter((c): c is string => typeof c === 'string'),
+          }),
         },
       ];
     }),
@@ -58,12 +63,20 @@ export function resolveEnvironment(
   return { environment: fallback };
 }
 
-export function withEnvironment(text: string | undefined, name: string, config: EnvironmentConfig): string {
+/** Sets what is given and leaves the rest; `clusters: null` goes back to every cluster. */
+export function withEnvironment(
+  text: string | undefined,
+  name: string,
+  config: Omit<EnvironmentConfig, 'clusters'> & { clusters?: string[] | null },
+): string {
   const document = load(text ?? '');
   if (!isMap(document.contents)) document.contents = document.createNode({});
   if (config.console !== undefined) document.setIn(['environments', name, 'console'], config.console);
   if (config.kinds !== undefined)
     document.setIn(['environments', name, 'kinds'], document.createNode(config.kinds, { flow: true }));
+  if (config.clusters === null) document.deleteIn(['environments', name, 'clusters']);
+  else if (config.clusters !== undefined)
+    document.setIn(['environments', name, 'clusters'], document.createNode(config.clusters, { flow: true }));
   return document.toString();
 }
 

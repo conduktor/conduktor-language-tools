@@ -46,6 +46,7 @@ environments:
   dev:
     console: http://localhost:8080
     kinds: [KafkaCluster, Topic, Subject, Connector, Group, Application, ApplicationInstance]
+    clusters: [local-kafka] # optional: only these clusters (and global resources); every cluster when absent
 ```
 
 An environment is bound to a connection by its Console URL; its folder name defaults to the connection name. The

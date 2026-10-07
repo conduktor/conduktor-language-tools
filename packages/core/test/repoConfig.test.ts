@@ -32,6 +32,20 @@ describe('conduktor.yaml', () => {
     expect(resolved.problem).toMatch(/environments\/prod belongs to https:\/\/prod.example/);
   });
 
+  it('records the clusters an environment holds, and forgets them when it holds them all', () => {
+    const one = withEnvironment(config, 'dev', { clusters: ['local-kafka'] });
+    expect(environments(one).dev).toEqual({
+      console: 'http://localhost:8080/',
+      kinds: ['Topic', 'Group'],
+      clusters: ['local-kafka'],
+    });
+    expect(one).toContain('clusters: [ local-kafka ]');
+    expect(environments(withEnvironment(one, 'dev', { clusters: null })).dev).toEqual({
+      console: 'http://localhost:8080/',
+      kinds: ['Topic', 'Group'],
+    });
+  });
+
   it('updates one environment and keeps comments and other keys', () => {
     const updated = withEnvironment(config, 'dev', { console: 'http://localhost:8080', kinds: ['Topic'] });
     expect(updated).toContain('# Conduktor environments');

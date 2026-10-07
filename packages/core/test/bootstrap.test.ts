@@ -61,6 +61,24 @@ describe('collectResources', () => {
     ]);
   });
 
+  it('keeps to the chosen clusters: their contents and definitions, and every global resource', async () => {
+    const { client, calls } = console_(responses);
+    const { fetched, skipped } = await collectResources(
+      client,
+      snapshotCatalog,
+      ['Topic', 'Group', 'KafkaCluster', 'Connector'],
+      { clusters: ['local'] },
+    );
+    expect(fetched.map((f) => [f.kind.kind, f.parents, f.resource.metadata.name])).toEqual([
+      ['Group', [], 'team-a'],
+      ['KafkaCluster', [], 'local'],
+      ['Topic', ['local'], 'orders'],
+      ['Connector', ['local', 'main'], 'sink'],
+    ]);
+    expect(skipped).toEqual([]);
+    expect(calls.filter((c) => c.includes('/cluster/prod/'))).toEqual([]);
+  });
+
   it('lists each parent once and at most four lists at a time, parents included', async () => {
     const clusters = Array.from({ length: 10 }, (_, i) => `c${i}`);
     const fake = console_({ '/public/console/v2/kafka-cluster': named(...clusters) });

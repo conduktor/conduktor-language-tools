@@ -1133,6 +1133,34 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('syncs everything in one cluster, plus global, and remembers that it did', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const repo = mkdtempSync(join(tmpdir(), 'conduktor-one-cluster-'));
+    await api.sync.setSyncRoot(vscode.Uri.file(repo));
+    const kinds = ['Group', 'KafkaCluster', 'Topic'];
+    const of = (kind: string) => api.sync.list().filter((e) => e.kind === kind);
+    try {
+      await api.sync.syncEverything(kinds, { clusters: ['local-kafka'] });
+      assert.ok(of('Topic').length > 0);
+      assert.deepStrictEqual([...new Set(of('Topic').map((e) => e.parents[0]))], ['local-kafka']);
+      assert.deepStrictEqual(
+        of('KafkaCluster').map((e) => e.name),
+        ['local-kafka'],
+      );
+      assert.ok(of('Group').length > 0, 'global resources come along');
+      assert.deepStrictEqual(await api.sync.managedClusters(), ['local-kafka']);
+      assert.match(readFileSync(join(repo, 'conduktor.yaml'), 'utf8'), /clusters: \[ local-kafka \]/);
+
+      await api.sync.syncEverything(kinds);
+      assert.strictEqual(await api.sync.managedClusters(), undefined, 'every cluster again');
+      assert.ok(of('Topic').some((e) => e.parents[0] === 'local-gateway'));
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {
     const api = await activate();
     const state = api.sessions.current();

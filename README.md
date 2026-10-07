@@ -46,9 +46,10 @@ Stage changes as files before they reach the Console — the first step towards 
   the schema-built document. Picking one copies it as written, comments included, with a free `metadata.name` (starting
   from the template's own) and the chosen cluster. `templates/` sits outside `environments/`, so `ctl` never applies
   it and its files never count as resources.
-- **Sync Everything** bootstraps the whole picture: pick the kinds the repository manages (all but User, which SSO or
-  SCIM usually owns; the choice is kept in `conduktor.yaml` at the root, with the environment's Console URL), and every
-  resource of those kinds, globally and in every cluster, becomes a file. Built-in resources are left out. Files with
+- **Sync Everything** bootstraps the whole picture: pick the clusters (every one, or the Explorer's cluster alone) and
+  the kinds the repository manages (all but User, which SSO or SCIM usually owns; both choices are kept in
+  `conduktor.yaml` at the root, with the environment's Console URL), and every resource of those kinds, globally and in
+  those clusters, becomes a file. With one cluster, the other clusters' definitions are left out too. Built-in resources are left out. Files with
   local changes, new files and files it cannot identify are never overwritten, only reported; re-running it pulls in
   what changed on the Console. Secrets become `${CDK_SECRET_…}` placeholders, listed in
   `environments/<env>/.env.example`; real values go in a git-ignored `.env`. Check the result with

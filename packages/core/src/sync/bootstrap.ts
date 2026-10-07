@@ -29,6 +29,8 @@ export type BootstrapStage =
   | { stage: 'envExample' };
 
 export interface CollectOptions {
+  /** Only these Kafka clusters' resources and definitions; global resources are collected either way. */
+  clusters?: readonly string[];
   concurrency?: number;
   cancelled?: () => boolean;
   onProgress?: (stage: BootstrapStage) => void;
@@ -102,6 +104,7 @@ export async function collectResources(
     return resources;
   };
 
+  const inScope = (cluster: string) => !options.clusters || options.clusters.includes(cluster);
   const chains = async (kind: KindVersion, prefix: string[]): Promise<string[][]> => {
     if (prefix.length === kind.parentPathParams.length) return [prefix];
     const param = kind.parentPathParams[prefix.length]!;
@@ -113,6 +116,7 @@ export async function collectResources(
     let names: string[];
     try {
       names = (await list(listPath(parentKind, parentsOf(kind, prefix)))).map((r) => r.metadata.name);
+      if (param === 'cluster') names = names.filter(inScope);
     } catch (error) {
       skipped.push({ kind: kind.kind, parents: prefix, reason: reasonOf(error) });
       return [];
@@ -143,7 +147,8 @@ export async function collectResources(
       try {
         for (const resource of await list(listPath(kind, parentsOf(kind, parents)))) {
           if (resource.metadata.builtIn === true) builtIn.push(`${kind.kind} ${resource.metadata.name}`);
-          else fetched.push({ kind, parents, resource });
+          else if (kind.kind !== PARENT_KINDS.cluster || inScope(resource.metadata.name))
+            fetched.push({ kind, parents, resource });
         }
       } catch (error) {
         skipped.push({ kind: kind.kind, parents, reason: reasonOf(error) });

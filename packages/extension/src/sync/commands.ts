@@ -10,6 +10,7 @@ import {
 import type { Confirm } from '../confirm';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { ConnectionStore } from '../connections/connectionStore';
+import type { ClusterSelection } from '../explorer/clusterSelection';
 import type { SessionManager } from '../connections/session';
 import type { Output } from '../output';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
@@ -25,6 +26,7 @@ export function registerSyncCommands(
   sessions: SessionManager,
   connections: ConnectionStore,
   output: Output,
+  clusters: ClusterSelection,
 ): vscode.Disposable[] {
   const guarded =
     <A extends unknown[]>(run: (...args: A) => Promise<unknown>) =>
@@ -84,6 +86,8 @@ export function registerSyncCommands(
         const state = sessions.current();
         if (state.status !== 'ready') throw new Error('Connect to a Conduktor Console first.');
         if (!(await sync.ensureChosen())) return;
+        const scope = await pickScope(clusters.current(), await sync.managedClusters());
+        if (!scope) return;
         const kinds = await pickKinds(state.spec.catalog, new Set(await sync.managedKinds()));
         if (!kinds) return;
         const result = await vscode.window.withProgress(
@@ -96,6 +100,7 @@ export function registerSyncCommands(
             const reporter = bootstrapReporter(progress, output);
             return sync
               .syncEverything(kinds, {
+                clusters: scope.clusters,
                 cancelled: () => token.isCancellationRequested,
                 onProgress: (stage) => reporter.report(stage),
               })
@@ -202,6 +207,30 @@ export function registerSyncCommands(
       }),
     ),
   ];
+}
+
+// The Explorer's cluster, the clusters the last run kept to, or every cluster; the last choice comes first.
+async function pickScope(
+  current: string | undefined,
+  saved: readonly string[] | undefined,
+): Promise<{ clusters?: string[] } | undefined> {
+  const scoped = (clusters: string[], description: string) => ({
+    label: `${clusters.join(', ')} and global`,
+    description,
+    clusters,
+  });
+  const items: (vscode.QuickPickItem & { clusters?: string[] })[] = [];
+  if (saved) items.push(scoped([...saved], 'as last time'));
+  if (current && !(saved?.length === 1 && saved[0] === current))
+    items.push(scoped([current], "the Explorer's cluster"));
+  const all = { label: 'All clusters', description: 'every cluster, and global' };
+  if (saved) items.push(all);
+  else items.unshift(all);
+  const picked = await vscode.window.showQuickPick(items, {
+    title: 'Sync everything from which clusters?',
+    ignoreFocusOut: true,
+  });
+  return picked && { clusters: picked.clusters };
 }
 
 async function pickKinds(catalog: KindCatalog, selected: ReadonlySet<string>): Promise<string[] | undefined> {

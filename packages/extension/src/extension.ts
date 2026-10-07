@@ -109,7 +109,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     new ReferenceDiagnostics(sessions, names),
     clusters,
     createStatusBar(sessions),
-    ...registerSyncCommands(sync, confirm, sessions, connections, output),
+    ...registerSyncCommands(sync, confirm, sessions, connections, output, clusters),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm, () => names.clear()),
     ...registerLanguageModelTools(sessions),
