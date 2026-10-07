@@ -163,6 +163,7 @@ repository a pipeline can run:
   a push to `main`, one apply at a time per environment. Each job installs the pinned `ctl` release and reads its
   secrets from a GitHub Environment of the same name: `CDK_BASE_URL`, `CDK_API_KEY` and each variable in the
   environment's `.env.example`. GitHub's runners must reach the Console, so with a local one the CLI runner stands in.
+  A plan runs the pull request's own scripts with those secrets, so anyone who can push a branch can use the key.
 - A README, and `.env` files ignored.
 
 Running it again brings back its own scripts and workflows as generated and leaves everything else alone: a file of

@@ -18,14 +18,15 @@ function repo(dotenv?: string) {
     `#!/bin/sh\nprintf '%s\\n' "$@" > "${dir}/args"\nenv > "${dir}/env"\npwd > "${dir}/pwd"\n`,
     { mode: 0o755 },
   );
-  const run = (action: 'plan' | 'apply', ...args: string[]) =>
+  const run = (action: 'plan' | 'apply', ...args: string[]) => runWith({}, action, ...args);
+  const runWith = (caller: Record<string, string>, action: 'plan' | 'apply', ...args: string[]) =>
     spawnSync('sh', [join(dir, 'repo', CI_SCRIPTS[action]), ...args], {
       cwd: tmpdir(),
-      env: { PATH: process.env.PATH, CONDUKTOR_CLI: join(dir, 'fake-ctl'), CDK_BASE_URL: 'http://console' },
+      env: { PATH: process.env.PATH, CONDUKTOR_CLI: join(dir, 'fake-ctl'), CDK_BASE_URL: 'http://console', ...caller },
       encoding: 'utf8',
     });
   const lines = (file: string) => readFileSync(join(dir, file), 'utf8').trimEnd().split('\n');
-  return { run, lines };
+  return { run, runWith, lines };
 }
 
 describe.runIf(process.platform !== 'win32')('ci scripts', () => {
@@ -52,6 +53,22 @@ describe.runIf(process.platform !== 'win32')('ci scripts', () => {
     expect(env.CDK_SECRET_PW).toBe('s3cret');
     expect(env.CDK_BASE_URL).toBe('http://console');
     expect(env['9X']).toBeUndefined();
+  });
+
+  it("drop the caller's CDK_ settings but the Console, the token and secrets: ctl's state stays off", () => {
+    const { runWith, lines } = repo();
+    const caller = {
+      CDK_API_KEY: 'key',
+      CDK_SECRET_PW: 's3cret',
+      CDK_STATE_ENABLED: 'true',
+      CDK_STATE_FILE: '/elsewhere.json',
+      CDK_DEBUG: 'true',
+    };
+    expect(runWith(caller, 'apply', 'dev').status).toBe(0);
+    const cdk = lines('env')
+      .filter((line) => line.startsWith('CDK_'))
+      .sort();
+    expect(cdk).toEqual(['CDK_API_KEY=key', 'CDK_BASE_URL=http://console', 'CDK_SECRET_PW=s3cret']);
   });
 
   it('refuse a missing or unknown environment', () => {

@@ -422,8 +422,8 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   /**
-   * The resources of this environment whose file was removed since it was synced or applied: their base copy is still
-   * here, and so are they on the Console, since nothing deletes them.
+   * The resources of this environment whose file was removed since it was synced or applied and that the Console still
+   * has: nothing deletes them. One deleted on the Console since is forgotten, its base copy with it.
    */
   async removedFiles(): Promise<{ kind: string; parents: string[]; name: string }[]> {
     const syncRoot = this.syncRoot();
@@ -437,7 +437,17 @@ export class SyncFolder implements vscode.Disposable {
       const file = vscode.Uri.joinPath(this.requireRoot(), copy.path.slice(baseRoot.path.length + 1));
       if (await fileExists(file)) continue;
       const identity = identify((await read(copy)) ?? '', state);
-      if (identity) removed.push({ kind: identity.kind, parents: identity.parents, name: identity.name });
+      const kind = identity && state.spec.catalog.resolve(identity.apiVersion, identity.kind);
+      if (!identity || !kind) continue;
+      const gone = await state.client.get(itemPath(kind, parentsOf(kind, identity.parents), identity.name)).then(
+        () => false,
+        (error: unknown) => error instanceof ConsoleError && error.status === 404,
+      );
+      if (gone) {
+        await remove(copy);
+        const applied = this.baseOf(file, 'applied');
+        if (applied) await remove(applied);
+      } else removed.push({ kind: identity.kind, parents: identity.parents, name: identity.name });
     }
     return removed.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
   }

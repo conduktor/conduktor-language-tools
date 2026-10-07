@@ -26,6 +26,7 @@ export {
   defaultKinds,
   environments,
   REPO_CONFIG,
+  folderNameProblem,
   resolveEnvironment,
   withEnvironment,
   type EnvironmentConfig,

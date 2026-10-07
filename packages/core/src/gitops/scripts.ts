@@ -17,6 +17,10 @@ export function ciScript(action: 'plan' | 'apply'): string {
 # The Console comes from CDK_BASE_URL and CDK_API_KEY; \${VAR} values from environments/<environment>/.env if present.
 set -eu
 env="\${1:?usage: ${CI_SCRIPTS[action]} <environment>}"
+# Only the Console, the token and secrets reach ctl; a CDK_STATE_ setting would turn its state, and its deletes, on.
+for name in $(env | sed -n 's/^\\(CDK_[A-Za-z0-9_]*\\)=.*/\\1/p'); do
+  case "$name" in CDK_BASE_URL | CDK_API_KEY | CDK_SECRET_*) ;; *) unset "$name" ;; esac
+done
 cd "$(dirname "$0")/.."
 if [ ! -d "environments/$env" ]; then
   echo "No environments/$env folder." >&2

@@ -28,6 +28,13 @@ export function environments(text: string | undefined): Record<string, Environme
   );
 }
 
+/** Why a conduktor.yaml environment name cannot be a folder (or a pipeline job's argument), if it cannot. */
+export function folderNameProblem(name: string): string | undefined {
+  return environmentName(name) === name
+    ? undefined
+    : `${REPO_CONFIG}: "${name}" is not a folder name; use letters, digits, ".", "_" and "-".`;
+}
+
 // An environment name becomes a folder, so a name bound in a cloned repository's conduktor.yaml must be one safe
 // segment; and naming an environment after its connection must not take over one bound to another Console.
 export function resolveEnvironment(
@@ -38,9 +45,8 @@ export function resolveEnvironment(
   const envs = environments(text);
   const bound = Object.entries(envs).find(([, env]) => sameConsole(env.console, consoleUrl))?.[0];
   if (bound !== undefined) {
-    return environmentName(bound) === bound
-      ? { environment: bound }
-      : { problem: `${REPO_CONFIG}: "${bound}" is not a folder name; use letters, digits, ".", "_" and "-".` };
+    const problem = folderNameProblem(bound);
+    return problem ? { problem } : { environment: bound };
   }
   const fallback = environmentName(connectionName);
   const owner = envs[fallback]?.console;

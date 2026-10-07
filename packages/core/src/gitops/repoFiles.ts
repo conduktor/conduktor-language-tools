@@ -1,5 +1,6 @@
 import { stringify } from 'yaml';
 import { CTL_VERSION } from '../cli';
+import { folderNameProblem } from '../sync/repoConfig';
 import { CI_SCRIPTS, ciScript, GENERATED_MARK } from './scripts';
 
 export interface RepoFile {
@@ -25,6 +26,9 @@ const CLI_URL = `https://github.com/conduktor/ctl/releases/download/${CTL_VERSIO
  */
 export function repoFiles(options: { environments: readonly RepoEnvironment[]; prefix: string }): RepoFile[] {
   const { environments, prefix } = options;
+  // A name lands in a shell line that holds the Console's token, so nothing but a plain folder name gets that far.
+  const problem = environments.map((env) => folderNameProblem(env.name)).find(Boolean);
+  if (problem) throw new Error(problem);
   return [
     { path: `${prefix}${CI_SCRIPTS.plan}`, text: ciScript('plan'), owned: true, executable: true },
     { path: `${prefix}${CI_SCRIPTS.apply}`, text: ciScript('apply'), owned: true, executable: true },
@@ -128,5 +132,8 @@ Removing a file deletes nothing on the Console. Delete the resource on the Conso
 
 The workflows need a Console that GitHub's runners can reach. For each environment, create a GitHub Environment of the
 same name with the secrets \`CDK_BASE_URL\`, \`CDK_API_KEY\` and each variable listed in its \`.env.example\`.
+
+A plan runs the pull request's own scripts with those secrets, so anyone who can push a branch here can use that key:
+keep push access to people who may apply.
 `;
 }

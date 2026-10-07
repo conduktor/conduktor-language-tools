@@ -2310,6 +2310,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await vscode.commands.executeCommand('conduktor.applyEnvironment');
       assert.ok(await exists(name), 'applied to the Console');
       await until(() => api.sync.entryAt(file)?.status === 'synced', 10_000);
+      const baseCopy = api.sync.baseUri(file)!.fsPath;
 
       rmSync(file.fsPath);
       await api.sync.refresh();
@@ -2335,6 +2336,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         [name],
         'listed again on the next Plan',
       );
+      // Deleted on the Console, as the README says to: no longer reported, and its base copy goes.
+      await state.client.delete(topicPath(name));
+      assert.deepStrictEqual(await api.sync.removedFiles(), []);
+      assert.ok(!existsSync(baseCopy), 'its base copy is forgotten');
 
       // The Console's dry run does not check config values, but it does check that the cluster exists.
       const broken = await api.sync.writeNew(

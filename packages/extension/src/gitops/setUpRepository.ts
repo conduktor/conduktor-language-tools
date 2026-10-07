@@ -9,6 +9,8 @@ import {
   environments,
   exampleVariables,
   fileAction,
+  folderNameProblem,
+  gitTopLevel,
   REPO_CONFIG,
   repoFiles,
 } from '@conduktor/vscode-core';
@@ -46,12 +48,14 @@ async function setUp(sync: SyncFolder): Promise<SetUpResult> {
   const configPath = join(root, REPO_CONFIG);
   const names = Object.keys(environments(existsSync(configPath) ? readFileSync(configPath, 'utf8') : undefined));
   if (names.length === 0) throw new Error(`${REPO_CONFIG} lists no environments; run Sync Everything first.`);
+  const problem = names.map(folderNameProblem).find(Boolean);
+  if (problem) throw new Error(problem);
 
   // A sync folder inside a larger repository is part of it: git's own top level, resolved like the root.
-  const inside = await git(['rev-parse', '--show-toplevel'], root);
-  let top = root;
-  if (inside.code === 0) top = realpathSync(inside.stdout.trim());
-  else {
+  const found = gitTopLevel(await git(['rev-parse', '--show-toplevel'], root));
+  if (found.error) throw new Error(found.error);
+  const top = found.top ? realpathSync(found.top) : root;
+  if (!found.top) {
     await check(git(['init'], root));
     await check(git(['symbolic-ref', 'HEAD', 'refs/heads/main'], root));
   }
@@ -65,7 +69,7 @@ async function setUp(sync: SyncFolder): Promise<SetUpResult> {
     }),
     prefix,
   });
-  const result: SetUpResult = { initialised: inside.code !== 0, top, written: [], rewritten: [], kept: [] };
+  const result: SetUpResult = { initialised: !found.top, top, written: [], rewritten: [], kept: [] };
   for (const file of files) {
     const path = join(top, ...file.path.split('/'));
     const action = fileAction(existsSync(path) ? readFileSync(path, 'utf8') : undefined, file);
