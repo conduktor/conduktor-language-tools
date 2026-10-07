@@ -1,15 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import * as vscode from 'vscode';
-import {
-  leftState,
-  planWarnings,
-  rangeOf,
-  readCliOutput,
-  STATE_DIR,
-  type CliOutcome,
-  type StateResource,
-} from '@conduktor/vscode-core';
+import { rangeOf, readCliOutput, type CliOutcome } from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
@@ -18,7 +8,8 @@ import type { CliRun, CliRunner } from './runner';
 interface Ran {
   outcomes: CliOutcome[];
   run: CliRun;
-  deleted: StateResource[];
+  /** Kind/name of each resource whose file was removed: ctl leaves it on the Console. */
+  removed: string[];
 }
 
 /** Plan and Apply an environment with ctl: a summary, failures as Problems on their files, and applied files marked. */
@@ -33,10 +24,7 @@ export function registerCliCommands(
   const execute = async (action: 'plan' | 'apply'): Promise<Ran | undefined> => {
     const state = sessions.current();
     const env = sync.environment();
-    const syncRoot = sync.syncRoot();
-    if (state.status !== 'ready' || !env || !syncRoot) return undefined;
-    const statePath = join(syncRoot.fsPath, STATE_DIR, 'state', `${env}.json`);
-    const before = action === 'apply' ? readText(statePath) : undefined;
+    if (state.status !== 'ready' || !env || !sync.syncRoot()) return undefined;
     let run: CliRun | undefined;
     try {
       run = await cli.run(action);
@@ -52,18 +40,18 @@ export function registerCliCommands(
     }
     const outcomes = readCliOutput(run.stdout, run.stderr);
     await showProblems(problems, sync, outcomes);
-    // ctl prints nothing for a delete outside a dry run; what left its state is what it deleted.
-    const deleted = action === 'apply' ? leftState(before, readText(statePath), state.spec.catalog) : [];
-    if (action === 'apply') await sync.markAppliedFiles(appliedFiles(sync, outcomes), deleted);
-    return { outcomes, run, deleted };
+    if (action === 'apply') await sync.markAppliedFiles(appliedFiles(sync, outcomes));
+    const removed = (await sync.removedFiles()).map((r) => `${r.kind}/${r.name}`);
+    return { outcomes, run, removed };
   };
 
   const report = (action: 'plan' | 'apply', ran: Ran) => {
     const env = sync.environment();
-    const summary = summarise(ran.outcomes, ran.deleted.length);
+    const left = ran.removed.length > 0 ? `; ${ran.removed.length} removed from the folder, left on the Console` : '';
+    const summary = `${summarise(ran.outcomes) || 'nothing to do'}${left}`;
     const failed = ran.run.exitCode !== 0 || ran.outcomes.some((o) => o.result === 'failed');
     const reason = ran.run.exitCode !== 0 ? ` ${lastLine(ran.run.stderr)}` : '';
-    const message = `${action === 'plan' ? 'Plan' : 'Apply'} of ${env}: ${summary || 'nothing to do'}.${reason}`;
+    const message = `${action === 'plan' ? 'Plan' : 'Apply'} of ${env}: ${summary}.${reason}`;
     const show = failed ? vscode.window.showErrorMessage : vscode.window.showInformationMessage;
     void show(message, 'Show Output').then((choice) => {
       if (choice) cli.channel.show();
@@ -90,12 +78,12 @@ export function registerCliCommands(
         );
         return undefined;
       }
-      // Always a fresh plan first: ctl's deletes are only visible in a dry run, and some are not what they seem.
+      // Always a fresh plan first, so the confirmation says what this Apply will do.
       const plan = await execute('plan');
       if (!plan) return undefined;
       const choice = await confirm(
         `Apply environment ${env} to ${state.connection.name} with ctl?`,
-        confirmation(plan.outcomes),
+        confirmation(plan.outcomes, plan.removed),
         'Apply',
       );
       if (choice !== 'Apply') return undefined;
@@ -106,16 +94,13 @@ export function registerCliCommands(
   ];
 }
 
-function confirmation(outcomes: readonly CliOutcome[]): string {
-  const { deleted, recreated } = planWarnings(outcomes);
-  const lines = [`Plan: ${summarise(outcomes, 0) || 'nothing to do'}.`];
-  if (recreated.length > 0)
+function confirmation(outcomes: readonly CliOutcome[], removed: readonly string[]): string {
+  const lines = [`Plan: ${summarise(outcomes) || 'nothing to do'}.`];
+  if (removed.length > 0)
     lines.push(
-      `Deleted and created again, losing their data: ${list(recreated)}. ctl matches what it applied by all of a ` +
-        'resource’s metadata, so a changed description or a first label reads as a different resource.',
+      `Removed from the folder, left on the Console: ${list(removed)}. ctl deletes nothing; delete them on the ` +
+        'Console if they should go.',
     );
-  const plain = deleted.filter((name) => !recreated.includes(name));
-  if (plain.length > 0) lines.push(`Deleted on the Console (their files were removed): ${list(plain)}.`);
   return lines.join('\n\n');
 }
 
@@ -123,14 +108,12 @@ function list(names: readonly string[]): string {
   return names.length > 10 ? `${names.slice(0, 10).join(', ')} and ${names.length - 10} more` : names.join(', ');
 }
 
-function summarise(outcomes: readonly CliOutcome[], deletes: number): string {
+function summarise(outcomes: readonly CliOutcome[]): string {
   const counts = new Map<string, number>();
   for (const { result } of outcomes) counts.set(result, (counts.get(result) ?? 0) + 1);
-  if (deletes > 0) counts.set('Deleted', deletes);
   const words: [CliOutcome['result'], string][] = [
     ['Created', 'created'],
     ['Updated', 'updated'],
-    ['Deleted', 'deleted'],
     ['NotChanged', 'unchanged'],
     ['failed', 'failed'],
   ];
@@ -153,7 +136,6 @@ function filesFor(sync: SyncFolder, outcome: Pick<CliOutcome, 'kind' | 'name'>):
 function appliedFiles(sync: SyncFolder, outcomes: readonly CliOutcome[]): vscode.Uri[] {
   const byName = new Map<string, { kind: string; name: string; ok: number; failed: boolean }>();
   for (const { kind, name, result } of outcomes) {
-    if (result === 'Deleted') continue;
     const key = `${kind}/${name}`;
     const tally = byName.get(key) ?? { kind, name, ok: 0, failed: false };
     if (result === 'failed') tally.failed = true;
@@ -192,14 +174,6 @@ async function showProblems(
     }
   }
   for (const { uri, diagnostics } of byFile.values()) problems.set(uri, diagnostics);
-}
-
-function readText(path: string): string | undefined {
-  try {
-    return readFileSync(path, 'utf8');
-  } catch {
-    return undefined;
-  }
 }
 
 function lastLine(text: string): string {

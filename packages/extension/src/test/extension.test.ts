@@ -2167,15 +2167,14 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
   });
 
   test('runs ctl for an environment, in Docker or from PATH', async function () {
-    const localImage = spawnSync('docker', ['image', 'inspect', 'conduktor/conduktor-ctl:local']).status === 0;
-    if (!localImage && spawnSync('conduktor', ['version']).error) return this.skip();
+    const docker = spawnSync('docker', ['version']).status === 0;
+    if (!docker && spawnSync('conduktor', ['version']).error) return this.skip();
     const api = await activate();
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     const root = mkdtempSync(join(tmpdir(), 'conduktor-cli-'));
     await api.sync.setSyncRoot(vscode.Uri.file(root));
     const settings = vscode.workspace.getConfiguration('conduktor.cli');
-    if (localImage) await settings.update('image', 'conduktor/conduktor-ctl:local', vscode.ConfigurationTarget.Global);
     try {
       const [topic] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
       await api.sync.syncResource(state.spec.catalog.latest('Topic')!, ['local-kafka'], topic!.metadata.name);
@@ -2184,10 +2183,6 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.match(
         run.stdout,
         new RegExp(`Topic/${topic!.metadata.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: NotChanged`),
-      );
-      assert.ok(
-        !existsSync(join(root, '.conduktor', 'state', `${api.sync.environment()}.json`)),
-        'a plan keeps no state',
       );
 
       if (!spawnSync('conduktor', ['version']).error) {
@@ -2207,8 +2202,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
-  test('plans and applies an environment with ctl, creates and deletes alike', async function () {
-    if (spawnSync('docker', ['image', 'inspect', 'conduktor/conduktor-ctl:local']).status !== 0) return this.skip();
+  test("plans and applies an environment with ctl, and leaves a removed file's resource on the Console", async function () {
+    if (spawnSync('docker', ['version']).status !== 0) return this.skip();
     const api = await activate();
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'apply' }, apiKey!);
@@ -2223,8 +2218,6 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     if (state.status !== 'ready') assert.fail(state.status);
     const root = mkdtempSync(join(tmpdir(), 'conduktor-cli-apply-'));
     await api.sync.setSyncRoot(vscode.Uri.file(root));
-    const settings = vscode.workspace.getConfiguration('conduktor.cli');
-    await settings.update('image', 'conduktor/conduktor-ctl:local', vscode.ConfigurationTarget.Global);
     const topicKind = state.spec.catalog.latest('Topic')!;
     const name = `vscode-cli-${Date.now()}`;
     const bad = `${name}-bad`;
@@ -2244,50 +2237,44 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         spec: { partitions: 1, replicationFactor: 1 },
       });
     try {
-      // ctl stops at an empty folder before working out deletes, so the environment keeps one resource throughout.
       const [kept] = await state.client.list('/public/kafka/v2/cluster/local-kafka/topic');
       await api.sync.syncResource(topicKind, ['local-kafka'], kept!.metadata.name);
       const file = await api.sync.writeNew(topicKind, ['local-kafka'], topic(name), name);
-      const statePath = join(root, '.conduktor', 'state', `${api.sync.environment()}.json`);
 
       const planned =
         await vscode.commands.executeCommand<{ kind: string; name: string; result: string }[]>(
           'conduktor.planEnvironment',
         );
       assert.deepStrictEqual(results(planned, name), ['Created'], JSON.stringify(planned));
-      assert.ok(!existsSync(statePath), 'a plan keeps no state');
 
       await vscode.commands.executeCommand('conduktor.applyEnvironment');
       assert.ok(await exists(name), 'applied to the Console');
-      assert.ok(existsSync(statePath), 'the state records it');
       await until(() => api.sync.entryAt(file)?.status === 'synced', 10_000);
-
-      // A ctl without conduktor/ctl#148 tells resources apart by all their metadata, so a first label makes it delete the
-      // topic and create it again; the confirmation must then say so. A fixed ctl just updates it.
-      let asked = '';
-      api.setConfirm(async (_message, detail) => {
-        asked = detail ?? '';
-        return undefined;
-      });
-      const labelled = parse(readFileSync(file.fsPath, 'utf8'));
-      labelled.metadata.labels = { team: 'data' };
-      writeFileSync(file.fsPath, stringify(labelled));
-      await vscode.commands.executeCommand('conduktor.applyEnvironment');
-      assert.ok(
-        new RegExp(`Deleted and created again, losing their data: Topic/${name}`).test(asked) || !/Deleted/.test(asked),
-        `the confirmation never hides a delete: ${asked}`,
-      );
-      api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
 
       rmSync(file.fsPath);
       await api.sync.refresh();
+      let asked = '';
+      api.setConfirm(async (_message, detail, ...actions) => {
+        asked = detail ?? '';
+        return actions[0];
+      });
       const removal =
         await vscode.commands.executeCommand<{ kind: string; name: string; result: string }[]>(
           'conduktor.planEnvironment',
         );
-      assert.deepStrictEqual(results(removal, name), ['Deleted']);
+      assert.deepStrictEqual(results(removal, name), [], 'ctl plans nothing for a removed file');
+      assert.deepStrictEqual(
+        (await api.sync.removedFiles()).map((r) => `${r.kind}/${r.name}`),
+        [`Topic/${name}`],
+      );
       await vscode.commands.executeCommand('conduktor.applyEnvironment');
-      assert.ok(!(await exists(name)), 'a removed file is deleted');
+      assert.match(asked, new RegExp(`Removed from the folder, left on the Console: Topic/${name}`));
+      assert.ok(await exists(name), 'Apply never deletes');
+      assert.deepStrictEqual(
+        (await api.sync.removedFiles()).map((r) => r.name),
+        [name],
+        'listed again on the next Plan',
+      );
 
       // The Console's dry run does not check config values, but it does check that the cluster exists.
       const broken = await api.sync.writeNew(
@@ -2306,7 +2293,6 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.ok(problems.length > 0, 'the failure is a Problem on its file');
     } finally {
       for (const topicName of [name, bad]) await state.client.delete(topicPath(topicName)).catch(() => undefined);
-      await settings.update('image', undefined, vscode.ConfigurationTarget.Global);
       await useWorkspaceSyncRoot(api);
       await api.connections.setActive('smoke');
     }

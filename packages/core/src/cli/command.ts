@@ -1,4 +1,4 @@
-import { environmentDir, STATE_DIR } from '../sync/layout';
+import { environmentDir } from '../sync/layout';
 
 export type CliRunnerChoice =
   { kind: 'docker'; image: string; platform: string; uid?: number; gid?: number } | { kind: 'path'; binary: string };
@@ -14,10 +14,18 @@ export interface CliCommand {
 const MOUNT = '/repo';
 const LOOPBACK = /^(https?:\/\/)(localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i;
 
+export const CTL_VERSION = 'v0.9.2';
+export const DEFAULT_CTL_IMAGE = `conduktor/conduktor-ctl:${CTL_VERSION}`;
+
+/** The ctl arguments that plan or apply one environment; the extension's runner and the ci/ scripts both use them. */
+export function ctlArgs(action: 'plan' | 'apply', env: string): string[] {
+  // Not --print-diff: ctl fails it for any resource the Console does not have yet, so no plan could create.
+  return ['apply', '-r', '-f', environmentDir(env), ...(action === 'plan' ? ['--dry-run'] : [])];
+}
+
 /**
- * The ctl command that plans or applies one environment of a sync folder: every file under environments/<env>, with
- * ctl's state kept in the folder's git-ignored .conduktor/state/<env>.json so a removed file becomes a delete. The same
- * command a pipeline runs.
+ * The ctl command that plans or applies one environment of a sync folder: every file under environments/<env>, run
+ * from the sync root. Without ctl's state, so a removed file is never a delete. The same command a pipeline runs.
  */
 export function cliCommand(options: {
   action: 'plan' | 'apply';
@@ -29,22 +37,11 @@ export function cliCommand(options: {
   variables?: readonly string[];
 }): CliCommand {
   const { action, env, syncRoot, runner } = options;
-  const state = `${STATE_DIR}/state/${env}.json`;
-  const ctl = (stateFile: string) => [
-    'apply',
-    '-r',
-    '-f',
-    environmentDir(env),
-    // Not --print-diff: ctl fails it for any resource the Console does not have yet, so no plan could create.
-    ...(action === 'plan' ? ['--dry-run'] : []),
-    '--enable-state',
-    '--state-file',
-    stateFile,
-  ];
+  const ctl = ctlArgs(action, env);
   if (runner.kind === 'path')
     return {
       command: runner.binary,
-      args: ctl(`${syncRoot.replace(/\/+$/, '')}/${state}`),
+      args: ctl,
       env: { CDK_BASE_URL: options.consoleUrl },
       cwd: syncRoot,
     };
@@ -67,7 +64,7 @@ export function cliCommand(options: {
       ...(linux ? ['--add-host=host.docker.internal:host-gateway'] : []),
       ...(linux && runner.uid !== undefined ? ['--user', `${runner.uid}:${runner.gid ?? runner.uid}`] : []),
       runner.image,
-      ...ctl(`${MOUNT}/${state}`),
+      ...ctl,
     ],
     // Inside the container, localhost is the container.
     env: { CDK_BASE_URL: options.consoleUrl.replace(LOOPBACK, '$1host.docker.internal') },
@@ -77,8 +74,8 @@ export function cliCommand(options: {
 
 /**
  * The environment ctl runs in: the bound Console and token, the .env's variables, and the rest of VS Code's environment
- * — minus any CDK_ setting from the shell or the .env, which could point ctl at another Console's state
- * (CDK_STATE_REMOTE_URI), log the token (CDK_DEBUG) or clash with the token (CDK_USER). ${CDK_SECRET_…} placeholder
+ * — minus any CDK_ setting from the shell or the .env, which could turn ctl's state on (CDK_STATE_ENABLED) or point
+ * it at another Console's (CDK_STATE_REMOTE_URI), log the token (CDK_DEBUG) or clash with the token (CDK_USER). ${CDK_SECRET_…} placeholder
  * values are the exception: they are what the files expand.
  */
 export function cliEnvironment(

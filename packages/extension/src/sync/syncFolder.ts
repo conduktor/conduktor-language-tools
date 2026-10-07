@@ -39,7 +39,6 @@ import {
   type Drift,
   type KindVersion,
   type Resource,
-  type StateResource,
   type SyncStatus,
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
@@ -402,17 +401,13 @@ export class SyncFolder implements vscode.Disposable {
     await this.refresh();
   }
 
-  /**
-   * After the CLI applied: each applied file as it is on disk now, and the base copies of what it deleted, with one
-   * rescan after them all.
-   */
-  async markAppliedFiles(uris: readonly vscode.Uri[], deleted: readonly StateResource[]): Promise<void> {
+  /** After the CLI applied: each applied file as it is on disk now, with one rescan after them all. */
+  async markAppliedFiles(uris: readonly vscode.Uri[]): Promise<void> {
     const texts = await readAll(uris);
     for (const [i, uri] of uris.entries()) {
       const text = texts[i];
       if (text !== undefined) await this.recordApplied(uri, text);
     }
-    if (deleted.length > 0) await this.forgetDeleted(deleted);
     await this.refresh();
   }
 
@@ -426,24 +421,25 @@ export class SyncFolder implements vscode.Disposable {
     this.drift.delete(uri.toString());
   }
 
-  // Only what ctl's state says it deleted, and whose file is gone: a base copy is the record of a pending delete.
-  private async forgetDeleted(deleted: readonly StateResource[]): Promise<void> {
+  /**
+   * The resources of this environment whose file was removed since it was synced or applied: their base copy is still
+   * here, and so are they on the Console, since nothing deletes them.
+   */
+  async removedFiles(): Promise<{ kind: string; parents: string[]; name: string }[]> {
     const syncRoot = this.syncRoot();
     const env = this.environment();
     const state = this.sessions.current();
-    if (!syncRoot || !env || state.status !== 'ready') return;
-    const gone = new Set(deleted.map((r) => JSON.stringify([r.kind, r.parents, r.name])));
+    if (!syncRoot || !env || state.status !== 'ready') return [];
     const baseRoot = vscode.Uri.joinPath(syncRoot, baseDir(env));
     const copies = await vscode.workspace.findFiles(new vscode.RelativePattern(baseRoot, '**/*.{yaml,yml}'));
+    const removed: { kind: string; parents: string[]; name: string }[] = [];
     for (const copy of copies) {
       const file = vscode.Uri.joinPath(this.requireRoot(), copy.path.slice(baseRoot.path.length + 1));
-      const identity = identify((await read(copy)) ?? '', state);
-      if (!identity || !gone.has(JSON.stringify([identity.kind, identity.parents, identity.name]))) continue;
       if (await fileExists(file)) continue;
-      await remove(copy);
-      const applied = this.baseOf(file, 'applied');
-      if (applied) await remove(applied);
+      const identity = identify((await read(copy)) ?? '', state);
+      if (identity) removed.push({ kind: identity.kind, parents: identity.parents, name: identity.name });
     }
+    return removed.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
   }
 
   async discard(uri: vscode.Uri): Promise<void> {

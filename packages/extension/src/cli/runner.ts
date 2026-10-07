@@ -1,13 +1,17 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as vscode from 'vscode';
-import { cliCommand, cliEnvironment, environmentDir, STATE_DIR, type CliRunnerChoice } from '@conduktor/vscode-core';
+import {
+  cliCommand,
+  cliEnvironment,
+  DEFAULT_CTL_IMAGE,
+  environmentDir,
+  type CliRunnerChoice,
+} from '@conduktor/vscode-core';
 import type { ConnectionStore } from '../connections/connectionStore';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
-
-export const DEFAULT_IMAGE = 'conduktor/conduktor-ctl:v0.9.2';
 
 export interface CliRun {
   exitCode: number | null;
@@ -55,16 +59,13 @@ export class CliRunner implements vscode.Disposable {
       runner,
       variables: Object.keys(cliEnvironment({}, dotenvValues, {})),
     });
-    // The state goes beside the base copies, under the .gitignore that keeps .conduktor out of git.
-    await this.sync.ensureStateDir();
-    mkdirSync(join(root, STATE_DIR, 'state'), { recursive: true });
     const childEnv = cliEnvironment(process.env, dotenvValues, { ...command.env, CDK_API_KEY: token });
     this.channel.appendLine(`$ ${command.command} ${command.args.join(' ')}`);
     return vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
         title: `${action === 'plan' ? 'Planning' : 'Applying'} ${env} with ctl`,
-        // Stopping ctl mid-apply skips saving its state, and what it had applied would never be deleted later.
+        // Stopping ctl mid-apply leaves the environment half applied, with none of its files marked applied.
         cancellable: action === 'plan',
       },
       (_progress, cancellation) =>
@@ -109,7 +110,7 @@ export class CliRunner implements vscode.Disposable {
     const choice = settings.get<'auto' | 'docker' | 'path'>('runner', 'auto');
     const path: CliRunnerChoice = { kind: 'path', binary: settings.get<string>('path', 'conduktor') };
     if (choice === 'path' || (choice === 'auto' && !(await this.hasDocker()))) return path;
-    const image = settings.get<string>('image', DEFAULT_IMAGE);
+    const image = settings.get<string>('image', DEFAULT_CTL_IMAGE);
     if (!(await this.hasImage(image))) {
       if (choice === 'auto') {
         this.channel.appendLine(`${image} is not available; running ${path.binary} instead.`);
