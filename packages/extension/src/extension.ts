@@ -35,6 +35,7 @@ import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './inte
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
 import { registerCliCommands } from './cli/commands';
+import { validateFolder, type FolderValidation } from './editing/validateFolder';
 import { Validator } from './editing/validator';
 import { CliRunner } from './cli/runner';
 import { DocumentContexts } from './editing/documentContexts';
@@ -54,6 +55,10 @@ export interface ExtensionApi {
   apply: (uri: vscode.Uri, index?: number) => Promise<UpsertItem[] | undefined>;
   resources: ResourceController;
   validator: Validator;
+  validateFolder: (
+    folder: vscode.Uri,
+    options?: { cancelled?: () => boolean },
+  ) => Promise<FolderValidation | undefined>;
   newResource: (node?: ExplorerNode) => Promise<vscode.TextDocument | undefined>;
   setConfirm: (confirm: Confirm) => void;
   setVariantPicker: (picker: VariantPicker) => void;
@@ -84,6 +89,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const resources = new ResourceController(sessions, output, compare, confirm, (uri) => sync.foreignEnvironment(uri));
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
   const validator = new Validator(sessions, resources, (uri) => sync.isBaseCopy(uri));
+  const checkFolder = (folder: vscode.Uri, options?: { cancelled?: () => boolean }) =>
+    validateFolder(sessions, resources, output, (uri) => sync.foreignEnvironment(uri), folder, options);
   const sync = new SyncFolder(context, sessions, output);
   const names = new Names(sessions, sync);
   const matchLenses = new MatchLensProvider(sessions, names);
@@ -121,6 +128,18 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     registerConsoleMcpServer(sessions, connections),
     registerClaudeCodeConfigCommand(sessions, context),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
+    vscode.commands.registerCommand('conduktor.validateFolder', async (folder?: vscode.Uri) => {
+      const [target] = folder
+        ? [folder]
+        : ((await vscode.window.showOpenDialog({
+            title: 'Validate which folder against the Console?',
+            openLabel: 'Validate',
+            canSelectFolders: true,
+            canSelectFiles: false,
+            defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
+          })) ?? []);
+      return target ? checkFolder(target) : undefined;
+    }),
     vscode.commands.registerCommand('conduktor.refreshExplorer', () => {
       names.clear();
       explorer.refresh();
@@ -265,6 +284,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     dryRun: (uri: vscode.Uri, index?: number) => resources.dryRun(uri, index),
     resources,
     validator,
+    validateFolder: checkFolder,
     apply: (uri: vscode.Uri, index?: number) => resources.apply(uri, index),
     newResource: (node?: ExplorerNode) =>
       newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate),

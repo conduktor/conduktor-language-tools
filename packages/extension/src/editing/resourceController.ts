@@ -90,7 +90,7 @@ export class ResourceController implements vscode.Disposable {
     });
     // Another connection's answer, or one for text edited since, would land on the wrong file or lines.
     if (this.sessions.current() !== state || document.version !== version) return undefined;
-    this.record(document, plan, 'dry run');
+    this.record(uri, document.getText(), plan, 'dry run');
     return plan;
   }
 
@@ -163,7 +163,7 @@ export class ResourceController implements vscode.Disposable {
       { location: vscode.ProgressLocation.Window, title: `Dry run on ${name}` },
       () => planDocuments(state.client, state.spec.catalog, documents, { readInclude }),
     );
-    this.record(document, plan, 'dry run');
+    this.record(uri, text, plan, 'dry run');
     const summary = summarise(name, plan);
     this.output.info(summary.text);
     this.shellHint(uri, apply);
@@ -189,7 +189,7 @@ export class ResourceController implements vscode.Disposable {
       () =>
         upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: false, readInclude, stopOnError: true }),
     );
-    this.record(document, items, 'applied');
+    this.record(uri, text, items, 'applied');
     const applied = summarise(name, items, 'Applied to');
     this.output.info(applied.text);
     this.notify(applied.text, applied.failed > 0);
@@ -228,8 +228,19 @@ export class ResourceController implements vscode.Disposable {
     });
   }
 
-  private record(document: vscode.TextDocument, items: readonly UpsertItem[], action: Action): void {
-    const key = document.uri.toString();
+  /** A folder's dry run, on one of its files: what is pending waits for resources elsewhere in the folder. */
+  recordFolderResults(uri: vscode.Uri, text: string, items: readonly UpsertItem[]): void {
+    this.record(uri, text, items, 'dry run', 'in this folder');
+  }
+
+  private record(
+    uri: vscode.Uri,
+    text: string,
+    items: readonly UpsertItem[],
+    action: Action,
+    where = 'earlier in this file',
+  ): void {
+    const key = uri.toString();
     const byIndex = this.results.get(key) ?? new Map<number, LastResult>();
     for (const item of items)
       byIndex.set(item.document.index, { action, outcome: item.outcome, start: item.document.start });
@@ -238,7 +249,7 @@ export class ResourceController implements vscode.Disposable {
     const diagnostics: vscode.Diagnostic[] = [];
     for (const { outcome, start } of byIndex.values()) {
       const add = (message: string, severity: vscode.DiagnosticSeverity) => {
-        const diagnostic = new vscode.Diagnostic(lineAt(document, start), message, severity);
+        const diagnostic = new vscode.Diagnostic(lineRange(text, start), message, severity);
         diagnostic.source = 'Conduktor';
         diagnostics.push(diagnostic);
       };
@@ -246,14 +257,14 @@ export class ResourceController implements vscode.Disposable {
         splitPolicyMessages(outcome.message).forEach((message) => add(message, vscode.DiagnosticSeverity.Error));
       } else if (outcome.status === 'pending') {
         add(
-          `Checked when applied: waits for ${outcome.waitingFor.join(', ')}, created earlier in this file. The Console says: ${outcome.message}`,
+          `Checked when applied: waits for ${outcome.waitingFor.join(', ')}, created ${where}. The Console says: ${outcome.message}`,
           vscode.DiagnosticSeverity.Warning,
         );
       }
     }
-    this.diagnostics.set(document.uri, diagnostics);
-    this.paintAll(document.uri);
-    this.resultsChanged.fire(document.uri);
+    this.diagnostics.set(uri, diagnostics);
+    this.paintAll(uri);
+    this.resultsChanged.fire(uri);
   }
 
   private clear(uri: vscode.Uri): void {
@@ -287,4 +298,12 @@ function failureOf(outcome: UpsertOutcome | undefined, fallback: string): string
 
 function lineAt(document: vscode.TextDocument, offset: number): vscode.Range {
   return document.lineAt(document.positionAt(offset).line).range;
+}
+
+// The line holding an offset, from the text alone: a folder's files are checked without opening them.
+function lineRange(text: string, offset: number): vscode.Range {
+  const start = text.lastIndexOf('\n', offset - 1) + 1;
+  const end = text.indexOf('\n', offset);
+  const line = text.slice(0, start).split('\n').length - 1;
+  return new vscode.Range(line, 0, line, text.slice(start, end === -1 ? text.length : end).replace(/\r$/, '').length);
 }

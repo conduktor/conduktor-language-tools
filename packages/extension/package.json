@@ -208,6 +208,11 @@
         "category": "Conduktor"
       },
       {
+        "command": "conduktor.validateFolder",
+        "title": "Validate Folder against Console",
+        "category": "Conduktor"
+      },
+      {
         "command": "conduktor.applyEnvironment",
         "title": "Apply Environment with CLI",
         "category": "Conduktor"
@@ -542,6 +547,11 @@
           "command": "conduktor.revealInExplorer",
           "when": "resource in conduktor.syncFiles",
           "group": "navigation"
+        },
+        {
+          "command": "conduktor.validateFolder",
+          "when": "explorerResourceIsFolder && conduktor.mode",
+          "group": "7_modification"
         }
       ]
     },

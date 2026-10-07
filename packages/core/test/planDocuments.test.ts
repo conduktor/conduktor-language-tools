@@ -47,6 +47,25 @@ const byName = (items: Awaited<ReturnType<typeof planDocuments>>) =>
   Object.fromEntries(items.map((i) => [i.document.resource!.metadata.name, i.outcome]));
 
 describe('planDocuments', () => {
+  it('reports each resource as it is checked, and stops checking when cancelled', async () => {
+    const done: [number, number][] = [];
+    await planDocuments({ upsert: consoleWith() }, snapshotCatalog, documents(), {
+      onItem: (count, total) => done.push([count, total]),
+    });
+    expect(done).toEqual([
+      [1, 4],
+      [2, 4],
+      [3, 4],
+      [4, 4],
+    ]);
+    const upsert = consoleWith();
+    const items = await planDocuments({ upsert }, snapshotCatalog, documents(), {
+      cancelled: () => upsert.mock.calls.length >= 2,
+    });
+    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(items.map((i) => i.outcome.status)).toEqual(['ok', 'pending', 'skipped', 'skipped']);
+  });
+
   it('marks resources that wait for earlier creations as pending, in apply order', async () => {
     const items = await planDocuments({ upsert: consoleWith() }, snapshotCatalog, documents());
     expect(items.map((i) => i.document.kind)).toEqual(['Group', 'Application', 'ApplicationInstance', 'Topic']);

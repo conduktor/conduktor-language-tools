@@ -1300,6 +1300,60 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('validates every Conduktor YAML in a folder, with dependencies across its files', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const folder = mkdtempSync(join(tmpdir(), 'conduktor-folder-'));
+    const group = `vscode-vf-${Date.now()}`;
+    const put = (path: string, value: unknown) => {
+      const file = join(folder, path);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, typeof value === 'string' ? value : stringify(value));
+      return vscode.Uri.file(file);
+    };
+    const badTopic = (name: string) => ({
+      apiVersion: 'v2',
+      kind: 'Topic',
+      metadata: { name, cluster: 'no-such-cluster' },
+      spec: { partitions: 1, replicationFactor: 1 },
+    });
+    const groupFile = put('groups/g.yaml', {
+      apiVersion: 'v2',
+      kind: 'Group',
+      metadata: { name: group },
+      spec: { displayName: 'Validate folder' },
+    });
+    const appFile = put('apps/a.yaml', {
+      apiVersion: 'v1',
+      kind: 'Application',
+      metadata: { name: `${group}-app` },
+      spec: { title: 'Validate folder', owner: group },
+    });
+    const bad = put('topics/bad.yaml', badTopic('vscode-vf-bad'));
+    const ignored = put('node_modules/x.yaml', badTopic('vscode-vf-ignored'));
+    put('notes/other.yaml', 'not: a conduktor resource\n');
+    const problems = (uri: vscode.Uri) => vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'Conduktor');
+
+    const result = await api.validateFolder(vscode.Uri.file(folder));
+    assert.deepStrictEqual(
+      { files: result?.files, resources: result?.resources, failed: result?.failed, cancelled: result?.cancelled },
+      { files: 3, resources: 3, failed: 1, cancelled: false },
+    );
+    assert.strictEqual(api.resources.lastResult(groupFile, 0)?.outcome.status, 'ok');
+    assert.strictEqual(
+      api.resources.lastResult(appFile, 0)?.outcome.status,
+      'pending',
+      'waits for the group beside it',
+    );
+    assert.ok(problems(bad).length > 0, 'the failure is a Problem on its file');
+    assert.deepStrictEqual(problems(ignored), [], 'node_modules is left out');
+    assert.deepStrictEqual(problems(groupFile), []);
+
+    const stopped = await api.validateFolder(vscode.Uri.file(folder), { cancelled: () => true });
+    assert.strictEqual(stopped?.cancelled, true);
+  });
+
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {
     const api = await activate();
     const state = api.sessions.current();

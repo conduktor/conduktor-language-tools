@@ -25,6 +25,10 @@ export interface UpsertOptions {
   dryRun: boolean;
   stopOnError?: boolean;
   readInclude?: ReadInclude;
+  /** Called after each resource, in apply order. */
+  onItem?: (done: number, total: number) => void;
+  /** Checked before each resource; the rest are skipped once it says so. */
+  cancelled?: () => boolean;
 }
 
 export async function upsertDocuments(
@@ -36,11 +40,13 @@ export async function upsertDocuments(
   const items: UpsertItem[] = [];
   let stopped = false;
   for (const document of sortForApply(documents, catalog)) {
+    stopped ||= options.cancelled?.() === true;
     const outcome: UpsertOutcome = stopped
       ? { status: 'skipped' }
       : await upsertOne(client, catalog, document, options);
     stopped ||= options.stopOnError === true && outcome.status === 'error';
     items.push({ document, outcome });
+    options.onItem?.(items.length, documents.length);
   }
   return items;
 }
