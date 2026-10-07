@@ -1,5 +1,12 @@
 import * as vscode from 'vscode';
-import { describeBootstrap, describeError, type KindCatalog, type KindVersion } from '@conduktor/vscode-core';
+import {
+  bootstrapProgress,
+  describeBootstrap,
+  describeError,
+  type BootstrapStage,
+  type KindCatalog,
+  type KindVersion,
+} from '@conduktor/vscode-core';
 import type { Confirm } from '../confirm';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { ConnectionStore } from '../connections/connectionStore';
@@ -86,15 +93,13 @@ export function registerSyncCommands(
             cancellable: true,
           },
           (progress, token) => {
-            let reported = 0;
-            return sync.syncEverything(kinds, {
-              cancelled: () => token.isCancellationRequested,
-              onProgress: (done, total) => {
-                const percent = (done / total) * 100;
-                progress.report({ message: `${done} of ${total} lists`, increment: percent - reported });
-                reported = percent;
-              },
-            });
+            const reporter = bootstrapReporter(progress, output);
+            return sync
+              .syncEverything(kinds, {
+                cancelled: () => token.isCancellationRequested,
+                onProgress: (stage) => reporter.report(stage),
+              })
+              .finally(() => reporter.dispose());
           },
         );
         const { headline, details } = describeBootstrap(sync.environment() ?? state.connection.name, result);
@@ -223,4 +228,39 @@ function resourceToEdit(
   const state = sessions.current();
   const kind = ref && state.status === 'ready' ? state.spec.catalog.resolve(`v${ref.version}`, ref.kind) : undefined;
   return ref && kind ? { kind, parents: ref.parents, name: ref.name } : undefined;
+}
+
+/**
+ * Sync Everything's notification: each stage's message, a clock on the lists it still waits for (the Console can take a
+ * minute over one), and how long each stage took in the output.
+ */
+function bootstrapReporter(progress: vscode.Progress<{ message?: string; increment?: number }>, output: Output) {
+  let reported = 0;
+  let last: { stage: BootstrapStage; at: number } | undefined;
+  let current: { stage: BootstrapStage['stage']; since: number } | undefined;
+  const show = () => {
+    if (!last) return;
+    const { message, percent } = bootstrapProgress(last.stage, Date.now() - last.at);
+    progress.report({ message, increment: percent - reported });
+    reported = percent;
+  };
+  const finish = () => {
+    if (current)
+      output.info(`Sync Everything, ${current.stage}: ${((Date.now() - current.since) / 1000).toFixed(1)} s`);
+  };
+  const ticker = setInterval(show, 1000);
+  return {
+    report(stage: BootstrapStage) {
+      if (stage.stage !== current?.stage) {
+        finish();
+        current = { stage: stage.stage, since: Date.now() };
+      }
+      last = { stage, at: Date.now() };
+      show();
+    },
+    dispose() {
+      clearInterval(ticker);
+      finish();
+    },
+  };
 }

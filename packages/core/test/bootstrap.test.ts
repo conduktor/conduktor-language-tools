@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConsoleError } from '../src/client/errors';
 import type { Resource } from '../src/resources/types';
-import { collectResources, describeBootstrap } from '../src/sync/bootstrap';
+import { bootstrapProgress, collectResources, describeBootstrap, type BootstrapStage } from '../src/sync/bootstrap';
 import { snapshotCatalog } from './fixtures';
 
 const named = (...names: string[]) => names.map((name) => ({ metadata: { name } }) as Resource);
@@ -95,10 +95,63 @@ describe('collectResources', () => {
     const { cancelled, fetched } = await collectResources(client, snapshotCatalog, ['Group', 'Topic', 'KafkaCluster'], {
       concurrency: 1,
       cancelled: () => lists > 0,
-      onProgress: () => lists++,
+      onProgress: (stage) => {
+        if (stage.stage === 'listing') lists++;
+      },
     });
     expect(cancelled).toBe(true);
     expect(fetched.length).toBeLessThan(4);
+  });
+});
+
+describe('bootstrap progress', () => {
+  it('finds the parents first, then counts every list, the resources it brought and what is still out', async () => {
+    const { client } = console_(responses);
+    const stages: BootstrapStage[] = [];
+    const { fetched } = await collectResources(client, snapshotCatalog, ['Group', 'Topic', 'KafkaCluster'], {
+      onProgress: (stage) => stages.push(stage),
+    });
+    expect(stages[0]).toEqual({ stage: 'finding' });
+    const listing = stages.slice(1);
+    expect(listing.every((s) => s.stage === 'listing')).toBe(true);
+    expect(listing.at(-1)).toEqual({
+      stage: 'listing',
+      done: listing.length,
+      total: listing.length,
+      resources: fetched.length,
+      waiting: [],
+    });
+    const first = listing[0]!;
+    expect(first.stage === 'listing' && first.waiting.length).toBe(listing.length - 1);
+  });
+
+  it('says what each stage is doing, what it waits on, and weights the bar towards listing', () => {
+    const stages: BootstrapStage[] = [
+      { stage: 'finding' },
+      { stage: 'listing', done: 12, total: 40, resources: 1830, waiting: ['Topic in a', 'Topic in b', 'Group', 'X'] },
+      { stage: 'listing', done: 39, total: 40, resources: 3120, waiting: ['ServiceAccount in local-gateway'] },
+      { stage: 'listing', done: 40, total: 40, resources: 3120, waiting: [] },
+      { stage: 'writing', done: 1200, total: 3120 },
+      { stage: 'writing', done: 3120, total: 3120 },
+      { stage: 'indexing' },
+      { stage: 'envExample' },
+    ];
+    const reports = stages.map((stage) => bootstrapProgress(stage));
+    expect(reports.map((r) => r.message)).toEqual([
+      'Finding clusters and Connect clusters…',
+      'Listing 12 of 40 (1,830 resources), waiting on Topic in a, Topic in b and 2 more',
+      'Listing 39 of 40 (3,120 resources), waiting on ServiceAccount in local-gateway',
+      'Listing 40 of 40 (3,120 resources)',
+      'Writing files: 1,200 of 3,120',
+      'Writing files: 3,120 of 3,120',
+      'Indexing the folder…',
+      'Writing .env.example…',
+    ]);
+    expect(reports.map((r) => r.percent)).toEqual([0, 27, 87.75, 90, 93.08, 98, 98, 99]);
+    expect(bootstrapProgress({ stage: 'writing', done: 0, total: 0 }).percent).toBe(90);
+    expect(bootstrapProgress(stages[2]!, 23_400).message).toBe(
+      'Listing 39 of 40 (3,120 resources), waiting on ServiceAccount in local-gateway, 23 s',
+    );
   });
 });
 

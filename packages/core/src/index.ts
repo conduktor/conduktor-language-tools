@@ -69,6 +69,7 @@ export { referencedVariables } from './resources/envVars';
 export {
   baseDir,
   basePathOf,
+  bootstrapProgress,
   collectResources,
   defaultKinds,
   describeBootstrap,
@@ -99,6 +100,7 @@ export {
   statusWithIncludes,
   withSecretPlaceholders,
   type BootstrapResult,
+  type BootstrapStage,
   type CollectOptions,
   type Drift,
   type Fetched,

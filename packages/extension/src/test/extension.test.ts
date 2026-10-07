@@ -1010,9 +1010,27 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     try {
       const kinds = await api.sync.managedKinds();
       assert.ok(!kinds.includes('User') && kinds.includes('Topic'), kinds.join(', '));
-      const result = await api.sync.syncEverything(kinds);
+      const stages: { stage: string; done?: number; total?: number; at: number }[] = [];
+      const result = await api.sync.syncEverything(kinds, {
+        onProgress: (stage) => stages.push({ ...stage, at: Date.now() }),
+      });
       assert.strictEqual(result.cancelled, false);
       assert.ok((result.written.Topic ?? 0) > 0, JSON.stringify(result));
+      // Every stage reports, in order, and writing counts each file up to the last: no long silent stretch.
+      const order = [...new Set(stages.map((s) => s.stage))];
+      assert.deepStrictEqual(order, ['finding', 'listing', 'writing', 'indexing', 'envExample']);
+      const writing = stages.filter((s) => s.stage === 'writing');
+      assert.strictEqual(writing.at(-1)!.done, writing.at(-1)!.total);
+      assert.strictEqual(
+        writing.at(-1)!.total,
+        Object.values(result.written).reduce((sum, n) => sum + n, 0),
+      );
+      const first = (stage: string) => stages.find((s) => s.stage === stage)!.at;
+      console.log(
+        `Sync Everything stages (ms): listing ${first('writing') - first('finding')}, writing ${
+          first('indexing') - first('writing')
+        }, indexing ${first('envExample') - first('indexing')}, total ${Date.now() - first('finding')}`,
+      );
       const clusters = await state.client.list('/public/console/v2/kafka-cluster');
       for (const cluster of clusters)
         assert.ok(api.sync.entryFor('KafkaCluster', [], cluster.metadata.name), cluster.metadata.name);
@@ -1089,6 +1107,28 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await state.client
         .delete(itemPath(kindOf('ServiceAccount'), { cluster: SASL_CLUSTER }, account))
         .catch(() => undefined);
+    }
+  });
+
+  test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-cancel-'))));
+    try {
+      let written = 0;
+      const result = await api.sync.syncEverything(['Topic'], {
+        cancelled: () => written >= 20,
+        onProgress: (stage) => {
+          if (stage.stage === 'writing') written = stage.done;
+        },
+      });
+      assert.strictEqual(result.cancelled, true);
+      const total = result.written.Topic ?? 0;
+      assert.ok(total >= 20 && total < 100, `stopped soon after the cancel: ${total} written`);
+      assert.strictEqual(api.sync.list().filter((e) => e.kind === 'Topic').length, total, 'the written files show');
+    } finally {
+      await useWorkspaceSyncRoot(api);
     }
   });
 

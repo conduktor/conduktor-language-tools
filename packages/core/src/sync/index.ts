@@ -12,10 +12,12 @@ export {
   type Move,
 } from './layout';
 export {
+  bootstrapProgress,
   collectResources,
   describeBootstrap,
   eachLimit,
   type BootstrapResult,
+  type BootstrapStage,
   type CollectOptions,
   type Fetched,
   type Skipped,

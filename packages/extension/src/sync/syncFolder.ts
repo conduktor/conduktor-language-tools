@@ -36,6 +36,7 @@ import {
   withEnvironment,
   withSecretPlaceholders,
   type BootstrapResult,
+  type BootstrapStage,
   type Drift,
   type KindVersion,
   type Resource,
@@ -272,7 +273,7 @@ export class SyncFolder implements vscode.Disposable {
   /** Bootstraps the environment: every chosen kind, globally and in every cluster, under the never-overwrite rules. */
   async syncEverything(
     kinds: readonly string[],
-    options: { cancelled?: () => boolean; onProgress?: (done: number, total: number) => void } = {},
+    options: { cancelled?: () => boolean; onProgress?: (stage: BootstrapStage) => void } = {},
   ): Promise<BootstrapResult> {
     await this.requireChosen();
     const state = this.ready();
@@ -307,8 +308,10 @@ export class SyncFolder implements vscode.Disposable {
     this.bootstrapping = true;
     try {
       await this.ensureStateDir();
+      let done = 0;
+      options.onProgress?.({ stage: 'writing', done, total: fetched.length });
       await eachLimit(fetched, 8, async ({ kind, parents, resource }) => {
-        if (switched()) {
+        if (switched() || options.cancelled?.()) {
           result.cancelled = true;
           return;
         }
@@ -325,13 +328,18 @@ export class SyncFolder implements vscode.Disposable {
               reason: `${syncPath(kind, parents, resource.metadata.name)}: ${describeError(error)}`,
             });
         }
+        options.onProgress?.({ stage: 'writing', done: ++done, total: fetched.length });
       });
       result.conflicts.sort();
     } finally {
       this.bootstrapping = false;
     }
     if (switched()) return result;
+    options.onProgress?.({ stage: 'indexing' });
     await this.refresh();
+    // A cancelled run's .env.example would list only some of the variables; the next run writes it whole.
+    if (result.cancelled) return result;
+    options.onProgress?.({ stage: 'envExample' });
     const texts = await Promise.all(this.entries.map(async (entry) => (await read(entry.uri)) ?? ''));
     await write(vscode.Uri.joinPath(root, ENV_EXAMPLE), envExample(texts));
     return result;

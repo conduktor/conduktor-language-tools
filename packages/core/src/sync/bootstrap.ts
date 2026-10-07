@@ -17,10 +17,21 @@ export interface Skipped {
   reason: string;
 }
 
+/**
+ * Where a Sync Everything is. Listing takes most of the time: one slow list (a cluster the Console waits a minute on)
+ * holds up the end, so the lists still out are named.
+ */
+export type BootstrapStage =
+  | { stage: 'finding' }
+  | { stage: 'listing'; done: number; total: number; resources: number; waiting: string[] }
+  | { stage: 'writing'; done: number; total: number }
+  | { stage: 'indexing' }
+  | { stage: 'envExample' };
+
 export interface CollectOptions {
   concurrency?: number;
   cancelled?: () => boolean;
-  onProgress?: (done: number, total: number) => void;
+  onProgress?: (stage: BootstrapStage) => void;
 }
 
 export interface BootstrapResult {
@@ -30,6 +41,39 @@ export interface BootstrapResult {
   skipped: Skipped[];
   builtIn: string[];
   cancelled: boolean;
+}
+
+const count = (n: number) => n.toLocaleString('en');
+const share = (from: number, width: number, done: number, total: number) =>
+  Math.round((from + (total > 0 ? (width * done) / total : 0)) * 100) / 100;
+
+/** The notification's message and percentage; `waitedMs` is how long since the last list came back. */
+export function bootstrapProgress(stage: BootstrapStage, waitedMs = 0): { message: string; percent: number } {
+  switch (stage.stage) {
+    case 'finding':
+      return { message: 'Finding clusters and Connect clusters…', percent: 0 };
+    case 'listing': {
+      const { waiting } = stage;
+      const names =
+        waiting.length > 3 ? `${waiting.slice(0, 2).join(', ')} and ${waiting.length - 2} more` : waiting.join(', ');
+      const waited = waitedMs >= 1000 ? `, ${Math.floor(waitedMs / 1000)} s` : '';
+      return {
+        message: `Listing ${stage.done} of ${stage.total} (${count(stage.resources)} resources)${
+          waiting.length > 0 ? `, waiting on ${names}${waited}` : ''
+        }`,
+        percent: share(0, 90, stage.done, stage.total),
+      };
+    }
+    case 'writing':
+      return {
+        message: `Writing files: ${count(stage.done)} of ${count(stage.total)}`,
+        percent: share(90, 8, stage.done, stage.total),
+      };
+    case 'indexing':
+      return { message: 'Indexing the folder…', percent: 98 };
+    case 'envExample':
+      return { message: 'Writing .env.example…', percent: 99 };
+  }
 }
 
 export async function collectResources(
@@ -76,6 +120,7 @@ export async function collectResources(
     return (await Promise.all(names.map((name) => chains(kind, [...prefix, name])))).flat();
   };
 
+  options.onProgress?.({ stage: 'finding' });
   const targets: { kind: KindVersion; parents: string[] }[] = [];
   for (const name of kinds) {
     const kind = catalog.latest(name);
@@ -89,8 +134,12 @@ export async function collectResources(
   const fetched: Fetched[] = [];
   const builtIn: string[] = [];
   let done = 0;
+  const label = ({ kind, parents }: (typeof targets)[number]) =>
+    parents.length > 0 ? `${kind.kind} in ${parents.join(' / ')}` : kind.kind;
+  const out = new Set(targets);
   await Promise.all(
-    targets.map(async ({ kind, parents }) => {
+    targets.map(async (target) => {
+      const { kind, parents } = target;
       try {
         for (const resource of await list(listPath(kind, parentsOf(kind, parents)))) {
           if (resource.metadata.builtIn === true) builtIn.push(`${kind.kind} ${resource.metadata.name}`);
@@ -99,7 +148,14 @@ export async function collectResources(
       } catch (error) {
         skipped.push({ kind: kind.kind, parents, reason: reasonOf(error) });
       }
-      options.onProgress?.(++done, targets.length);
+      out.delete(target);
+      options.onProgress?.({
+        stage: 'listing',
+        done: ++done,
+        total: targets.length,
+        resources: fetched.length,
+        waiting: [...out].map(label),
+      });
     }),
   );
 
