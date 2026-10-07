@@ -61,7 +61,8 @@ export async function validateFolder(
       let reported = 0;
       return planDocuments(state.client, state.spec.catalog, [...origin.keys()], {
         readInclude,
-        cancelled: () => token.isCancellationRequested || options.cancelled?.() === true,
+        cancelled: () =>
+          token.isCancellationRequested || options.cancelled?.() === true || sessions.current() !== state,
         onItem: (done, total) => {
           progress.report({ message: `${done} of ${total} resources`, increment: ((done - reported) / total) * 100 });
           reported = done;
@@ -70,13 +71,26 @@ export async function validateFolder(
     },
   );
   // The answers belong to the Console that gave them; after a switch they would describe another.
-  if (sessions.current() !== state) return undefined;
+  if (sessions.current() !== state) {
+    void vscode.window.showWarningMessage('The connection changed while validating the folder; run it again.');
+    return undefined;
+  }
 
   const byFile = new Map<string, typeof items>();
-  for (const item of items) {
+  // A cancelled run's unchecked resources keep whatever results their files had.
+  for (const item of items.filter((i) => i.outcome.status !== 'skipped')) {
     const key = origin.get(item.document)!.uri.toString();
     byFile.set(key, [...(byFile.get(key) ?? []), item]);
   }
+  if (!items.some((i) => i.outcome.status === 'skipped'))
+    controller.rememberFolder(
+      folder,
+      items.flatMap((i) =>
+        (i.outcome.status === 'ok' && i.outcome.result === 'Created') || i.outcome.status === 'pending'
+          ? [i.document.resource!.metadata.name]
+          : [],
+      ),
+    );
   for (const [key, fileItems] of byFile) {
     const { uri, text } = texts.get(key)!;
     controller.recordFolderResults(uri, text, fileItems);

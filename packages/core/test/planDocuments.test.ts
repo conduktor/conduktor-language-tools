@@ -47,6 +47,14 @@ const byName = (items: Awaited<ReturnType<typeof planDocuments>>) =>
   Object.fromEntries(items.map((i) => [i.document.resource!.metadata.name, i.outcome]));
 
 describe('planDocuments', () => {
+  it('treats what other local files create as on its way, so a dependant waits rather than fails', async () => {
+    const alone = parseResourceDocuments(chain.split('---\n')[1]!, { env: {} });
+    const [unseeded] = await planDocuments({ upsert: consoleWith() }, snapshotCatalog, alone);
+    expect(unseeded?.outcome.status).toBe('error');
+    const [seeded] = await planDocuments({ upsert: consoleWith() }, snapshotCatalog, alone, { willExist: ['team-a'] });
+    expect(seeded?.outcome).toMatchObject({ status: 'pending', waitingFor: ['team-a'] });
+  });
+
   it('reports each resource as it is checked, and stops checking when cancelled', async () => {
     const done: [number, number][] = [];
     await planDocuments({ upsert: consoleWith() }, snapshotCatalog, documents(), {

@@ -16,6 +16,7 @@ export function variablesFor(uri: vscode.Uri): Readonly<Record<string, string | 
     workspace: vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath,
     home: homedir(),
     isRepoRoot: (dir: string) => existsSync(join(dir, '.git')),
+    caseInsensitive: process.platform === 'win32',
   };
   for (const dir of envSearchPath(uri.fsPath, stops)) {
     const values = dotenvAt(join(dir, '.env'));

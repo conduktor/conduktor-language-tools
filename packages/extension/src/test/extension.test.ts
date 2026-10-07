@@ -188,7 +188,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual(
       vscode.workspace.fs.isWritableFileSystem(live.uri.scheme),
       true,
-      'live documents can be edited in dry-run mode; saving stages them locally',
+      'live documents can be edited in prod mode; saving stages them locally',
     );
 
     const copy = await vscode.workspace.openTextDocument({ language: 'yaml', content: live.getText() });
@@ -199,7 +199,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     );
   });
 
-  test('stages an edited live resource as a local file when saved in dry-run mode', async () => {
+  test('stages an edited live resource as a local file when saved in prod mode', async () => {
     const api = await activate();
     await useWorkspaceSyncRoot(api);
     const state = api.sessions.current();
@@ -216,7 +216,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const edit = new vscode.WorkspaceEdit();
     edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
     assert.ok(await vscode.workspace.applyEdit(edit));
-    assert.ok(await live.save(), 'saving a live document in dry-run mode succeeds');
+    assert.ok(await live.save(), 'saving a live document in prod mode succeeds');
 
     const local = vscode.Uri.joinPath(
       vscode.workspace.workspaceFolders![0]!.uri,
@@ -249,7 +249,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.ok(problems.length > 0, 'a Conduktor problem is shown');
   });
 
-  test('creates, edits, diffs and deletes a topic in apply mode', async () => {
+  test('creates, edits, diffs and deletes a topic in dev mode', async () => {
     const api = await activate();
     api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
     await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
@@ -294,7 +294,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(
         vscode.workspace.fs.isWritableFileSystem(live.uri.scheme),
         true,
-        'apply mode can edit live documents',
+        'dev mode can edit live documents',
       );
       const edited = parse(live.getText());
       edited.metadata.labels = { ...(edited.metadata.labels ?? {}), smoke: 'edited' };
@@ -1214,11 +1214,15 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     try {
       const bad = vscode.Uri.file(join(folder, 'bad.yaml'));
       writeFileSync(bad.fsPath, topic('vscode-validate', 'no-such-cluster'));
+      // Loaded without an editor, as the CLI's Problems or a search load files: not checked.
       const document = await vscode.workspace.openTextDocument(bad);
+      await api.validator.settled();
+      assert.strictEqual(api.resources.lastResult(bad, 0), undefined, 'only files open in an editor');
+
+      const editor = await vscode.window.showTextDocument(document, { preview: false });
       await api.validator.settled();
       assert.ok(problems(bad).length > 0, 'a Problem without any command');
 
-      const editor = await vscode.window.showTextDocument(document);
       await editor.edit((edit) =>
         edit.replace(new vscode.Range(0, 0, document.lineCount, 0), topic('vscode-validate', 'local-kafka')),
       );
@@ -1233,7 +1237,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         return uri;
       });
       api.validator.resetPeak();
-      await Promise.all(many.map((uri) => vscode.workspace.openTextDocument(uri)));
+      for (const uri of many) await vscode.window.showTextDocument(uri, { preview: false });
       await api.validator.settled();
       assert.ok(api.validator.peak() <= 2, `at most two at once, saw ${api.validator.peak()}`);
       assert.deepStrictEqual(
@@ -1256,7 +1260,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await settings.update('onOpenAndSave', false, vscode.ConfigurationTarget.Global);
       const quiet = vscode.Uri.file(join(folder, 'quiet.yaml'));
       writeFileSync(quiet.fsPath, topic('vscode-validate-quiet', 'no-such-cluster'));
-      await vscode.workspace.openTextDocument(quiet);
+      await vscode.window.showTextDocument(quiet, { preview: false });
       await api.validator.settled();
       assert.deepStrictEqual(problems(quiet), [], 'switched off');
     } finally {
@@ -1283,7 +1287,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
     try {
       await settledOn(api, 'smoke-apply');
-      await vscode.workspace.openTextDocument(bad);
+      await vscode.window.showTextDocument(bad, { preview: false });
       await api.validator.settled();
       const before = api.resources.lastResult(bad, 0);
       assert.ok(before);
@@ -1350,8 +1354,183 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.deepStrictEqual(problems(ignored), [], 'node_modules is left out');
     assert.deepStrictEqual(problems(groupFile), []);
 
+    // Opened and saved alone, it still waits for the group in the other file rather than failing.
+    const opened = await vscode.window.showTextDocument(appFile, { preview: false });
+    await api.validator.settled();
+    assert.strictEqual(api.resources.lastResult(appFile, 0)?.outcome.status, 'pending', 'opened');
+    await opened.edit((edit) => edit.insert(new vscode.Position(0, 0), '# reviewed\n'));
+    await opened.document.save();
+    await api.validator.settled();
+    assert.strictEqual(api.resources.lastResult(appFile, 0)?.outcome.status, 'pending', 'saved');
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+    // A cancelled run leaves the results of files it never reached alone.
     const stopped = await api.validateFolder(vscode.Uri.file(folder), { cancelled: () => true });
     assert.strictEqual(stopped?.cancelled, true);
+    assert.ok(problems(bad).length > 0, 'still there after a cancelled run');
+  });
+
+  test('never checks a file closed before its turn', async () => {
+    const api = await activate();
+    const file = vscode.Uri.file(join(mkdtempSync(join(tmpdir(), 'conduktor-closed-')), 't.yaml'));
+    writeFileSync(
+      file.fsPath,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: 'vscode-closed', cluster: 'no-such-cluster' },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+    await vscode.window.showTextDocument(file, { preview: false });
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    await api.validator.settled();
+    assert.strictEqual(api.resources.lastResult(file, 0), undefined);
+  });
+
+  test('keeps results across a mode change, which asks the same Console', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const folder = mkdtempSync(join(tmpdir(), 'conduktor-mode-keep-'));
+    const bad = vscode.Uri.file(join(folder, 'bad.yaml'));
+    writeFileSync(
+      bad.fsPath,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: 'vscode-mode-keep', cluster: 'no-such-cluster' },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+    const { connection } = state;
+    try {
+      await api.validateFolder(vscode.Uri.file(folder));
+      assert.strictEqual(api.resources.lastResult(bad, 0)?.outcome.status, 'error');
+      await api.connections.update({ ...connection, mode: connection.mode === 'dev' ? 'prod' : 'dev' });
+      await settledOn(api, connection.id);
+      assert.strictEqual(api.resources.lastResult(bad, 0)?.outcome.status, 'error', "the folder's Problems stay");
+    } finally {
+      await api.connections.update(connection);
+      await settledOn(api, connection.id);
+    }
+  });
+
+  test('never changes the Console in prod mode, whichever way it is asked', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const { connection } = state;
+    const topicKind = state.spec.catalog.latest('Topic')!;
+    const name = `vscode-prod-${Date.now()}`;
+    const path = `/public/kafka/v2/cluster/local-kafka/topic/${name}`;
+    const topic = {
+      apiVersion: 'v2',
+      kind: 'Topic',
+      metadata: { name, cluster: 'local-kafka' },
+      spec: { partitions: 1, replicationFactor: 1 },
+    };
+    let asked = 0;
+    api.setConfirm(async (_message, _detail, ...actions) => {
+      asked++;
+      return actions[0];
+    });
+    try {
+      await api.connections.update({ ...connection, mode: 'prod' });
+      await settledOn(api, connection.id);
+      const prod = api.sessions.current();
+      if (prod.status !== 'ready') assert.fail(prod.status);
+      await prod.client.upsert(upsertTarget(topicKind, topic as Resource), topic as Resource, { dryRun: false });
+      const file = vscode.Uri.file(join(mkdtempSync(join(tmpdir(), 'conduktor-prod-')), 't.yaml'));
+      writeFileSync(file.fsPath, stringify({ ...topic, spec: { partitions: 2, replicationFactor: 1 } }));
+      assert.strictEqual(await api.apply(file), undefined, 'apply');
+      await vscode.commands.executeCommand('conduktor.deleteResource', {
+        type: 'resource',
+        kind: topicKind,
+        parents: ['local-kafka'],
+        name,
+      } as ResourceNode);
+      assert.strictEqual(
+        await vscode.commands.executeCommand('conduktor.applyEnvironment'),
+        undefined,
+        'Apply Environment',
+      );
+      assert.strictEqual(await api.applyAllChanges(), undefined, 'Apply All Changes');
+      assert.strictEqual(asked, 0, 'nothing even asks');
+      const live = await prod.client.get(path);
+      assert.strictEqual((live.spec as { partitions: number }).partitions, 1, 'still there, unchanged');
+    } finally {
+      await state.client.delete(path).catch(() => undefined);
+      api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+      await api.connections.update(connection);
+      await settledOn(api, connection.id);
+    }
+  });
+
+  test('drops a validation that was still running when the connection changed', async () => {
+    const api = await activate();
+    const previous = api.sessions.current();
+    if (previous.status !== 'ready') assert.fail(previous.status);
+    const file = vscode.Uri.file(join(mkdtempSync(join(tmpdir(), 'conduktor-inflight-')), 't.yaml'));
+    writeFileSync(
+      file.fsPath,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: 'vscode-inflight', cluster: 'no-such-cluster' },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+    const other = previous.connection.id === 'smoke' ? 'smoke-apply' : 'smoke';
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
+    await api.connections.setActive(previous.connection.id);
+    await settledOn(api, previous.connection.id);
+    const held = api.sessions.current();
+    if (held.status !== 'ready') assert.fail(held.status);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const upsert = held.client.upsert.bind(held.client);
+    held.client.upsert = async (...args: Parameters<typeof upsert>) => {
+      await gate;
+      return upsert(...args);
+    };
+    try {
+      const running = api.resources.validate(file);
+      await api.connections.setActive(other);
+      await settledOn(api, other);
+      release();
+      assert.strictEqual(await running, undefined, "the old connection's answer is dropped");
+      assert.strictEqual(api.resources.lastResult(file, 0), undefined);
+    } finally {
+      held.client.upsert = upsert;
+      release();
+      await api.connections.setActive(previous.connection.id);
+      await settledOn(api, previous.connection.id);
+    }
+  });
+
+  test('reads a .env again when it changes', async () => {
+    const api = await activate();
+    const repo = mkdtempSync(join(tmpdir(), 'conduktor-dotenv-edit-'));
+    mkdirSync(join(repo, '.git'));
+    const file = vscode.Uri.file(join(repo, 't.yaml'));
+    writeFileSync(
+      file.fsPath,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: 'vscode-dotenv-edit', cluster: 'local-kafka', labels: { team: '${TEAM}' } },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+    const team = async () => {
+      const [item] = (await api.dryRun(file)) ?? [];
+      return (item?.document.resource?.metadata.labels as Record<string, string> | undefined)?.team;
+    };
+    writeFileSync(join(repo, '.env'), 'TEAM=first\n');
+    assert.strictEqual(await team(), 'first');
+    writeFileSync(join(repo, '.env'), 'TEAM=second\n');
+    assert.strictEqual(await team(), 'second');
   });
 
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {

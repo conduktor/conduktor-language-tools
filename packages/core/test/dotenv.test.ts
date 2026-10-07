@@ -24,6 +24,11 @@ describe('envSearchPath', () => {
     expect(envSearchPath('/w/a/t.yaml', { workspace: '/w', home, isRepoRoot: () => false })).toEqual(['/w/a', '/w']);
   });
 
+  it('compares folders without case where the file system does, as on Windows', () => {
+    const stops = { home: '/Users/M', isRepoRoot: () => false, caseInsensitive: true };
+    expect(envSearchPath('/users/m/x/t.yaml', stops)).toEqual(['/users/m/x', '/users/m']);
+  });
+
   it('stops at home outside any workspace and repository, or at the root outside home', () => {
     expect(envSearchPath('/home/u/x/t.yaml', { home, isRepoRoot: () => false })).toEqual(['/home/u/x', '/home/u']);
     expect(envSearchPath('/tmp/x/t.yaml', { home, isRepoRoot: () => false })).toEqual(['/tmp/x', '/tmp', '/']);

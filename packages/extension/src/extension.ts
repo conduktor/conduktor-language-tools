@@ -88,7 +88,16 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const compare = new Compare(sessions);
   const resources = new ResourceController(sessions, output, compare, confirm, (uri) => sync.foreignEnvironment(uri));
   const codeLenses = new ResourceCodeLensProvider(sessions, resources);
-  const validator = new Validator(sessions, resources, (uri) => sync.isBaseCopy(uri));
+  // The global resources other local files define: what a file's own dry run may be waiting for.
+  const localNames = async (uri: vscode.Uri) => {
+    const state = sessions.current();
+    if (state.status !== 'ready') return [];
+    const { catalog } = state.spec;
+    const global = [...catalog.kindNames()].filter((kind) => catalog.latest(kind)?.parentPathParams.length === 0);
+    const documents = (await Promise.all(global.map((kind) => names.repoDocuments(kind)))).flat();
+    return documents.filter((d) => d.uri.toString() !== uri.toString()).map((d) => d.resource.metadata.name);
+  };
+  const validator = new Validator(sessions, resources, (uri) => sync.isBaseCopy(uri), localNames);
   const checkFolder = (folder: vscode.Uri, options?: { cancelled?: () => boolean }) =>
     validateFolder(sessions, resources, output, (uri) => sync.foreignEnvironment(uri), folder, options);
   const sync = new SyncFolder(context, sessions, output);

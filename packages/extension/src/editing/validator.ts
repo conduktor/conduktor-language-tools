@@ -6,8 +6,9 @@ const DEBOUNCE_MS = 500;
 const AT_ONCE = 2;
 
 /**
- * Dry-runs Conduktor YAML files as they are opened and saved, and the open ones again when the session changes —
- * a debounced, two-at-a-time queue, so restoring a window full of tabs never floods the Console.
+ * Dry-runs the Conduktor YAML files open in an editor as they are opened and saved, and again when the session changes
+ * — a debounced, two-at-a-time queue, so restoring a window full of tabs never floods the Console. A file that already
+ * has current results (a folder's run, say) is only checked again when saved.
  */
 export class Validator implements vscode.Disposable {
   private readonly timers = new Map<string, NodeJS.Timeout>();
@@ -21,12 +22,15 @@ export class Validator implements vscode.Disposable {
     sessions: SessionManager,
     private readonly controller: ResourceController,
     private readonly skip: (uri: vscode.Uri) => boolean,
+    private readonly localNames: (uri: vscode.Uri) => Promise<string[]>,
   ) {
     this.listeners = [
-      vscode.workspace.onDidOpenTextDocument((document) => this.schedule(document)),
-      vscode.workspace.onDidSaveTextDocument((document) => this.schedule(document)),
+      vscode.workspace.onDidOpenTextDocument((document) => this.schedule(document, false)),
+      vscode.workspace.onDidSaveTextDocument((document) => this.schedule(document, true)),
+      vscode.workspace.onDidCloseTextDocument((document) => this.forget(document.uri)),
       sessions.onDidChange((state) => {
-        if (state.status === 'ready') vscode.workspace.textDocuments.forEach((document) => this.schedule(document));
+        if (state.status === 'ready')
+          vscode.workspace.textDocuments.forEach((document) => this.schedule(document, false));
       }),
     ];
   }
@@ -50,9 +54,10 @@ export class Validator implements vscode.Disposable {
     this.timers.forEach((timer) => clearTimeout(timer));
   }
 
-  private schedule(document: vscode.TextDocument): void {
+  private schedule(document: vscode.TextDocument, saved: boolean): void {
     const { uri } = document;
     if (document.languageId !== 'yaml' || uri.scheme !== 'file' || !this.enabled() || this.skip(uri)) return;
+    if (!saved && this.controller.hasResults(uri)) return;
     const key = uri.toString();
     clearTimeout(this.timers.get(key));
     this.timers.set(
@@ -65,20 +70,36 @@ export class Validator implements vscode.Disposable {
     );
   }
 
+  private forget(uri: vscode.Uri): void {
+    const key = uri.toString();
+    clearTimeout(this.timers.get(key));
+    this.timers.delete(key);
+    const queued = this.queue.findIndex((waiting) => waiting.toString() === key);
+    if (queued >= 0) this.queue.splice(queued, 1);
+    this.wake();
+  }
+
   private pump(): void {
     while (this.running < AT_ONCE && this.queue.length > 0) {
       const uri = this.queue.shift()!;
+      // Only what the user has open: VS Code also loads documents for other reasons (the CLI's Problems, a search).
+      if (!shownInTab(uri)) continue;
       this.running++;
       this.highest = Math.max(this.highest, this.running);
-      void this.controller
-        .validate(uri)
+      void this.localNames(uri)
+        .then((names) => this.controller.validate(uri, names))
         .catch(() => undefined)
         .finally(() => {
           this.running--;
           this.pump();
-          if (!this.busy()) this.idle.splice(0).forEach((resolve) => resolve());
+          this.wake();
         });
     }
+    this.wake();
+  }
+
+  private wake(): void {
+    if (!this.busy()) this.idle.splice(0).forEach((resolve) => resolve());
   }
 
   private busy(): boolean {
@@ -88,4 +109,11 @@ export class Validator implements vscode.Disposable {
   private enabled(): boolean {
     return vscode.workspace.getConfiguration('conduktor.validation').get<boolean>('onOpenAndSave', true);
   }
+}
+
+function shownInTab(uri: vscode.Uri): boolean {
+  const key = uri.toString();
+  return vscode.window.tabGroups.all.some((group) =>
+    group.tabs.some((tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === key),
+  );
 }

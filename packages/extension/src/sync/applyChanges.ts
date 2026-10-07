@@ -27,7 +27,7 @@ export async function applyAllChanges(
 ): Promise<UpsertItem[] | undefined> {
   const state = sessions.current();
   if (state.status !== 'ready' || !canChange(state.connection.mode)) {
-    void vscode.window.showWarningMessage('Applying needs a connection in apply mode ("Conduktor: Change Mode").');
+    void vscode.window.showWarningMessage('Applying needs a connection in dev mode ("Conduktor: Change Mode").');
     return undefined;
   }
   await saveOpenChanges(sync);

@@ -74,7 +74,7 @@ export function registerCliCommands(
       }
       if (!canChange(state.connection.mode)) {
         void vscode.window.showWarningMessage(
-          `${state.connection.name} is not in apply mode; Plan shows what would change.`,
+          `${state.connection.name} is in prod mode; Plan shows what would change.`,
         );
         return undefined;
       }

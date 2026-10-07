@@ -10,8 +10,8 @@ gives you the CLI's resource model with an editor's help: what exists, what a re
 is valid, and what applying it would change. Git comes with VS Code.
 
 It is an interactive editor with two modes. In **dev**, explore a Console and change it: apply, save live documents,
-delete. In **prod**, everything but changing it: open any Conduktor YAML from anywhere — a GitOps repository, a pull
-request you are reviewing — and check it against the Console, which validates it on open and save.
+delete. In **prod**, everything but changing it: open any Conduktor YAML file from anywhere — a GitOps repository, a
+pull request's branch checked out — and check it against the Console, which validates it on open and save.
 
 > **Status:** proof of concept, slice (a) of the [design](docs/specs/2026-10-02-slice-a-design.md) — demos and
 > click-ops against non-production Consoles. Not on the Marketplace yet; build the `.vsix` yourself (below).

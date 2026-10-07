@@ -10,10 +10,13 @@ export async function planDocuments(
   client: Pick<ConsoleClient, 'upsert'>,
   catalog: KindCatalog,
   documents: readonly ResourceDocument[],
-  options: Pick<UpsertOptions, 'readInclude' | 'onItem' | 'cancelled'> = {},
+  options: Pick<UpsertOptions, 'readInclude' | 'onItem' | 'cancelled'> & {
+    /** Names that other local files create: a resource waiting for one of them is pending too. */
+    willExist?: readonly string[];
+  } = {},
 ): Promise<UpsertItem[]> {
   const items = await upsertDocuments(client, catalog, documents, { ...options, dryRun: true });
-  const willExist: string[] = [];
+  const willExist: string[] = [...(options.willExist ?? [])];
   return items.map((item) => {
     const { outcome } = item;
     const name = item.document.resource?.metadata.name;

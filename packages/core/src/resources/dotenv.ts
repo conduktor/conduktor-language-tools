@@ -16,11 +16,15 @@ export function parseDotenv(text: string): Record<string, string> {
  */
 export function envSearchPath(
   file: string,
-  stops: { workspace?: string; home: string; isRepoRoot: (dir: string) => boolean },
+  stops: { workspace?: string; home: string; isRepoRoot: (dir: string) => boolean; caseInsensitive?: boolean },
 ): string[] {
+  // Windows paths differ in case between sources (VS Code lower-cases the drive letter, os.homedir() does not).
+  const same = (a: string, b: string | undefined) =>
+    b !== undefined && (stops.caseInsensitive ? a.toLowerCase() === b.toLowerCase() : a === b);
   const folders: string[] = [];
   for (let dir = dirname(file); ; dir = dirname(dir)) {
     folders.push(dir);
-    if (dir === stops.workspace || dir === stops.home || stops.isRepoRoot(dir) || dirname(dir) === dir) return folders;
+    if (same(dir, stops.workspace) || same(dir, stops.home) || stops.isRepoRoot(dir) || dirname(dir) === dir)
+      return folders;
   }
 }

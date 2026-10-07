@@ -46,6 +46,9 @@ export class ResourceController implements vscode.Disposable {
   private readonly applied = new vscode.EventEmitter<AppliedEvent>();
   readonly onDidApply = this.applied.event;
   private readonly listeners: vscode.Disposable[];
+  private answering: string | undefined;
+  // What each validated folder creates, by folder path: a file of it checked on its own may be waiting for them.
+  private readonly folderNames = new Map<string, string[]>();
 
   constructor(
     private readonly sessions: SessionManager,
@@ -59,8 +62,15 @@ export class ResourceController implements vscode.Disposable {
         if (event.contentChanges.length > 0) this.clear(event.document.uri);
       }),
       vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((editor) => this.paint(editor))),
-      // Results are the Console's answers for one session; after a switch or a reload they no longer hold.
-      sessions.onDidChange(() => [...this.results.keys()].forEach((key) => this.clear(vscode.Uri.parse(key)))),
+      // Results are one Console's answers: another connection, or another URL, makes them stale. A mode change or a
+      // reload of the same connection does not.
+      sessions.onDidChange((state) => {
+        const answering = state.status === 'none' ? undefined : `${state.connection.id} ${state.connection.url}`;
+        if (answering === this.answering) return;
+        this.answering = answering;
+        this.folderNames.clear();
+        [...this.results.keys()].forEach((key) => this.clear(vscode.Uri.parse(key)));
+      }),
     ];
   }
 
@@ -76,8 +86,15 @@ export class ResourceController implements vscode.Disposable {
     return this.run(uri, index, true);
   }
 
-  /** A dry run with nothing to notify: the results go to Problems and the editor, as a Dry run's do. */
-  async validate(uri: vscode.Uri): Promise<UpsertItem[] | undefined> {
+  hasResults(uri: vscode.Uri): boolean {
+    return this.results.has(uri.toString());
+  }
+
+  /**
+   * A dry run with nothing to notify: the results go to Problems and the editor, as a Dry run's do. `willExist` names
+   * what other local files create, so a resource waiting for one of them is pending rather than failed.
+   */
+  async validate(uri: vscode.Uri, willExist: readonly string[] = []): Promise<UpsertItem[] | undefined> {
     const state = this.sessions.current();
     if (state.status !== 'ready' || isLiveScheme(uri.scheme) || this.foreignEnvironment(uri) !== undefined)
       return undefined;
@@ -85,12 +102,16 @@ export class ResourceController implements vscode.Disposable {
     const version = document.version;
     const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: variablesFor(uri) });
     if (documents.length === 0) return [];
+    // Another connection's answer, or one for text edited since, would land on the wrong file or lines.
+    const stale = () => this.sessions.current() !== state || document.version !== version;
+    const inFolders = [...this.folderNames].filter(([folder]) => isInside(uri.fsPath, folder)).flatMap(([, n]) => n);
     const plan = await planDocuments(state.client, state.spec.catalog, documents, {
       readInclude: includeReaderFor(uri),
+      willExist: [...willExist, ...inFolders],
+      cancelled: stale,
     });
-    // Another connection's answer, or one for text edited since, would land on the wrong file or lines.
-    if (this.sessions.current() !== state || document.version !== version) return undefined;
-    this.record(uri, document.getText(), plan, 'dry run');
+    if (stale()) return undefined;
+    this.record(uri, document.getText(), plan, 'dry run', 'in your local files');
     return plan;
   }
 
@@ -233,6 +254,11 @@ export class ResourceController implements vscode.Disposable {
     this.record(uri, text, items, 'dry run', 'in this folder');
   }
 
+  /** The names a folder's run found it would create, for its files' later checks on their own. */
+  rememberFolder(folder: vscode.Uri, creates: readonly string[]): void {
+    this.folderNames.set(folder.fsPath, [...creates]);
+  }
+
   private record(
     uri: vscode.Uri,
     text: string,
@@ -298,6 +324,11 @@ function failureOf(outcome: UpsertOutcome | undefined, fallback: string): string
 
 function lineAt(document: vscode.TextDocument, offset: number): vscode.Range {
   return document.lineAt(document.positionAt(offset).line).range;
+}
+
+function isInside(file: string, folder: string): boolean {
+  const relative = path.relative(folder, file);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
 // The line holding an offset, from the text alone: a folder's files are checked without opening them.
