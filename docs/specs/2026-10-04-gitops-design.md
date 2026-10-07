@@ -1,7 +1,8 @@
 # Conduktor for VS Code — local GitOps
 
-Status: phase 1 (bootstrap) implemented 2026-10-04, phase 2 (CLI runner) 2026-10-06, phase 3 (repository init) and
-`ctl` without state 2026-10-07; phase 4 records decisions and is specified when started ·
+Status: phase 1 (bootstrap) implemented 2026-10-04, phase 2 (CLI runner) 2026-10-06, `ctl` without state
+2026-10-07. Phases 3–4 move to a separate extension (Matt, 2026-10-07): phase 3 was built and is kept on branch
+`gitops-repo-init`; this extension stays an interactive editor ·
 builds on the [sync folder](2026-10-02-sync-folder-design.md).
 
 ## Intent
@@ -31,8 +32,6 @@ actions.
   .conduktor/.gitignore                          *
   .conduktor/base/<env>/<same path>              the version last synced or applied
   .gitignore                                     .env, environments/*/.env
-  ci/plan.sh, ci/apply.sh                        what the pipelines run (phase 3)
-  .github/workflows/conduktor-{plan,apply}.yml   plan on pull requests, apply on merge to main (phase 3)
 ```
 
 `conduktor apply -f environments/<env> -r` must apply exactly the environment's resources: `ctl` loads every `.yaml`
@@ -92,7 +91,7 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
   Apply's confirmation list the files removed since they were synced as left on the Console, and deleting stays a
   Console action.
 
-## Phase 3 — Repository init (decided)
+## Phase 3 — Repository init (moved to a separate extension; built on branch `gitops-repo-init`)
 
 - **Set Up GitOps Repository**: `git init` on `main` if needed (inside a larger repository, its files go there), the
   `.env` ignores, a README, and workflows that plan on pull requests and apply on merge to `main`.
@@ -105,7 +104,7 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
   runner stands in until a reachable Console exists.
 - Generated scripts and workflows carry a mark; running Set Up again rewrites those and keeps any other existing file.
 
-## Phase 4 — GitOps mode (decided)
+## Phase 4 — GitOps mode (moved to a separate extension)
 
 - A connection mode next to read-only, dry-run and apply. Live documents are read-only; Apply and Apply All Changes
   give way to the git flow.

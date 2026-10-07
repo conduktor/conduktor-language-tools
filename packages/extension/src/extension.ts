@@ -35,7 +35,6 @@ import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './inte
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
 import { registerCliCommands } from './cli/commands';
-import { registerRepositoryCommands } from './gitops/setUpRepository';
 import { CliRunner } from './cli/runner';
 import { DocumentContexts } from './editing/documentContexts';
 import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
@@ -147,7 +146,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     treeDecorations,
     cli,
     ...registerCliCommands(cli, sync, sessions, confirm),
-    ...registerRepositoryCommands(sync, output),
     vscode.window.registerFileDecorationProvider(treeDecorations),
     new DocumentContexts(sessions, sync),
     reveal,

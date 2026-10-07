@@ -205,11 +205,6 @@
         "category": "Conduktor"
       },
       {
-        "command": "conduktor.setUpRepository",
-        "title": "Set Up GitOps Repository",
-        "category": "Conduktor"
-      },
-      {
         "command": "conduktor.syncLocally",
         "title": "Sync Locally",
         "category": "Conduktor",
@@ -379,11 +374,6 @@
         {
           "command": "conduktor.applyEnvironment",
           "when": "view == conduktor.explorer && conduktor.syncFolder && conduktor.mode == apply",
-          "group": "3_sync"
-        },
-        {
-          "command": "conduktor.setUpRepository",
-          "when": "view == conduktor.explorer && conduktor.syncFolder",
           "group": "3_sync"
         }
       ],

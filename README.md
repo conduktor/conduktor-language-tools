@@ -151,25 +151,6 @@ once it runs.
   **Diff with Live** shows one file's), and a topic's `conduktor.io/descriptionFile` is sent as a label the Console
   refuses (fixed in conduktor/ctl#146, not released yet).
 
-## GitOps repository
-
-**Set Up GitOps Repository** (the Explorer's `…` menu, or the command palette) turns a bootstrapped sync folder into a
-repository a pipeline can run:
-
-- `git init` on `main` when the folder is not in a repository yet; inside a larger one, its files go there instead.
-- `ci/plan.sh <env>` and `ci/apply.sh <env>`: the same `ctl` command as Plan and Apply, run with the `conduktor` CLI
-  (`CONDUKTOR_CLI` names another) and `CDK_BASE_URL` / `CDK_API_KEY` from the environment, `${VAR}` values from
-  `environments/<env>/.env`.
-- `.github/workflows/conduktor-plan.yml` plans every environment on a pull request; `conduktor-apply.yml` applies it on
-  a push to `main`, one apply at a time per environment. Each job installs the pinned `ctl` release and reads its
-  secrets from a GitHub Environment of the same name: `CDK_BASE_URL`, `CDK_API_KEY` and each variable in the
-  environment's `.env.example`. GitHub's runners must reach the Console, so with a local one the CLI runner stands in.
-  A plan runs the pull request's own scripts with those secrets, so anyone who can push a branch can use the key.
-- A README, and `.env` files ignored.
-
-Running it again brings back its own scripts and workflows as generated and leaves everything else alone: a file of
-yours under one of those names, and an edited README, are kept and named in the report.
-
 ## AI agents
 
 Coding agents get the same live schema and dry run as the editor, so they write resources the Console accepts instead
@@ -337,5 +318,6 @@ From the [design](docs/specs/2026-10-02-slice-a-design.md):
 - **Slice (a), next:** upgrade a PAT to an admin key, run the CLI's actions (topic empty, connector restart, …),
   consumer groups and offset resets for admin keys.
 - **Git sync:** commit staged changes from the sync folder, explicit deletions, and conflict handling for drift.
-- **Slice (b), GitOps:** a GitOps mode, where saves go to a branch and a local pull request view plans and merges it.
+- **GitOps repositories:** a separate extension (repository init, CI scripts and workflows, pull requests); the start
+  of it is on branch `gitops-repo-init`.
 - **Slice (c), self-service:** ownership-aware validation for application teams.

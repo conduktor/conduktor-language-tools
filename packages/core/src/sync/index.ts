@@ -22,7 +22,7 @@ export {
   type Fetched,
   type Skipped,
 } from './bootstrap';
-export { ENV_EXAMPLE, envExample, exampleVariables } from './envExample';
+export { ENV_EXAMPLE, envExample } from './envExample';
 export { syncPath } from './paths';
 export {
   defaultKinds,

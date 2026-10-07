@@ -694,7 +694,7 @@ export class SyncFolder implements vscode.Disposable {
     return statusWithIncludes(current, baseText, applied, includeReaderFor(uri) ?? unreadable) !== 'synced';
   }
 
-  async ensureIgnored(patterns: readonly string[]): Promise<void> {
+  private async ensureIgnored(patterns: readonly string[]): Promise<void> {
     const uri = vscode.Uri.joinPath(this.requireSyncRoot(), '.gitignore');
     const current = (await read(uri)) ?? '';
     const missing = patterns.filter((pattern) => !current.split('\n').includes(pattern));

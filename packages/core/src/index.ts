@@ -77,7 +77,6 @@ export {
   driftOf,
   ENV_EXAMPLE,
   envExample,
-  exampleVariables,
   environments,
   REPO_CONFIG,
   withEnvironment,
@@ -155,16 +154,6 @@ export {
   type CliOutcome,
   type CliRunnerChoice,
 } from './cli';
-export {
-  CI_SCRIPTS,
-  ciScript,
-  fileAction,
-  GENERATED_MARK,
-  gitTopLevel,
-  repoFiles,
-  type RepoEnvironment,
-  type RepoFile,
-} from './gitops';
 export {
   fieldDocs,
   headingSlug,

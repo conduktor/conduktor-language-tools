@@ -2,20 +2,17 @@ import * as assert from 'node:assert';
 import * as vscode from 'vscode';
 import { spawnSync } from 'node:child_process';
 import {
-  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
-  realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { itemPath, parentsOf, syncPath, upsertTarget, type Resource } from '@conduktor/vscode-core';
 import type { ExtensionApi } from '../extension';
@@ -135,63 +132,6 @@ suite('Conduktor extension', () => {
       'conduktor_get_resources',
     ]) {
       assert.ok(names.includes(name), name);
-    }
-  });
-
-  test('sets up a GitOps repository, in its own git or a parent one', async function () {
-    if (spawnSync('git', ['--version']).error) return this.skip();
-    interface SetUp {
-      initialised: boolean;
-      top: string;
-      written: string[];
-      rewritten: string[];
-      kept: string[];
-    }
-    const api = await activate();
-    const git = (cwd: string, ...args: string[]) => spawnSync('git', args, { cwd, encoding: 'utf8' }).stdout.trim();
-    try {
-      const root = realpathSync(mkdtempSync(join(tmpdir(), 'conduktor-repo-')));
-      writeFileSync(join(root, 'conduktor.yaml'), 'environments:\n  dev:\n    console: http://localhost:8080\n');
-      mkdirSync(join(root, 'environments', 'dev'), { recursive: true });
-      writeFileSync(join(root, 'environments', 'dev', '.env.example'), 'TEAM=\n');
-      await api.sync.setSyncRoot(vscode.Uri.file(root));
-      const first = await vscode.commands.executeCommand<SetUp>('conduktor.setUpRepository');
-      assert.strictEqual(first?.initialised, true);
-      assert.strictEqual(git(root, 'symbolic-ref', 'HEAD'), 'refs/heads/main');
-      assert.ok(statSync(join(root, 'ci', 'plan.sh')).mode & 0o100, 'the scripts are executable');
-      assert.match(
-        readFileSync(join(root, '.github', 'workflows', 'conduktor-plan.yml'), 'utf8'),
-        /TEAM: \$\{\{ secrets\.TEAM \}\}/,
-      );
-      assert.ok(existsSync(join(root, 'README.md')));
-      assert.match(readFileSync(join(root, '.gitignore'), 'utf8'), /^environments\/\*\/\.env$/m);
-
-      writeFileSync(join(root, 'README.md'), '# Ours\n');
-      appendFileSync(join(root, 'ci', 'plan.sh'), 'echo edited\n');
-      const again = await vscode.commands.executeCommand<SetUp>('conduktor.setUpRepository');
-      assert.strictEqual(again?.initialised, false);
-      assert.deepStrictEqual(again?.rewritten, ['ci/plan.sh']);
-      assert.deepStrictEqual(again?.kept, ['README.md']);
-      assert.strictEqual(readFileSync(join(root, 'README.md'), 'utf8'), '# Ours\n');
-
-      // Inside a larger repository: no git of its own, the workflows at the top, run in the sync root.
-      const parent = realpathSync(mkdtempSync(join(tmpdir(), 'conduktor-parent-')));
-      git(parent, 'init');
-      const nested = join(parent, 'gitops');
-      mkdirSync(join(nested, 'environments', 'dev'), { recursive: true });
-      writeFileSync(join(nested, 'conduktor.yaml'), 'environments:\n  dev: {}\n');
-      // Through the temp path as given: on macOS it is a symlink to /private/var.
-      await api.sync.setSyncRoot(vscode.Uri.file(join(tmpdir(), basename(parent), 'gitops')));
-      const inner = await vscode.commands.executeCommand<SetUp>('conduktor.setUpRepository');
-      assert.strictEqual(inner?.initialised, false);
-      assert.ok(!existsSync(join(nested, '.git')));
-      assert.ok(existsSync(join(nested, 'ci', 'apply.sh')));
-      assert.match(
-        readFileSync(join(parent, '.github', 'workflows', 'conduktor-apply.yml'), 'utf8'),
-        /working-directory: gitops/,
-      );
-    } finally {
-      await useWorkspaceSyncRoot(api);
     }
   });
 });

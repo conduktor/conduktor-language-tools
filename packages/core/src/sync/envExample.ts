@@ -11,9 +11,3 @@ export function envExample(texts: readonly string[]): string {
     '',
   ].join('\n');
 }
-
-/** The variable names an .env.example lists, sorted. */
-export function exampleVariables(text: string): string[] {
-  const names = text.split(/\r?\n/).flatMap((line) => /^\s*([A-Za-z_][A-Za-z0-9_]*)=/.exec(line)?.[1] ?? []);
-  return [...new Set(names)].sort();
-}
