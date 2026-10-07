@@ -16,6 +16,7 @@ import { summarise } from '../editing/summary';
 import type { Output } from '../output';
 import { driftNotes, sharedIdentities } from './conflicts';
 import type { LocalEntry, SyncFolder } from './syncFolder';
+import { variablesFor } from '../editing/variables';
 
 export async function applyAllChanges(
   sessions: SessionManager,
@@ -50,7 +51,7 @@ export async function applyAllChanges(
   for (const entry of changed) {
     const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
     const source = { entry, text, read: includeReaderFor(entry.uri) };
-    for (const document of catalogDocuments(text, state.spec.catalog, { env: process.env })) {
+    for (const document of catalogDocuments(text, state.spec.catalog, { env: variablesFor(entry.uri) })) {
       origin.set(document, source);
     }
   }

@@ -7,6 +7,7 @@ import {
   cliEnvironment,
   DEFAULT_CTL_IMAGE,
   environmentDir,
+  parseDotenv,
   type CliRunnerChoice,
 } from '@conduktor/vscode-core';
 import type { ConnectionStore } from '../connections/connectionStore';
@@ -48,7 +49,7 @@ export class CliRunner implements vscode.Disposable {
     if (!token) throw new Error(`No token is stored for ${state.connection.name}.`);
     const root = syncRoot.fsPath;
     const envFile = join(root, environmentDir(env), '.env');
-    const dotenvValues = existsSync(envFile) ? dotenv(readFileSync(envFile, 'utf8')) : {};
+    const dotenvValues = existsSync(envFile) ? parseDotenv(readFileSync(envFile, 'utf8')) : {};
     this.channel.show(true);
     const runner = await this.runner();
     const command = cliCommand({
@@ -145,16 +146,6 @@ export class CliRunner implements vscode.Disposable {
     this.listeners.forEach((listener) => listener.dispose());
     this.channel.dispose();
   }
-}
-
-// KEY=value lines, as docker --env-file reads them: no expansion, comments and blank lines skipped.
-function dotenv(text: string): Record<string, string> {
-  const variables: Record<string, string> = {};
-  for (const line of text.split(/\r?\n/)) {
-    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
-    if (match && !line.trimStart().startsWith('#')) variables[match[1]!] = match[2]!;
-  }
-  return variables;
 }
 
 function succeeds(command: string, args: string[], timeout: number): Promise<boolean> {

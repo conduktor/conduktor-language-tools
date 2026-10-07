@@ -17,6 +17,7 @@ import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import { appliedText } from './applied';
 import { includeReaderFor } from './includes';
 import { outcomeLabel, summarise } from './summary';
+import { variablesFor } from './variables';
 
 export type Action = 'dry run' | 'applied';
 
@@ -129,7 +130,7 @@ export class ResourceController implements vscode.Disposable {
     }
     const document = await vscode.workspace.openTextDocument(uri);
     const text = document.getText();
-    const inFile = catalogDocuments(text, state.spec.catalog, { env: process.env });
+    const inFile = catalogDocuments(text, state.spec.catalog, { env: variablesFor(uri) });
     const documents = inFile.filter((d) => index === undefined || d.index === index);
     if (documents.length === 0) {
       void vscode.window.showWarningMessage(`No Conduktor resources to ${apply ? 'apply' : 'dry-run'} in this file.`);

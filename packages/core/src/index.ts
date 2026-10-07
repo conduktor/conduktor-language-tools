@@ -66,6 +66,7 @@ export {
 } from './tools';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
+export { envSearchPath, parseDotenv } from './resources/dotenv';
 export {
   baseDir,
   basePathOf,

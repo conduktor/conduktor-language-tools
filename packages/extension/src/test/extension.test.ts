@@ -1154,6 +1154,36 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('fills ${VAR} from the nearest .env, up to the repository root', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const outer = mkdtempSync(join(tmpdir(), 'conduktor-dotenv-'));
+    writeFileSync(join(outer, '.env'), 'TEAM=from-above-the-repository\n');
+    const repo = join(outer, 'repo');
+    mkdirSync(join(repo, '.git'), { recursive: true });
+    mkdirSync(join(repo, 'topics'));
+    const file = vscode.Uri.file(join(repo, 'topics', 't.yaml'));
+    writeFileSync(
+      file.fsPath,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: `vscode-dotenv-${Date.now()}`, cluster: 'local-kafka', labels: { team: '${TEAM}' } },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+    const [missing] = (await api.dryRun(file)) ?? [];
+    assert.ok(
+      missing?.outcome.status === 'error' && /TEAM/.test(missing.outcome.message),
+      `a .env above the repository is not read: ${JSON.stringify(missing?.outcome)}`,
+    );
+    writeFileSync(join(repo, '.env'), 'TEAM=data\r\n');
+    const [found] = (await api.dryRun(file)) ?? [];
+    assert.strictEqual(found?.outcome.status, 'ok', JSON.stringify(found?.outcome));
+    assert.strictEqual((found.document.resource?.metadata.labels as Record<string, string> | undefined)?.team, 'data');
+  });
+
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {
     const api = await activate();
     const state = api.sessions.current();

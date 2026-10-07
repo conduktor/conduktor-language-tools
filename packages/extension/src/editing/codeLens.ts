@@ -3,6 +3,7 @@ import { canChange, catalogDocuments } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import type { Action, ResourceController } from './resourceController';
 import { outcomeLabel } from './summary';
+import { variablesFor } from './variables';
 
 export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
@@ -23,7 +24,7 @@ export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode
     const state = this.sessions.current();
     if (state.status !== 'ready') return [];
     const canApply = canChange(state.connection.mode);
-    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env });
+    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: variablesFor(document.uri) });
     const lineOf = (offset: number) => document.lineAt(document.positionAt(offset).line).range;
     const lens = (offset: number, title: string, command: string, ...args: unknown[]) =>
       new vscode.CodeLens(lineOf(offset), { title, command, arguments: [document.uri, ...args] });

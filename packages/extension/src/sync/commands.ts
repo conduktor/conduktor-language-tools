@@ -196,13 +196,13 @@ export function registerSyncCommands(
         const picked = await vscode.window.showQuickPick(
           variables.map((v) => ({ label: v.name, description: v.set ? 'set' : 'not set', picked: !v.set })),
           {
-            title: 'Environment variables the sync folder needs (VS Code must be started with them)',
+            title: "Variables the sync folder needs: set them in the environment's .env, or in VS Code's environment",
             canPickMany: true,
           },
         );
         if (picked?.length) {
-          await vscode.env.clipboard.writeText(picked.map((p) => `export ${p.label}=`).join('\n'));
-          void vscode.window.showInformationMessage(`Copied ${picked.length} export lines to fill in.`);
+          await vscode.env.clipboard.writeText(picked.map((p) => `${p.label}=`).join('\n'));
+          void vscode.window.showInformationMessage(`Copied ${picked.length} lines for the .env, to fill in.`);
         }
       }),
     ),

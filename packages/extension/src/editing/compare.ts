@@ -10,6 +10,7 @@ import {
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import { includeReaderFor } from './includes';
+import { variablesFor } from './variables';
 
 export const COMPARE_SCHEME = 'conduktor-compare';
 
@@ -43,7 +44,7 @@ export class Compare implements vscode.TextDocumentContentProvider, vscode.Dispo
       return;
     }
     const document = await vscode.workspace.openTextDocument(uri);
-    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: process.env });
+    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: variablesFor(uri) });
     // Without an index (the editor title, the palette) the document under the cursor is the one meant.
     const shown = (editor: vscode.TextEditor | undefined) => editor?.document.uri.toString() === uri.toString();
     const editor = shown(vscode.window.activeTextEditor)

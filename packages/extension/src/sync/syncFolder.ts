@@ -48,6 +48,7 @@ import { includePath, includeReaderFor } from '../editing/includes';
 import { ContentCache } from './contentCache';
 import { fileExists, read, readAll, remove, write } from './files';
 import { singleFlight } from './singleFlight';
+import { variablesFor } from '../editing/variables';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
@@ -610,9 +611,13 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   async requiredVariables(): Promise<{ name: string; set: boolean }[]> {
-    const names = new Set<string>();
-    for (const entry of this.entries) referencedVariables((await read(entry.uri)) ?? '').forEach((n) => names.add(n));
-    return [...names].map((name) => ({ name, set: process.env[name] !== undefined }));
+    const names = new Map<string, boolean>();
+    for (const entry of this.entries) {
+      const values = variablesFor(entry.uri);
+      for (const name of referencedVariables((await read(entry.uri)) ?? ''))
+        names.set(name, (names.get(name) ?? true) && values[name] !== undefined);
+    }
+    return [...names].map(([name, set]) => ({ name, set }));
   }
 
   dispose(): void {
