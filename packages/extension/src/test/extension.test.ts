@@ -57,6 +57,16 @@ async function seedTopics(api: ExtensionApi, cluster: string, count: number): Pr
   await api.sync.refresh();
 }
 
+// A connection change reloads the session once it has returned, sometimes twice: wait until it is on this connection,
+// ready, and stays so.
+async function settledOn(api: ExtensionApi, id: string): Promise<void> {
+  const ready = () => {
+    const current = api.sessions.current();
+    return current.status === 'ready' && current.connection.id === id;
+  };
+  for (let calm = 0; calm < 3; calm = ready() ? calm + 1 : 0) await new Promise((resolve) => setTimeout(resolve, 200));
+}
+
 async function until(condition: () => boolean, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!condition()) {
@@ -1111,6 +1121,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('reads connections stored with the old modes as dev or prod, and writes them back', async () => {
     const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
     const settings = vscode.workspace.getConfiguration('conduktor');
     const before = settings.inspect<unknown[]>('connections')?.globalValue;
     const legacy = ['apply', 'dry-run', 'read-only', 'something'].map((mode) => ({
@@ -1150,7 +1162,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     } finally {
       await settings.update('connections', before, vscode.ConfigurationTarget.Global);
       // Changing the connections reloads the session; the tests after this one expect it ready.
-      await until(() => api.sessions.current().status === 'ready');
+      await settledOn(api, state.connection.id);
     }
   });
 
@@ -1182,6 +1194,110 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const [found] = (await api.dryRun(file)) ?? [];
     assert.strictEqual(found?.outcome.status, 'ok', JSON.stringify(found?.outcome));
     assert.strictEqual((found.document.resource?.metadata.labels as Record<string, string> | undefined)?.team, 'data');
+  });
+
+  test('validates Conduktor YAML on open and save, a couple at a time', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const folder = mkdtempSync(join(tmpdir(), 'conduktor-validate-'));
+    const topic = (name: string, cluster: string) =>
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name, cluster },
+        spec: { partitions: 1, replicationFactor: 1 },
+      });
+    const problems = (uri: vscode.Uri) =>
+      vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'Conduktor' && /no-such-cluster/.test(d.message));
+    const settings = vscode.workspace.getConfiguration('conduktor.validation');
+    try {
+      const bad = vscode.Uri.file(join(folder, 'bad.yaml'));
+      writeFileSync(bad.fsPath, topic('vscode-validate', 'no-such-cluster'));
+      const document = await vscode.workspace.openTextDocument(bad);
+      await api.validator.settled();
+      assert.ok(problems(bad).length > 0, 'a Problem without any command');
+
+      const editor = await vscode.window.showTextDocument(document);
+      await editor.edit((edit) =>
+        edit.replace(new vscode.Range(0, 0, document.lineCount, 0), topic('vscode-validate', 'local-kafka')),
+      );
+      await document.save();
+      await api.validator.settled();
+      assert.deepStrictEqual(problems(bad), [], 'fixed and saved: the Problem clears');
+      assert.strictEqual(api.resources.lastResult(bad, 0)?.outcome.status, 'ok');
+
+      const many = Array.from({ length: 40 }, (_, i) => {
+        const uri = vscode.Uri.file(join(folder, `many-${i}.yaml`));
+        writeFileSync(uri.fsPath, topic(`vscode-validate-${i}`, 'no-such-cluster'));
+        return uri;
+      });
+      api.validator.resetPeak();
+      await Promise.all(many.map((uri) => vscode.workspace.openTextDocument(uri)));
+      await api.validator.settled();
+      assert.ok(api.validator.peak() <= 2, `at most two at once, saw ${api.validator.peak()}`);
+      assert.deepStrictEqual(
+        many.filter((uri) => problems(uri).length === 0).map((uri) => uri.fsPath),
+        [],
+        'every file is validated',
+      );
+
+      const live = await vscode.workspace.openTextDocument(
+        api.liveUri({
+          type: 'resource',
+          kind: state.spec.catalog.latest('Topic')!,
+          parents: ['local-kafka'],
+          name: 'orders',
+        } as ResourceNode),
+      );
+      await api.validator.settled();
+      assert.strictEqual(api.resources.lastResult(live.uri, 0), undefined, 'a live document is the Console’s own');
+
+      await settings.update('onOpenAndSave', false, vscode.ConfigurationTarget.Global);
+      const quiet = vscode.Uri.file(join(folder, 'quiet.yaml'));
+      writeFileSync(quiet.fsPath, topic('vscode-validate-quiet', 'no-such-cluster'));
+      await vscode.workspace.openTextDocument(quiet);
+      await api.validator.settled();
+      assert.deepStrictEqual(problems(quiet), [], 'switched off');
+    } finally {
+      await settings.update('onOpenAndSave', undefined, vscode.ConfigurationTarget.Global);
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    }
+  });
+
+  test('validates open files again after a connection switch, and keeps none of the old results', async () => {
+    const api = await activate();
+    const previous = api.sessions.current();
+    if (previous.status !== 'ready') assert.fail(previous.status);
+    const folder = mkdtempSync(join(tmpdir(), 'conduktor-validate-switch-'));
+    const bad = vscode.Uri.file(join(folder, 'bad.yaml'));
+    writeFileSync(
+      bad.fsPath,
+      stringify({
+        apiVersion: 'v2',
+        kind: 'Topic',
+        metadata: { name: 'vscode-validate-switch', cluster: 'no-such-cluster' },
+        spec: { partitions: 1, replicationFactor: 1 },
+      }),
+    );
+    await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
+    try {
+      await settledOn(api, 'smoke-apply');
+      await vscode.workspace.openTextDocument(bad);
+      await api.validator.settled();
+      const before = api.resources.lastResult(bad, 0);
+      assert.ok(before);
+      await api.connections.setActive('smoke');
+      // The old connection's result goes as soon as the session reloads, before the new one answers.
+      await until(() => api.resources.lastResult(bad, 0) === undefined, 5_000);
+      await settledOn(api, 'smoke');
+      await api.validator.settled();
+      assert.strictEqual(api.resources.lastResult(bad, 0)?.outcome.status, 'error', 'validated against the new one');
+    } finally {
+      await api.connections.setActive(previous.connection.id);
+      await settledOn(api, previous.connection.id);
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    }
   });
 
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {

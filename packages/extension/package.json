@@ -64,6 +64,11 @@
             }
           }
         },
+        "conduktor.validation.onOpenAndSave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Dry-run Conduktor YAML files against the connection when they are opened and saved, with the results in Problems. Never changes the Console."
+        },
         "conduktor.explorer.autoReveal": {
           "type": "boolean",
           "default": false,

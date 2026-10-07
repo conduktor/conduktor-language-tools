@@ -59,6 +59,8 @@ export class ResourceController implements vscode.Disposable {
         if (event.contentChanges.length > 0) this.clear(event.document.uri);
       }),
       vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((editor) => this.paint(editor))),
+      // Results are the Console's answers for one session; after a switch or a reload they no longer hold.
+      sessions.onDidChange(() => [...this.results.keys()].forEach((key) => this.clear(vscode.Uri.parse(key)))),
     ];
   }
 
@@ -72,6 +74,24 @@ export class ResourceController implements vscode.Disposable {
 
   apply(uri: vscode.Uri, index?: number): Promise<UpsertItem[] | undefined> {
     return this.run(uri, index, true);
+  }
+
+  /** A dry run with nothing to notify: the results go to Problems and the editor, as a Dry run's do. */
+  async validate(uri: vscode.Uri): Promise<UpsertItem[] | undefined> {
+    const state = this.sessions.current();
+    if (state.status !== 'ready' || isLiveScheme(uri.scheme) || this.foreignEnvironment(uri) !== undefined)
+      return undefined;
+    const document = await vscode.workspace.openTextDocument(uri);
+    const version = document.version;
+    const documents = catalogDocuments(document.getText(), state.spec.catalog, { env: variablesFor(uri) });
+    if (documents.length === 0) return [];
+    const plan = await planDocuments(state.client, state.spec.catalog, documents, {
+      readInclude: includeReaderFor(uri),
+    });
+    // Another connection's answer, or one for text edited since, would land on the wrong file or lines.
+    if (this.sessions.current() !== state || document.version !== version) return undefined;
+    this.record(document, plan, 'dry run');
+    return plan;
   }
 
   async saveLive(text: string, liveName: string): Promise<void> {
