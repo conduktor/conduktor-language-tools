@@ -76,5 +76,6 @@ describe('fileAction', () => {
     expect(fileAction(`# ${GENERATED_MARK}\nold\n`, owned)).toBe('rewrite');
     expect(fileAction('#!/bin/sh\nmine\n', owned)).toBe('keep');
     expect(fileAction('# Our repo\n', { path: 'README.md', text: 'x', owned: false })).toBe('keep');
+    expect(fileAction('x', { path: 'README.md', text: 'x', owned: false })).toBe('unchanged');
   });
 });

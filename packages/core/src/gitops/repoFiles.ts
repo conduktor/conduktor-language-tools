@@ -36,8 +36,8 @@ export function repoFiles(options: { environments: readonly RepoEnvironment[]; p
 
 export function fileAction(existing: string | undefined, file: RepoFile): 'write' | 'rewrite' | 'unchanged' | 'keep' {
   if (existing === undefined) return 'write';
-  if (!file.owned || !existing.includes(GENERATED_MARK)) return 'keep';
-  return existing === file.text ? 'unchanged' : 'rewrite';
+  if (existing === file.text) return 'unchanged';
+  return file.owned && existing.includes(GENERATED_MARK) ? 'rewrite' : 'keep';
 }
 
 function workflow(action: 'plan' | 'apply', environments: readonly RepoEnvironment[], prefix: string): string {
