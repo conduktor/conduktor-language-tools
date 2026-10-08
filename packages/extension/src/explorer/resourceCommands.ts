@@ -15,6 +15,7 @@ import type { SessionManager } from '../connections/session';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import type { ResourceNode } from './explorerModel';
 import type { ExplorerProvider } from './explorerProvider';
+import { asWritten } from '../editing/written';
 
 interface Target {
   kind: KindVersion;
@@ -61,7 +62,7 @@ async function copyToWorkspace(sessions: SessionManager, target?: ResourceNode |
     });
     if (!destination) return;
     const { resource: copy, variables } = withSecretPlaceholders(resource, parents);
-    await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(stringify(copy)));
+    await vscode.workspace.fs.writeFile(destination, new TextEncoder().encode(stringify(asWritten(copy))));
     await vscode.window.showTextDocument(destination);
     if (variables.length > 0) {
       void vscode.window.showInformationMessage(

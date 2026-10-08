@@ -48,6 +48,7 @@ export {
 } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
 export { comparableYaml, newResourceName, newResourceYaml } from './resources/yamlText';
+export { prettySchema } from './resources/prettySchema';
 export {
   fieldAt,
   rangeOf,

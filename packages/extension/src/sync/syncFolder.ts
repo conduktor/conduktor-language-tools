@@ -49,6 +49,7 @@ import { ContentCache } from './contentCache';
 import { fileExists, read, readAll, remove, write } from './files';
 import { singleFlight } from './singleFlight';
 import { variablesFor } from '../editing/variables';
+import { asWritten } from '../editing/written';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
@@ -497,7 +498,7 @@ export class SyncFolder implements vscode.Disposable {
     if (!entry || !kind) throw new Error('Not a Conduktor resource in the sync folder.');
     const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
     this.requireSameSession(state, `${entry.kind} ${entry.name}`);
-    const text = stringify(withSecretPlaceholders(live, entry.parents).resource);
+    const text = stringify(asWritten(withSecretPlaceholders(live, entry.parents).resource));
     await write(uri, text);
     await this.markApplied(uri, text);
   }
@@ -665,7 +666,7 @@ export class SyncFolder implements vscode.Disposable {
     const { resource, writes } =
       current !== undefined && includes(current)
         ? collapseIncludes(placeholdered, current)
-        : { resource: placeholdered, writes: [] };
+        : { resource: asWritten(placeholdered), writes: [] };
     const text = stringify(resource);
     if (current !== undefined) {
       // The disk decides, not the last scan. Nothing changed on the Console since the base: the file stays as it is,

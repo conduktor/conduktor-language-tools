@@ -1,6 +1,7 @@
 import { stringify } from 'yaml';
 import type { KindVersion } from '../openapi/kindCatalog';
 import { isRecord, kebabCase } from '../util';
+import { prettySchema } from './prettySchema';
 import type { Resource } from './types';
 
 const IDENTITY_KEYS = ['apiVersion', 'kind', 'metadata', 'spec'];
@@ -22,9 +23,10 @@ export function newResourceName(kind: KindVersion): string {
   return typeof example.name === 'string' && example.name ? example.name : `my-${kebabCase(kind.kind)}`;
 }
 
+// A schema's layout is never a difference, so both sides are compared laid out.
 export function comparableYaml(resource: Resource): string {
   const identityFirst = (a: string, b: string) => rank(a) - rank(b) || a.localeCompare(b);
-  return stringify(sortKeys(resource, identityFirst));
+  return stringify(sortKeys(prettySchema(resource), identityFirst));
 }
 
 function rank(key: string): number {

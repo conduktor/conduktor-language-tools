@@ -3,6 +3,7 @@ import { stringify } from 'yaml';
 import { canChange, ConsoleError, describeError, itemPath, parentsOf } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import { parseLiveUriParts, type LiveRef } from './uris';
+import { asWritten } from '../editing/written';
 
 export class ConduktorFileSystem implements vscode.FileSystemProvider {
   private readonly changed = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
@@ -44,7 +45,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
     if (!kind) throw vscode.FileSystemError.FileNotFound(uri);
     try {
       const resource = await state.client.get(itemPath(kind, parentsOf(kind, ref.parents), ref.name));
-      return new TextEncoder().encode(stringify(resource));
+      return new TextEncoder().encode(stringify(asWritten(resource)));
     } catch (error) {
       if (error instanceof ConsoleError && error.status === 404) throw vscode.FileSystemError.FileNotFound(uri);
       if (error instanceof ConsoleError && error.status === 403) throw vscode.FileSystemError.NoPermissions(uri);

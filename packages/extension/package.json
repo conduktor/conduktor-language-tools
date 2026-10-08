@@ -64,6 +64,11 @@
             }
           }
         },
+        "conduktor.subjects.prettySchema": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Lay a Subject's JSON or Avro schema out over lines when it is opened or synced, so the YAML shows it as a readable block. Schema Registry compares parsed schemas, so the layout never makes a change."
+        },
         "conduktor.validation.onOpenAndSave": {
           "type": "boolean",
           "default": true,

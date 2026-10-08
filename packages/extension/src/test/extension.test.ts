@@ -1548,6 +1548,45 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.match(String(node.detail), /Schema Registry/);
   });
 
+  test("lays a Subject's schema out over lines, as an option, without making it a change", async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const subjectKind = state.spec.catalog.latest('Subject')!;
+    const [subject] = (await state.client.list('/public/kafka/v2/cluster/local-kafka/subject')).filter(
+      (s) => (s.spec as { format?: string } | undefined)?.format !== 'PROTOBUF',
+    );
+    assert.ok(subject, 'a JSON or Avro subject on local-kafka');
+    const name = subject.metadata.name;
+    const node = { type: 'resource', kind: subjectKind, parents: ['local-kafka'], name } as ResourceNode;
+    const settings = vscode.workspace.getConfiguration('conduktor.subjects');
+    await api.sync.setSyncRoot(vscode.Uri.file(mkdtempSync(join(tmpdir(), 'conduktor-schema-'))));
+    try {
+      const live = await vscode.workspace.openTextDocument(api.liveUri(node));
+      assert.match(live.getText(), /schema: \|\n\s+\{\n/, 'a block over lines');
+      const [plan] = (await api.dryRun(live.uri)) ?? [];
+      assert.strictEqual(plan?.outcome.status === 'ok' && plan.outcome.result, 'NotChanged');
+
+      const file = await api.sync.syncResource(subjectKind, ['local-kafka'], name);
+      assert.match(readFileSync(file.fsPath, 'utf8'), /schema: \|/);
+      await api.sync.refresh({ drift: true });
+      assert.deepStrictEqual(
+        { status: api.sync.entryAt(file)?.status, drift: api.sync.entryAt(file)?.drift },
+        { status: 'synced', drift: undefined },
+        'the Console answers compact: not drift',
+      );
+
+      await settings.update('prettySchema', false, vscode.ConfigurationTarget.Global);
+      const compact = await api.sync.syncResource(subjectKind, ['local-kafka'], name);
+      await api.sync.refresh({ drift: true });
+      assert.doesNotMatch(readFileSync(compact.fsPath, 'utf8'), /schema: \|/, 'switched off: one line');
+    } finally {
+      await settings.update('prettySchema', undefined, vscode.ConfigurationTarget.Global);
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {
     const api = await activate();
     const state = api.sessions.current();
