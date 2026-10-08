@@ -1,0 +1,86 @@
+# A v<major>.<minor>.<patch> tag builds the extension and publishes it as a GitHub release with the .vsix attached;
+# a suffix (v0.2.0-rc.1) makes a pre-release. Run by hand, it builds the .vsix from any branch, as an artifact.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Release tags look like v1.2.3 or v1.2.3-rc.1, not $GITHUB_REF_NAME"
+              exit 1
+            fi
+            # VS Code takes only major.minor.patch; the suffix marks a pre-release and stays in the file name.
+            version="${BASH_REMATCH[1]}"
+            label="${GITHUB_REF_NAME#v}"
+            prerelease=$([[ -n "${BASH_REMATCH[2]}" ]] && echo true || echo false)
+          else
+            version=$(node -p "require('./packages/extension/package.json').version")
+            label="$version-${GITHUB_SHA::7}"
+            prerelease=false
+          fi
+          (cd packages/extension && npm pkg set version="$version")
+          {
+            echo "label=$label"
+            echo "prerelease=$prerelease"
+            echo "vsix=conduktor-console-$label.vsix"
+          } >> "$GITHUB_OUTPUT"
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+
+      - name: Package
+        env:
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          VSIX: ${{ steps.version.outputs.vsix }}
+        run: |
+          flags=(--no-dependencies --skip-license --out "$GITHUB_WORKSPACE/$VSIX")
+          if [[ "$PRERELEASE" == true ]]; then flags+=(--pre-release); fi
+          pnpm --filter conduktor-console exec node esbuild.mjs
+          (cd packages/extension && pnpm exec vsce package "${flags[@]}")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.vsix }}
+          path: ${{ steps.version.outputs.vsix }}
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+          VSIX: ${{ steps.version.outputs.vsix }}
+        run: |
+          flags=(--title "$GITHUB_REF_NAME" --generate-notes --verify-tag)
+          if [[ "$PRERELEASE" == true ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" "$VSIX" "${flags[@]}"
