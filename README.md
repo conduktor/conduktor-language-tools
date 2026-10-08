@@ -110,8 +110,8 @@ They never change the Console, and never see a secret.
    VSIX…** in VS Code — or, with the [GitHub CLI](https://cli.github.com), fetch and install the latest in one go:
 
    ```sh
-   d=$(mktemp -d) && gh release download --repo conduktor/vscode-conduktor --pattern '*.vsix' --dir "$d" \
-     && code --install-extension "$d"/conduktor-console-*.vsix
+   gh release download --repo conduktor/vscode-conduktor --pattern '*.vsix' \
+     --output /tmp/conduktor-console.vsix --clobber && code --install-extension /tmp/conduktor-console.vsix
    ```
 
    It needs the `code` command (**Shell Command: Install 'code' command in PATH** in VS Code). Run it again to
