@@ -2,7 +2,7 @@
   "name": "conduktor-console",
   "displayName": "Conduktor Console",
   "icon": "resources/icon.png",
-  "description": "Browse, author, validate and dry-run Conduktor Console resources.",
+  "description": "Explore, write and check Conduktor Console resources as YAML, with the Console's own schema and dry runs.",
   "publisher": "conduktor",
   "version": "0.0.1",
   "private": true,
@@ -11,11 +11,30 @@
     "type": "git",
     "url": "https://github.com/conduktor/vscode-conduktor"
   },
+  "homepage": "https://github.com/conduktor/vscode-conduktor#readme",
+  "bugs": {
+    "url": "https://github.com/conduktor/vscode-conduktor/issues"
+  },
+  "preview": true,
+  "galleryBanner": {
+    "color": "#072024",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.101.0"
   },
   "categories": [
-    "Other"
+    "Linters",
+    "Snippets",
+    "AI"
+  ],
+  "keywords": [
+    "conduktor",
+    "kafka",
+    "yaml",
+    "gitops",
+    "schema registry",
+    "infrastructure as code"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
