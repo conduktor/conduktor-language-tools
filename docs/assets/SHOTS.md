@@ -1,19 +1,13 @@
 # README screenshots
 
-The README shows a captioned placeholder (`docs/assets/shots/<name>.svg`) wherever a screenshot belongs. To add one,
-capture it, save it as `docs/assets/shots/<name>.png`, and switch the README to it:
-
-```sh
-sed -i '' 's#docs/assets/shots/<name>.svg#docs/assets/shots/<name>.png#' README.md   # macOS sed
-```
-
-Then delete the placeholder SVG.
+The README's screenshots live in `docs/assets/shots/`: `explore.gif` and one PNG per section. To retake one, follow
+its steps below and overwrite the file under the same name. GitHub shows images up to 10 MB.
 
 ## Setting up
 
 - a local Console stack, and a
   connection called **local** in **prod** mode (switch to **dev** only for the shots that say so).
-- The default **Dark Modern** theme, the window at 1440×900 or so, the minimap and breadcrumbs off, a 15–16 px editor
+- The **Light Modern** theme, as the existing shots use, the window at 1440×900 or so, the minimap and breadcrumbs off, a 15–16 px editor
   font. Capture the VS Code window only (⌘⇧4, then Space, then click the window), so it comes out at 2× — about
   2560 px wide. A GIF should be under 10 MB: 15 fps, a few seconds, no cursor hunting.
 - A scratch sync folder (**Set Sync Folder…**) so the shots never show real files.

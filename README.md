@@ -163,7 +163,7 @@ available**, with the Console's reason on hover; a real failure reads **Failed t
 ### Write with the Console's own schema
 
 <p align="center">
-  <img alt="Completion, field docs and reference completion in a Topic" src="docs/assets/shots/authoring.svg" width="88%">
+  <img alt="Writing a new topic: completion as you type, and its state in the tree" src="docs/assets/shots/authoring.png" width="88%">
 </p>
 
 Any YAML file with a Console `apiVersion` and `kind` gets the connected Console's JSON Schema — completion, hover
@@ -202,7 +202,7 @@ understood in the editor ([the full list](docs/specs/2026-10-04-references-desig
 ### Check before anything changes
 
 <p align="center">
-  <img alt="Problems and inline dry-run results after opening a file" src="docs/assets/shots/validation.svg" width="88%">
+  <img alt="A reference to a cluster that exists nowhere, with the field's docs, next to an inline dry-run result" src="docs/assets/shots/validation.png" width="88%">
 </p>
 
 - **Dry run** in the CodeLens above every resource (or **Dry run all** above a file) asks the Console what applying
@@ -223,8 +223,8 @@ understood in the editor ([the full list](docs/specs/2026-10-04-references-desig
 
 <table>
 <tr>
-<td width="50%"><img alt="Diff with Live" src="docs/assets/shots/diff.svg" width="100%"></td>
-<td width="50%"><img alt="Validate Folder: a repository checked as one plan" src="docs/assets/shots/validate-folder.svg" width="100%"></td>
+<td width="50%"><img alt="Diff with Live: an application instance's resources against the Console's" src="docs/assets/shots/diff.png" width="100%"></td>
+<td width="50%"><img alt="Validate Folder against Console, on a folder in the Explorer" src="docs/assets/shots/validate-folder.png" width="100%"></td>
 </tr>
 </table>
 
@@ -241,7 +241,7 @@ understood in the editor ([the full list](docs/specs/2026-10-04-references-desig
 ### Sync folder
 
 <p align="center">
-  <img alt="Local copies in the Explorer, with their states" src="docs/assets/shots/sync.svg" width="88%">
+  <img alt="Local copies in the Explorer, with their states, and a new topic dry-run as it is written" src="docs/assets/shots/sync.png" width="88%">
 </p>
 
 Stage changes as files before they reach the Console, in a folder laid out like a GitOps repository:
@@ -275,7 +275,7 @@ Stage changes as files before they reach the Console, in a folder laid out like 
 ### Plan and apply with the CLI
 
 <p align="center">
-  <img alt="The Conduktor CLI panel with a plan's diff" src="docs/assets/shots/cli.svg" width="88%">
+  <img alt="The Conduktor CLI panel: a plan's results and its diff" src="docs/assets/shots/cli.png" width="88%">
 </p>
 
 **Plan Environment with CLI** and **Apply Environment with CLI** run `ctl` over an environment of the sync folder,
@@ -289,7 +289,7 @@ Console, for you to delete there.
 ## AI agents
 
 <p align="center">
-  <img alt="Copilot writing and dry-running a topic with the Conduktor tools" src="docs/assets/shots/agents.svg" width="88%">
+  <img alt="Copilot writing, validating and dry-running a topic with the Conduktor tools" src="docs/assets/shots/agents.png" width="88%">
 </p>
 
 Coding agents get the same live schema and dry run as the editor:
