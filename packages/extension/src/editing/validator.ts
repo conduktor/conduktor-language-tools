@@ -28,6 +28,15 @@ export class Validator implements vscode.Disposable {
       vscode.workspace.onDidOpenTextDocument((document) => this.schedule(document, false)),
       vscode.workspace.onDidSaveTextDocument((document) => this.schedule(document, true)),
       vscode.workspace.onDidCloseTextDocument((document) => this.forget(document.uri)),
+      // A document VS Code loaded in the background is opened only once: its first tab is what shows it to the user.
+      vscode.window.tabGroups.onDidChangeTabs(({ opened }) => {
+        const shown = new Set(
+          opened.flatMap((tab) => (tab.input instanceof vscode.TabInputText ? [tab.input.uri.toString()] : [])),
+        );
+        vscode.workspace.textDocuments
+          .filter((document) => shown.has(document.uri.toString()))
+          .forEach((document) => this.schedule(document, false));
+      }),
       sessions.onDidChange((state) => {
         if (state.status === 'ready')
           vscode.workspace.textDocuments.forEach((document) => this.schedule(document, false));
