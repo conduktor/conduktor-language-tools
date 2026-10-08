@@ -1,0 +1,111 @@
+# Contributing
+
+How to build Conduktor Console for VS Code from source, run its tests, cut a release, and find your way around the
+code. For what the extension does and how to use it, see the [README](README.md).
+
+## Install from source
+
+You need Node 22 or later, [pnpm](https://pnpm.io) (the version in `package.json`'s `packageManager`) and the `code`
+command on your `PATH` (**Shell Command: Install 'code' command in PATH** in VS Code).
+
+```sh
+pnpm install
+pnpm install-local   # packages a fresh .vsix and installs it over any earlier build
+```
+
+Then run **Developer: Reload Window**. Local builds are all version 0.0.1, so always install through
+`pnpm install-local` (it rebuilds first) rather than an existing `.vsix`.
+
+## Build, check and test
+
+```sh
+pnpm build                                   # bundles packages/extension/dist/extension.js and the MCP server
+pnpm typecheck && pnpm lint && pnpm format:check
+pnpm test                                    # unit tests: core, mcp and extension (Vitest)
+pnpm test:vscode                             # the extension inside a downloaded VS Code
+```
+
+Press **F5** in this folder to start an Extension Development Host.
+
+After changing an agent tool's name, description or input, run `pnpm sync-tools`: the extension manifest has to list
+the tools, and a unit test fails until it matches core.
+
+### The live suite
+
+`pnpm test:vscode` has a live part that runs when `CONDUKTOR_SMOKE_URL` and `CONDUKTOR_SMOKE_TOKEN` are set — a
+personal access token or an admin API key for a local Console:
+
+```sh
+CONDUKTOR_SMOKE_URL=http://localhost:8080 CONDUKTOR_SMOKE_TOKEN=<token> pnpm test:vscode
+```
+
+It expects a local Console stack, including
+its SASL broker on `localhost:19093`, registered as the `local-kafka-sasl` cluster by the tests, where service
+accounts and ACLs behave like real Kafka. The tests create and delete their own `vscode-*` resources. The CLI tests
+run `ctl` in Docker, or from `conduktor` on the `PATH` when Docker is missing.
+
+The variables are separate from `CDK_*` because VS Code re-reads the login shell's environment on macOS, where
+`CDK_*` usually point at whichever Console the CLI is using.
+
+## Releases
+
+Releases are built by GitHub Actions from a version tag (`.github/workflows/release.yml`):
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow checks, tests and packages the extension with the tag's version, then publishes a GitHub release with
+`conduktor-console-0.2.0.vsix` attached and notes generated from the commits since the previous tag. A tag with a
+suffix, such as `v0.2.0-rc.1`, makes a pre-release. **Run workflow** on the workflow's page builds the same `.vsix`
+from any branch as a downloadable artifact, without releasing.
+
+## Layout
+
+```
+packages/core/        no VS Code dependency; unit-tested with Vitest
+  src/openapi/        Console OpenAPI → kind catalog, paths and a draft-07 JSON Schema
+  src/client/         REST client, errors, whoami and token capability
+  src/resources/      YAML documents with CLI-compatible variables, includes, .env files and apply order
+  src/plan/           dry run and apply of a set of documents
+  src/sync/           sync-folder paths, statuses, drift, bootstrap and secret placeholders
+  src/cli/            the ctl command line and its output
+  src/tools/          agent tools shared by the VS Code tools and the MCP server
+  snapshot/           the bundled OpenAPI (also the test fixture), topic configs and field docs
+packages/mcp/         stdio MCP server over the core tools, bundled as dist/mcp-server.js
+packages/extension/   VS Code wiring: connections, explorer, live documents, CodeLenses, validation, sync folder,
+                      CLI runner, agents
+docs/specs/           designs
+docs/plans/           implementation plans, as executed
+docs/assets/          the README's illustrations and screenshots (SHOTS.md says how to capture them)
+```
+
+## Snapshots
+
+The extension bundles what it cannot ask the Console for. Each has a script to refresh it:
+
+| Snapshot                                     | Refresh                                                     |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| `packages/core/snapshot/public-api-doc.yaml` | `./scripts/refresh-snapshot.sh ../console`             |
+| `packages/core/snapshot/topic-configs.json`  | `node scripts/refresh-topic-configs.ts`                     |
+| `packages/core/snapshot/field-docs.json`     | `node scripts/refresh-field-docs.ts <conduktor-docs checkout>` |
+
+- **OpenAPI:** kinds come only from the Console's OpenAPI (the `cli_<kind>_<group>_v<N>_<order>` tags the CLI also
+  reads), so a newer Console's kinds appear without a release; the snapshot is the offline fallback. A unit test
+  checks the catalog against the `cliKind` index that the Console generates with the CLI, which the script refreshes
+  too.
+- **Topic configs:** Kafka's own reference for the version the local stack runs, plus the Confluent keys the Console knows.
+- **Field docs:** the Conduktor reference pages (console, kafka and self-service). The docs repository is private, so
+  the script reads a local checkout, at `origin/main` or a ref given after the path, without touching it.
+
+The schema builder turns the OpenAPI components into draft-07 JSON Schema for yaml-language-server: it translates
+Java regexes, turns discriminator mappings into tagged `oneOf` branches, and only judges documents that are Console
+resources.
+
+## Conventions
+
+- Checks pass before every commit: typecheck, lint, format, unit tests, and the live suite for changes to the
+  extension.
+- Tests first: a test that has been seen failing, then the change that makes it pass.
+- Plans for larger work go in `docs/plans/`, their designs in `docs/specs/`.

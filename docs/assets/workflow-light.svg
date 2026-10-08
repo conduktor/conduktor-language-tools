@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="250" viewBox="0 0 1280 250" role="img">
+<rect width="1280" height="250" rx="20" fill="#f6f8f7"/>
+<rect x="40" y="40" width="270" height="170" rx="16" fill="#ffffff" stroke="#d9e1df"/>
+<circle cx="84" cy="84" r="20" fill="#e9f9d4"/>
+<text x="84" y="91" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#3f8f00">1</text>
+<text x="116" y="93" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#0b1f22">Explore</text>
+<text x="64" y="150" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">Every resource, global</text>
+<text x="64" y="180" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">and per cluster</text>
+<path d="M318 125 l24 0 m-8 -7 l8 7 l-8 7" stroke="#3f8f00" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="350" y="40" width="270" height="170" rx="16" fill="#ffffff" stroke="#d9e1df"/>
+<circle cx="394" cy="84" r="20" fill="#e9f9d4"/>
+<text x="394" y="91" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#3f8f00">2</text>
+<text x="426" y="93" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#0b1f22">Write</text>
+<text x="374" y="150" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">The Console's schema,</text>
+<text x="374" y="180" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">docs and references</text>
+<path d="M628 125 l24 0 m-8 -7 l8 7 l-8 7" stroke="#3f8f00" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="660" y="40" width="270" height="170" rx="16" fill="#ffffff" stroke="#d9e1df"/>
+<circle cx="704" cy="84" r="20" fill="#e9f9d4"/>
+<text x="704" y="91" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#3f8f00">3</text>
+<text x="736" y="93" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#0b1f22">Check</text>
+<text x="684" y="150" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">Dry runs on open and</text>
+<text x="684" y="180" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">save, whole folders</text>
+<path d="M938 125 l24 0 m-8 -7 l8 7 l-8 7" stroke="#3f8f00" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="970" y="40" width="270" height="170" rx="16" fill="#ffffff" stroke="#d9e1df"/>
+<circle cx="1014" cy="84" r="20" fill="#e9f9d4"/>
+<text x="1014" y="91" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle" fill="#3f8f00">4</text>
+<text x="1046" y="93" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="27" font-weight="700" fill="#0b1f22">Change</text>
+<text x="994" y="150" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">Apply in dev, or sync</text>
+<text x="994" y="180" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#5b6b6d">and plan with ctl</text>
+</svg>

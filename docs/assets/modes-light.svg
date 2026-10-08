@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="330" viewBox="0 0 1280 330" role="img">
+<rect width="1280" height="330" rx="20" fill="#f6f8f7"/>
+<rect x="40" y="36" width="580" height="258" rx="16" fill="#ffffff" stroke="#d9e1df"/>
+<rect x="40" y="36" width="8" height="258" rx="4" fill="#3f8f00"/>
+<text x="76" y="88" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="30" font-weight="700" fill="#3f8f00">prod</text>
+<text x="170" y="86" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#0b1f22">Never changes the Console</text>
+<circle cx="84" cy="135" r="5" fill="#3f8f00"/>
+<text x="100" y="142" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Browse every resource, global and per cluster</text>
+<circle cx="84" cy="175" r="5" fill="#3f8f00"/>
+<text x="100" y="182" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Dry run, Diff with Live, Plan with the CLI</text>
+<circle cx="84" cy="215" r="5" fill="#3f8f00"/>
+<text x="100" y="222" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Validate any YAML on open and save</text>
+<circle cx="84" cy="255" r="5" fill="#3f8f00"/>
+<text x="100" y="262" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Validate a whole folder or repository</text>
+<rect x="660" y="36" width="580" height="258" rx="16" fill="#ffffff" stroke="#d9e1df"/>
+<rect x="660" y="36" width="8" height="258" rx="4" fill="#c47f00"/>
+<text x="696" y="88" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="30" font-weight="700" fill="#c47f00">dev</text>
+<text x="771" y="86" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#0b1f22">Changes the Console, after a confirmation</text>
+<circle cx="704" cy="135" r="5" fill="#c47f00"/>
+<text x="720" y="142" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Everything prod does</text>
+<circle cx="704" cy="175" r="5" fill="#c47f00"/>
+<text x="720" y="182" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Apply a file, a resource or all local changes</text>
+<circle cx="704" cy="215" r="5" fill="#c47f00"/>
+<text x="720" y="222" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Save a live document to apply it</text>
+<circle cx="704" cy="255" r="5" fill="#c47f00"/>
+<text x="720" y="262" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="21" fill="#5b6b6d">Delete from the Console, Apply Environment</text>
+</svg>
