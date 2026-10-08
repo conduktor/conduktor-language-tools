@@ -19,6 +19,11 @@ describe('DiffMarkers', () => {
     expect(out).toBe('Applying resources\n{+kind: Topic\nmetadata:+}\nTopic/a: Created\n');
   });
 
+  it('leaves out the NUL byte ctl diffs a new resource against', () => {
+    const markers = new DiffMarkers();
+    expect(markers.push(`${red('\0')}${green('kind: Topic\n')}`) + markers.end()).toBe('{+kind: Topic\n+}');
+  });
+
   it('drops an empty coloured run and any other escape', () => {
     const markers = new DiffMarkers();
     expect(markers.push(`${red(' ')}${green('')}\x1b[1mbold\x1b[0m\n`)).toBe('[- -]bold\n');

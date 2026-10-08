@@ -56,7 +56,9 @@ export class DiffMarkers {
   }
 
   private close(): string {
-    const { open, run } = this;
+    const { open } = this;
+    // ctl diffs a resource the Console does not have yet against a single NUL byte.
+    const run = this.run.replaceAll('\0', '');
     this.open = undefined;
     this.run = '';
     if (open === undefined || run === '') return '';

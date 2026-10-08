@@ -2781,6 +2781,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(diffed?.exitCode, 0, diffed?.stderr);
       assert.match(diffed.stdout, new RegExp(`\\{\\+[^]*name: ${created}[^]*\\+\\}`));
       assert.ok(!diffed.stdout.includes('\x1b'), 'no escape codes reach the panel');
+      assert.ok(!diffed.stdout.includes('\0'), 'nor the NUL byte ctl diffs a create against');
 
       if (!spawnSync('conduktor', ['version']).error) {
         // An image that cannot be pulled: auto mode runs the CLI from PATH instead.
