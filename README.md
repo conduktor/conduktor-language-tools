@@ -105,10 +105,20 @@ They never change the Console, and never see a secret.
 
 ## Quick start
 
-1. **Install.** Download `conduktor-console-<version>.vsix` from the [latest release](https://github.com/conduktor/vscode-conduktor/releases/latest), then
-   run **Extensions: Install from VSIX…** in VS Code, or `code --install-extension conduktor-console-<version>.vsix`.
-   It asks for [Red Hat YAML](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), which carries
-   the schema features. (To build it yourself, see [CONTRIBUTING.md](CONTRIBUTING.md#install-from-source).)
+1. **Install.** Download `conduktor-console-<version>.vsix` from the
+   [latest release](https://github.com/conduktor/vscode-conduktor/releases/latest) and run **Extensions: Install from
+   VSIX…** in VS Code — or, with the [GitHub CLI](https://cli.github.com), fetch and install the latest in one go:
+
+   ```sh
+   d=$(mktemp -d) && gh release download --repo conduktor/vscode-conduktor --pattern '*.vsix' --dir "$d" \
+     && code --install-extension "$d"/conduktor-console-*.vsix
+   ```
+
+   It needs the `code` command (**Shell Command: Install 'code' command in PATH** in VS Code). Run it again to
+   update: an extension installed from a `.vsix` does not update itself. It asks for
+   [Red Hat YAML](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), which carries the schema
+   features. To build it yourself, see [CONTRIBUTING.md](CONTRIBUTING.md#install-from-source).
+
 2. **Connect.** Open the **Conduktor** view in the activity bar and choose **Add Connection**: the Console URL (for a
    local stack, `http://localhost:8080`), a personal access token or an admin API key, a name and a mode. Start in
    **prod**: it never changes anything.
