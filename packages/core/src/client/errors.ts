@@ -28,6 +28,29 @@ export class NetworkError extends Error {
   override name = 'NetworkError';
 }
 
+/** An answer that is not the Console's JSON — on a list, an endpoint this Console version does not serve. */
+export class UnexpectedResponseError extends ConsoleError {
+  override name = 'UnexpectedResponseError';
+}
+
+export interface ListProblem {
+  kind: 'noAccess' | 'unavailable' | 'failed';
+  detail: string;
+}
+
+/**
+ * Why a list cannot be shown: no access (403); not available — a feature this cluster or Console does not have, such
+ * as a Schema Registry or an authorizer (400, 404, or a page where JSON was expected); or a failure (anything else).
+ */
+export function listProblem(error: unknown): ListProblem {
+  if (error instanceof UnexpectedResponseError)
+    return { kind: 'unavailable', detail: 'This Console does not serve this kind.' };
+  if (error instanceof ConsoleError && error.status === 403) return { kind: 'noAccess', detail: error.message };
+  if (error instanceof ConsoleError && (error.status === 400 || error.status === 404))
+    return { kind: 'unavailable', detail: error.message };
+  return { kind: 'failed', detail: describeError(error) };
+}
+
 export function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

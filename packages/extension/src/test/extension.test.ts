@@ -1533,6 +1533,21 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual(await team(), 'second');
   });
 
+  test('says a kind the cluster lacks is not available, rather than failed', async () => {
+    const api = await activate();
+    const state = api.sessions.current();
+    if (state.status !== 'ready') assert.fail(state.status);
+    const [node] = await api.explorer.getChildren({
+      type: 'kind',
+      kind: state.spec.catalog.latest('Subject')!,
+      parents: ['local-gateway'],
+    });
+    assert.ok(node?.type === 'message', JSON.stringify(node));
+    assert.strictEqual(node.text, 'Not available');
+    assert.strictEqual(node.problem, 'unavailable');
+    assert.match(String(node.detail), /Schema Registry/);
+  });
+
   test('stops writing files when Sync Everything is cancelled, keeping what it wrote', async () => {
     const api = await activate();
     const state = api.sessions.current();

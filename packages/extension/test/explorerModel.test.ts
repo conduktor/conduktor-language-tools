@@ -122,16 +122,25 @@ describe('childrenOf', () => {
     ]);
   });
 
-  it('shows no access for a 403 and the error otherwise', async () => {
+  it('shows no access for a 403, not available for what the cluster lacks, and failures as failures', async () => {
     const s = source({
       '/public/iam/v2/user': new ConsoleError(403, 'Forbidden'),
       '/public/iam/v2/group': new Error('boom'),
+      '/public/kafka/v2/cluster/local/subject': new ConsoleError(404, 'Schema Registry Not Found', 'not for local'),
     });
     expect(await childrenOf(s, kindNode('User'))).toEqual([
-      { type: 'message', text: 'No access', detail: 'Forbidden', noAccess: true },
+      { type: 'message', text: 'No access', detail: 'Forbidden', problem: 'noAccess' },
     ]);
     expect(await childrenOf(s, kindNode('Group'))).toEqual([
-      { type: 'message', text: 'Failed to load', detail: 'boom' },
+      { type: 'message', text: 'Failed to load', detail: 'boom', problem: 'failed' },
+    ]);
+    expect(await childrenOf(s, kindNode('Subject', ['local']))).toEqual([
+      {
+        type: 'message',
+        text: 'Not available',
+        detail: 'Schema Registry Not Found: not for local',
+        problem: 'unavailable',
+      },
     ]);
   });
 

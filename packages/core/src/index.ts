@@ -14,7 +14,14 @@ export {
 } from './openapi/paths';
 export type { Resource, UpsertResponse, UpsertResult } from './resources/types';
 export { buildResourceSchema } from './openapi/schemaBuilder';
-export { ConsoleError, describeError, NetworkError } from './client/errors';
+export {
+  ConsoleError,
+  describeError,
+  listProblem,
+  NetworkError,
+  UnexpectedResponseError,
+  type ListProblem,
+} from './client/errors';
 export {
   capabilityOf,
   describeToken,

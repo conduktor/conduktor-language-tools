@@ -1,13 +1,13 @@
 import {
-  ConsoleError,
-  describeError,
-  listPath,
-  parentsOf,
-  PARENT_KINDS,
   type ConsoleClient,
-  type KindCatalog,
   type Drift,
+  type KindCatalog,
   type KindVersion,
+  listPath,
+  listProblem,
+  type ListProblem,
+  PARENT_KINDS,
+  parentsOf,
   type SyncStatus,
 } from '@conduktor/vscode-core';
 
@@ -32,7 +32,7 @@ export type ExplorerNode =
   | { type: 'kind'; kind: KindVersion; parents: string[] }
   | { type: 'parent'; kind: KindVersion; parents: string[] }
   | { type: 'resource'; kind: KindVersion; parents: string[]; name: string; local?: LocalMark }
-  | { type: 'message'; text: string; detail?: string; noAccess?: boolean; selectCluster?: boolean };
+  | { type: 'message'; text: string; detail?: string; problem?: ListProblem['kind']; selectCluster?: boolean };
 
 export type ResourceNode = Extract<ExplorerNode, { type: 'resource' }>;
 
@@ -185,6 +185,12 @@ async function nextLevel(source: ExplorerSource, kind: KindVersion, parents: str
   });
 }
 
+const PROBLEM_TEXT: Record<ListProblem['kind'], string> = {
+  noAccess: 'No access',
+  unavailable: 'Not available',
+  failed: 'Failed to load',
+};
+
 // Live names and local names merge into one sorted list; local work stays visible when the Console cannot be listed.
 async function withLive(
   source: ExplorerSource,
@@ -198,10 +204,8 @@ async function withLive(
     try {
       liveNames = (await source.client.list(path)).map((r) => r.metadata.name);
     } catch (error) {
-      problem =
-        error instanceof ConsoleError && error.status === 403
-          ? { type: 'message', text: 'No access', detail: error.message, noAccess: true }
-          : { type: 'message', text: 'Failed to load', detail: describeError(error) };
+      const { kind, detail } = listProblem(error);
+      problem = { type: 'message', text: PROBLEM_TEXT[kind], detail, problem: kind };
     }
   }
   const nodes = [...new Set([...liveNames, ...localNames])].sort((a, b) => a.localeCompare(b)).map(toNode);

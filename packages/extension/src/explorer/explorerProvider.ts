@@ -140,7 +140,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
         return treeItem;
       }
       case 'message': {
-        const treeItem = item(node.text, None, node.noAccess ? 'circle-slash' : 'info', 'message');
+        const treeItem = item(node.text, None, node.problem ? PROBLEM_ICON[node.problem] : 'info', 'message');
         treeItem.tooltip = node.detail;
         if (node.selectCluster) treeItem.command = { command: 'conduktor.selectCluster', title: 'Select Cluster' };
         return treeItem;
@@ -153,6 +153,8 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     this.changed.dispose();
   }
 }
+
+const PROBLEM_ICON = { noAccess: 'circle-slash', unavailable: 'dash', failed: 'warning' } as const;
 
 function item(label: string, state: vscode.TreeItemCollapsibleState, icon: string, contextValue: string) {
   const treeItem = new vscode.TreeItem(label, state);

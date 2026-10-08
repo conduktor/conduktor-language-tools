@@ -1,6 +1,6 @@
 import type { Target } from '../openapi/paths';
 import type { Resource, UpsertResponse } from '../resources/types';
-import { ConsoleError, describeError, NetworkError } from './errors';
+import { ConsoleError, describeError, NetworkError, UnexpectedResponseError } from './errors';
 import type { TokenInfo } from './tokenInfo';
 
 export interface RequestEvent {
@@ -67,7 +67,7 @@ export class ConsoleClient {
     const contentType = response.headers.get('content-type') ?? 'no content type';
     if (!contentType.includes('json')) {
       const got = contentType.split(';')[0]!.trim();
-      throw new ConsoleError(
+      throw new UnexpectedResponseError(
         response.status,
         `${this.baseUrl} did not answer like a Conduktor Console (got ${got}). Check the URL.`,
       );
