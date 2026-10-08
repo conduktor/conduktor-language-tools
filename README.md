@@ -34,7 +34,7 @@ CLI's resource model with an editor's help: what exists, what a resource looks l
 what applying it would change.
 
 <p align="center">
-  <img alt="Browse a Console, open a topic, dry-run it and diff it with the live version" src="docs/assets/shots/explore.svg" width="88%">
+  <img alt="Browse a Console, open a topic, change it, apply it and diff it with the live version" src="docs/assets/shots/explore.gif" width="88%">
 </p>
 
 ## Why you'll like it
