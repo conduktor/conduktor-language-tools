@@ -2710,6 +2710,23 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         run.stdout,
         new RegExp(`Topic/${topic!.metadata.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: NotChanged`),
       );
+      // A create shows its diff, with ctl's colours turned into word-diff markers.
+      const created = `vscode-cli-diff-${Date.now()}`;
+      await api.sync.writeNew(
+        state.spec.catalog.latest('Topic')!,
+        ['local-kafka'],
+        stringify({
+          apiVersion: 'v2',
+          kind: 'Topic',
+          metadata: { name: created, cluster: 'local-kafka' },
+          spec: { partitions: 1, replicationFactor: 1 },
+        }),
+        created,
+      );
+      const diffed = await api.cli.run('plan');
+      assert.strictEqual(diffed?.exitCode, 0, diffed?.stderr);
+      assert.match(diffed.stdout, new RegExp(`\\{\\+[^]*name: ${created}[^]*\\+\\}`));
+      assert.ok(!diffed.stdout.includes('\x1b'), 'no escape codes reach the panel');
 
       if (!spawnSync('conduktor', ['version']).error) {
         // An image that cannot be pulled: auto mode runs the CLI from PATH instead.

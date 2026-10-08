@@ -14,13 +14,12 @@ export interface CliCommand {
 const MOUNT = '/repo';
 const LOOPBACK = /^(https?:\/\/)(localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i;
 
-export const CTL_VERSION = 'v0.9.2';
+export const CTL_VERSION = 'v0.9.3';
 export const DEFAULT_CTL_IMAGE = `conduktor/conduktor-ctl:${CTL_VERSION}`;
 
 /** The ctl arguments that plan or apply one environment; the extension's runner and the ci/ scripts both use them. */
 export function ctlArgs(action: 'plan' | 'apply', env: string): string[] {
-  // Not --print-diff: ctl fails it for any resource the Console does not have yet, so no plan could create.
-  return ['apply', '-r', '-f', environmentDir(env), ...(action === 'plan' ? ['--dry-run'] : [])];
+  return ['apply', '-r', '-f', environmentDir(env), ...(action === 'plan' ? ['--dry-run', '--print-diff'] : [])];
 }
 
 /**

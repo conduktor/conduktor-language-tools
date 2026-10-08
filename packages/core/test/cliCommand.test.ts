@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { cliCommand, cliEnvironment, CTL_VERSION, ctlArgs, DEFAULT_CTL_IMAGE } from '../src/cli';
 
-const docker = { kind: 'docker' as const, image: 'conduktor/conduktor-ctl:v0.9.2', platform: 'darwin' as const };
+const docker = { kind: 'docker' as const, image: 'conduktor/conduktor-ctl:v0.9.3', platform: 'darwin' as const };
 const base = { env: 'dev', syncRoot: '/repo-on-host', consoleUrl: 'http://localhost:8080' };
 
 describe('ctlArgs', () => {
-  it('plans as a dry run and applies without one, never with state', () => {
-    expect(ctlArgs('plan', 'dev')).toEqual(['apply', '-r', '-f', 'environments/dev', '--dry-run']);
+  it('plans as a dry run with diffs and applies without one, never with state', () => {
+    expect(ctlArgs('plan', 'dev')).toEqual(['apply', '-r', '-f', 'environments/dev', '--dry-run', '--print-diff']);
     expect(ctlArgs('apply', 'dev')).toEqual(['apply', '-r', '-f', 'environments/dev']);
     expect(DEFAULT_CTL_IMAGE).toBe(`conduktor/conduktor-ctl:${CTL_VERSION}`);
   });
@@ -36,12 +36,13 @@ describe('cliCommand', () => {
       'CDK_SECRET_X',
       '-e',
       'TEAM',
-      'conduktor/conduktor-ctl:v0.9.2',
+      'conduktor/conduktor-ctl:v0.9.3',
       'apply',
       '-r',
       '-f',
       'environments/dev',
       '--dry-run',
+      '--print-diff',
     ]);
     expect(plan.env).toEqual({ CDK_BASE_URL: 'http://host.docker.internal:8080' });
     expect(plan.cwd).toBe('/repo-on-host');
@@ -60,8 +61,6 @@ describe('cliCommand', () => {
     ]);
     expect(apply.args).not.toContain('--dry-run');
     expect(apply.args).not.toContain('--print-diff');
-    // ctl's --print-diff fails any resource the Console does not have yet, so a plan with a create would fail.
-    expect(cliCommand({ ...base, action: 'plan', runner: docker }).args).not.toContain('--print-diff');
     expect(apply.args.slice(-4)).toEqual(['apply', '-r', '-f', 'environments/dev']);
     expect(apply.args.filter((arg) => arg.includes('state'))).toEqual([]);
   });
@@ -74,7 +73,7 @@ describe('cliCommand', () => {
       runner: { kind: 'path', binary: 'conduktor' },
     });
     expect(plan.command).toBe('conduktor');
-    expect(plan.args).toEqual(['apply', '-r', '-f', 'environments/dev', '--dry-run']);
+    expect(plan.args).toEqual(['apply', '-r', '-f', 'environments/dev', '--dry-run', '--print-diff']);
     expect(plan.env).toEqual({ CDK_BASE_URL: 'http://127.0.0.1:8080' });
     expect(plan.cwd).toBe('/repo-on-host');
   });

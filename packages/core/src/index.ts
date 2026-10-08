@@ -149,6 +149,7 @@ export {
   cliEnvironment,
   CTL_VERSION,
   ctlArgs,
+  DiffMarkers,
   DEFAULT_CTL_IMAGE,
   readCliOutput,
   type CliCommand,

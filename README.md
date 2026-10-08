@@ -149,8 +149,8 @@ config hover.
 ## CLI runner
 
 **Plan Environment with CLI** and **Apply Environment with CLI** (the Explorer's `…` menu, or the command palette) run
-`ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r`, Plan with `--dry-run`.
-The output streams to the **Conduktor CLI** panel, failures land as Problems on their files, and after an Apply each
+`ctl` over the bound environment, `environments/<env>`, the way a pipeline would: `apply -r`, Plan with `--dry-run
+--print-diff`. The output streams to the **Conduktor CLI** panel, failures land as Problems on their files, and after an Apply each
 applied file is recorded as synced. Apply runs only in dev mode, plans first and asks. An Apply cannot be cancelled
 once it runs.
 
@@ -158,16 +158,15 @@ once it runs.
   was synced is listed after a Plan and in Apply's confirmation as removed from the folder and left on the Console;
   delete it on the Console if it should go.
 - **Where `ctl` runs:** `conduktor.cli.runner` is `auto` (Docker when it answers, else `conduktor.cli.path`), `docker`
-  or `path`. In Docker the `conduktor.cli.image` image runs (default `conduktor/conduktor-ctl:v0.9.2`, pulled on first
-  use; `auto` falls back to the path when it cannot be), the sync folder mounted, a `localhost` Console reached as
+  or `path`. In Docker the `conduktor.cli.image` image runs (empty by default: `conduktor/conduktor-ctl:v0.9.3`, the version
+  the extension is tested with, pulled on first use; `auto` falls back to the path when it cannot be), the sync folder mounted, a `localhost` Console reached as
   `host.docker.internal`.
 - **Credentials:** the Console and token of the bound connection, the token passed through the environment only;
   `${VAR}` values from `environments/<env>/.env`. No other `CDK_` setting, from your shell or the `.env`, reaches `ctl`
   (`CDK_STATE_ENABLED` would turn its state on, `CDK_DEBUG` would log the token); `${CDK_SECRET_…}` values are the
   exception.
-- **With v0.9.2:** Plan shows results, not diffs (its `--print-diff` fails for anything the Console does not have yet;
-  **Diff with Live** shows one file's), and a topic's `conduktor.io/descriptionFile` is sent as a label the Console
-  refuses (fixed in conduktor/ctl#146, not released yet).
+- **Diffs:** Plan prints each change as `ctl` diffs it, character by character, with its colours turned into
+  word-diff markers in the panel: `partitions: [-1-]{+3+}`; a new resource is all `{+…+}`.
 
 ## AI agents
 

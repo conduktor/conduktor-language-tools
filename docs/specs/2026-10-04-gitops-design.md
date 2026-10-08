@@ -80,9 +80,8 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
 
 - Runs the pinned `conduktor/conduktor-ctl` image with the sync folder mounted; falls back to `conduktor` on PATH when
   Docker is not available.
-- Commands per environment: **Plan** (`apply -r -f environments/<env> --dry-run`) and **Apply** (the same without
-  `--dry-run`). There is no Validate (ctl has none), and no `--print-diff`, which ctl fails for resources the Console
-  does not have yet. Connection and token come from the bound connection; `${VAR}` values from
+- Commands per environment: **Plan** (`apply -r -f environments/<env> --dry-run --print-diff`, from ctl 0.9.3, which
+  diffs creates too) and **Apply** (without either). There is no Validate (ctl has none). Connection and token come from the bound connection; `${VAR}` values from
   `environments/<env>/.env`.
 - Output in a panel; failures map back to their files as Problems.
 - **No state, no deletes** (Matt, 2026-10-07; this replaces the 2026-10-06 `--enable-state` decision). ctl's state

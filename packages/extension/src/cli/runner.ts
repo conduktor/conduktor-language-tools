@@ -6,6 +6,7 @@ import {
   cliCommand,
   cliEnvironment,
   DEFAULT_CTL_IMAGE,
+  DiffMarkers,
   environmentDir,
   parseDotenv,
   type CliRunnerChoice,
@@ -82,10 +83,12 @@ export class CliRunner implements vscode.Disposable {
             cancelled = true;
             child.kill();
           });
-          child.stdout.on('data', (chunk: string) => {
-            stdout += chunk;
-            this.channel.append(chunk);
-          });
+          const markers = new DiffMarkers();
+          const out = (text: string) => {
+            stdout += text;
+            this.channel.append(text);
+          };
+          child.stdout.on('data', (chunk: string) => out(markers.push(chunk)));
           child.stderr.on('data', (chunk: string) => {
             stderr += chunk;
             this.channel.append(chunk);
@@ -101,7 +104,10 @@ export class CliRunner implements vscode.Disposable {
                 : error,
             ),
           );
-          child.on('close', (exitCode) => resolve({ exitCode, stdout, stderr, cancelled }));
+          child.on('close', (exitCode) => {
+            out(markers.end());
+            resolve({ exitCode, stdout, stderr, cancelled });
+          });
         }),
     );
   }
@@ -111,7 +117,7 @@ export class CliRunner implements vscode.Disposable {
     const choice = settings.get<'auto' | 'docker' | 'path'>('runner', 'auto');
     const path: CliRunnerChoice = { kind: 'path', binary: settings.get<string>('path', 'conduktor') };
     if (choice === 'path' || (choice === 'auto' && !(await this.hasDocker()))) return path;
-    const image = settings.get<string>('image', DEFAULT_CTL_IMAGE);
+    const image = settings.get<string>('image') || DEFAULT_CTL_IMAGE;
     if (!(await this.hasImage(image))) {
       if (choice === 'auto') {
         this.channel.appendLine(`${image} is not available; running ${path.binary} instead.`);

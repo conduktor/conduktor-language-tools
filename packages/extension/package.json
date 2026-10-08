@@ -86,8 +86,8 @@
         },
         "conduktor.cli.image": {
           "type": "string",
-          "default": "conduktor/conduktor-ctl:v0.9.2",
-          "markdownDescription": "The `ctl` image Plan and Apply run in Docker; pin the one your workflows use."
+          "default": "",
+          "markdownDescription": "The `ctl` image Plan and Apply run in Docker. Empty: the version this extension is built and tested with."
         },
         "conduktor.cli.path": {
           "type": "string",
