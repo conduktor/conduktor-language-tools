@@ -1,20 +1,23 @@
 import * as vscode from 'vscode';
 import {
   applyPreset,
-  checkTopicConfig,
+  configChoices,
+  configKeySnippet,
+  configMarkdown,
   configValueYaml,
-  isRecord,
   presetFromTemplate,
-  rangeOf,
   topicConfig,
+  topicConfigProblems,
   topicConfigContext,
   TOPIC_CONFIGS,
   TOPIC_PRESETS,
   type TopicConfigDoc,
   type TopicPreset,
+  documentAt,
+  parsedDocuments,
+  type ParsedDocument,
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
-import { documentAt, parsedDocuments, type ParsedDocument } from './documents';
 import type { Names } from './names';
 
 export const APPLY_PRESET = 'conduktor.applyTopicPreset';
@@ -44,18 +47,14 @@ export class TopicConfigProvider implements vscode.CompletionItemProvider, vscod
             .filter(Boolean)
             .join(' · ');
           item.documentation = docs(config);
-          const choices = enumOf(config);
-          // The placeholder sits inside the quotes Console needs for anything but a whole number.
-          const quoted = choices || configValueYaml(config.key, config.default ?? '') !== config.default;
-          const placeholder = choices ? `\${1|${choices.join(',')}|}` : `\${1:${snippetText(config.default ?? '')}}`;
-          item.insertText = new vscode.SnippetString(`${config.key}: ${quoted ? `"${placeholder}"` : placeholder}`);
+          item.insertText = new vscode.SnippetString(configKeySnippet(config, { choices: true }));
           item.range = range;
           return item;
         });
       case 'configValue': {
         const config = topicConfig(context.key);
         const values = [
-          ...new Set([...(enumOf(config) ?? []), ...(config?.default !== undefined ? [config.default] : [])]),
+          ...new Set([...(configChoices(config) ?? []), ...(config?.default !== undefined ? [config.default] : [])]),
         ];
         return values.map((value) => {
           const item = new vscode.CompletionItem(value, vscode.CompletionItemKind.Value);
@@ -178,45 +177,17 @@ export class TopicConfigDiagnostics implements vscode.Disposable {
 }
 
 function problems(parsed: ParsedDocument, document: vscode.TextDocument): vscode.Diagnostic[] {
-  const spec = isRecord(parsed.resource?.spec) ? parsed.resource.spec : {};
-  const configs = isRecord(spec.configs) ? spec.configs : {};
-  return Object.entries(configs).flatMap(([key, value]) => {
-    const problem = checkTopicConfig(key, value);
-    const range = rangeOf(parsed.text, ['spec', 'configs', key]);
-    if (!problem || !range) return [];
-    // An unknown key is marked on the key, a bad value on the value.
-    const lineStart = parsed.text.lastIndexOf('\n', range[0]) + 1;
-    const keyStart = lineStart + /^\s*/.exec(parsed.text.slice(lineStart))![0].length;
-    const [from, to] = problem.severity === 'warning' ? [keyStart, keyStart + key.length] : range;
+  return topicConfigProblems(parsed.text, parsed.resource).map(({ start, end, message, severity }) => {
     const diagnostic = new vscode.Diagnostic(
-      new vscode.Range(document.positionAt(parsed.start + from), document.positionAt(parsed.start + to)),
-      problem.message,
-      problem.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning,
+      new vscode.Range(document.positionAt(parsed.start + start), document.positionAt(parsed.start + end)),
+      message,
+      severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning,
     );
     diagnostic.source = 'Conduktor';
-    return [diagnostic];
+    return diagnostic;
   });
 }
 
-function enumOf(config: TopicConfigDoc | undefined): string[] | undefined {
-  const match = config?.validValues && /^\[([^\]]*)\]$/.exec(config.validValues.split(/\s+or\s+/)[0]!.trim());
-  if (!match || match[1]!.includes('...')) return undefined;
-  return match[1]!.split(',').map((value) => value.trim());
-}
-
-function snippetText(text: string): string {
-  return text.replace(/[$}\\]/g, '\\$&');
-}
-
 function docs(config: TopicConfigDoc): vscode.MarkdownString {
-  const facts = [
-    `**Type** ${config.type}`,
-    config.default !== undefined &&
-      `**Default** \`${config.default}\`${config.defaultNote ? ` (${config.defaultNote})` : ''}`,
-    config.validValues && `**Valid values** \`${config.validValues}\``,
-    config.importance && `**Importance** ${config.importance}`,
-  ].filter(Boolean);
-  return new vscode.MarkdownString(
-    `**${config.key}**\n\n${config.doc}\n\n${facts.join(' · ')}\n\n[Docs](${config.url})`,
-  );
+  return new vscode.MarkdownString(configMarkdown(config));
 }

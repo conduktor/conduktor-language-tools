@@ -1,4 +1,4 @@
-import { parse } from 'yaml';
+import { parse, parseAllDocuments } from 'yaml';
 import { describeError } from '../client/errors';
 import type { KindCatalog } from '../openapi/kindCatalog';
 import { isRecord } from '../util';
@@ -46,6 +46,25 @@ export function catalogDocuments(text: string, catalog: KindCatalog, options: Pa
   return parseResourceDocuments(text, options).filter(
     (document) => !document.namespaced && CONSOLE_API_VERSION.test(document.apiVersion) && kinds.has(document.kind),
   );
+}
+
+/**
+ * Whether an editor should give a file the Console's schema: as soon as one of its documents names a Console kind,
+ * while its apiVersion is still to be written. catalogDocuments wants both, which suits a dry run, not typing.
+ */
+export function claimsForEditing(text: string, catalog: KindCatalog): boolean {
+  const kinds = catalog.kindNames();
+  return parseAllDocuments(text).some((document) => {
+    if (!('get' in document)) return false;
+    const kind = document.get('kind');
+    const apiVersion = document.get('apiVersion');
+    return (
+      typeof kind === 'string' &&
+      kinds.has(kind) &&
+      (apiVersion === undefined || (typeof apiVersion === 'string' && CONSOLE_API_VERSION.test(apiVersion))) &&
+      document.getIn(['metadata', 'namespace']) === undefined
+    );
+  });
 }
 
 function toResource(source: string, options: ParseOptions): Pick<ResourceDocument, 'resource' | 'error'> {

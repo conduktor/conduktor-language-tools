@@ -3,8 +3,10 @@ import * as vscode from 'vscode';
 import {
   canChange,
   catalogDocuments,
+  outcomeLabel,
+  outcomeProblems,
   planDocuments,
-  splitPolicyMessages,
+  summarise,
   upsertDocuments,
   type UpsertItem,
   type UpsertOutcome,
@@ -16,7 +18,6 @@ import type { Compare } from './compare';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import { appliedText } from './applied';
 import { includeReaderFor } from './includes';
-import { outcomeLabel, summarise } from './summary';
 import { variablesFor } from './variables';
 
 export type Action = 'dry run' | 'applied';
@@ -279,14 +280,8 @@ export class ResourceController implements vscode.Disposable {
         diagnostic.source = 'Conduktor';
         diagnostics.push(diagnostic);
       };
-      if (outcome.status === 'error') {
-        splitPolicyMessages(outcome.message).forEach((message) => add(message, vscode.DiagnosticSeverity.Error));
-      } else if (outcome.status === 'pending') {
-        add(
-          `Checked when applied: waits for ${outcome.waitingFor.join(', ')}, created ${where}. The Console says: ${outcome.message}`,
-          vscode.DiagnosticSeverity.Warning,
-        );
-      }
+      for (const { message, severity } of outcomeProblems(outcome, where))
+        add(message, severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
     }
     this.diagnostics.set(uri, diagnostics);
     this.paintAll(uri);

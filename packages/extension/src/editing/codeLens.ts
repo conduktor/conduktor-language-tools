@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-import { canChange, catalogDocuments } from '@conduktor/vscode-core';
+import { canChange, catalogDocuments, outcomeLabel } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import type { Action, ResourceController } from './resourceController';
-import { outcomeLabel } from './summary';
 import { variablesFor } from './variables';
 
 export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {

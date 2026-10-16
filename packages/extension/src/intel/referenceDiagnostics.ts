@@ -10,9 +10,10 @@ import {
   type Instance,
   type KindCatalog,
   type Resource,
+  parsedDocuments,
+  type ParsedDocument,
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
-import { parsedDocuments, type ParsedDocument } from './documents';
 import type { Names } from './names';
 
 export class ReferenceDiagnostics implements vscode.Disposable {

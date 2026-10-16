@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { envSearchPath, parseDotenv } from '../src/resources/dotenv';
+import { mkdirSync, mkdtempSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { envSearchPath, fileVariables, parseDotenv } from '../src/resources/dotenv';
 
 describe('parseDotenv', () => {
   it('reads NAME=value lines literally, as docker --env-file does', () => {
@@ -32,5 +35,38 @@ describe('envSearchPath', () => {
   it('stops at home outside any workspace and repository, or at the root outside home', () => {
     expect(envSearchPath('/home/u/x/t.yaml', { home, isRepoRoot: () => false })).toEqual(['/home/u/x', '/home/u']);
     expect(envSearchPath('/tmp/x/t.yaml', { home, isRepoRoot: () => false })).toEqual(['/tmp/x', '/tmp', '/']);
+  });
+});
+
+describe('fileVariables', () => {
+  const tree = () => {
+    const home = realpathSync(mkdtempSync(join(tmpdir(), 'conduktor-vars-')));
+    mkdirSync(join(home, 'repo', '.git'), { recursive: true });
+    mkdirSync(join(home, 'repo', 'topics'), { recursive: true });
+    return home;
+  };
+
+  it("puts the nearest .env's values over the editor's environment", () => {
+    const home = tree();
+    writeFileSync(join(home, 'repo', '.env'), 'CLUSTER=local\nSHARED=from-file\n');
+    const vars = fileVariables(join(home, 'repo', 'topics', 't.yaml'), { SHARED: 'from-env', PATH: '/bin' }, { home });
+    expect(vars).toMatchObject({ CLUSTER: 'local', SHARED: 'from-file', PATH: '/bin' });
+  });
+
+  it('never reads a .env above the repository root', () => {
+    const home = tree();
+    writeFileSync(join(home, '.env'), 'CLUSTER=stranger\n');
+    expect(fileVariables(join(home, 'repo', 'topics', 't.yaml'), {}, { home }).CLUSTER).toBeUndefined();
+  });
+
+  it('reads a .env again once it changed', () => {
+    const home = tree();
+    const env = join(home, 'repo', '.env');
+    writeFileSync(env, 'CLUSTER=one\n');
+    const file = join(home, 'repo', 'topics', 't.yaml');
+    expect(fileVariables(file, {}, { home }).CLUSTER).toBe('one');
+    writeFileSync(env, 'CLUSTER=two\n');
+    utimesSync(env, new Date(), new Date(Date.now() + 5_000));
+    expect(fileVariables(file, {}, { home }).CLUSTER).toBe('two');
   });
 });

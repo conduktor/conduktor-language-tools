@@ -32,11 +32,13 @@ export {
 export { ConsoleClient, normaliseBaseUrl, type ConsoleClientOptions, type RequestEvent } from './client/consoleClient';
 export {
   catalogDocuments,
+  claimsForEditing,
   parseResourceDocuments,
   type ParseOptions,
   type ResourceDocument,
 } from './resources/parseDocuments';
 export { expandIncludes, IncludeError } from './resources/includes';
+export { documentAt, parsedDocuments, type ParsedDocument } from './resources/parsedDocuments';
 export { sortForApply } from './resources/ordering';
 export { buildSpec, loadSpec, type LoadedSpec, type SpecCache, type SpecSource } from './openapi/loadSpec';
 export {
@@ -47,6 +49,7 @@ export {
   type UpsertOutcome,
 } from './plan/upsertDocuments';
 export { splitPolicyMessages } from './plan/messages';
+export { outcomeLabel, outcomeProblems, summarise } from './plan/summary';
 export { comparableYaml, newResourceName, newResourceYaml } from './resources/yamlText';
 export { prettySchema } from './resources/prettySchema';
 export {
@@ -66,6 +69,7 @@ export {
   agentInstructions,
   conduktorTools,
   containedFile,
+  includeRoot,
   isInside,
   ToolError,
   workspaceFile,
@@ -74,7 +78,7 @@ export {
 } from './tools';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
-export { envSearchPath, parseDotenv } from './resources/dotenv';
+export { envSearchPath, fileVariables, parseDotenv } from './resources/dotenv';
 export {
   baseDir,
   basePathOf,
@@ -147,6 +151,8 @@ export {
   skeletonYaml,
   snippetOf,
   snippetVariants,
+  resourceSnippets,
+  type ResourceSnippet,
   templateDocument,
   templateName,
   type Answers,
@@ -175,6 +181,11 @@ export {
 } from './fieldDocs';
 export {
   applyPreset,
+  configChoices,
+  configKeySnippet,
+  configMarkdown,
+  topicConfigProblems,
+  type TopicConfigRangeProblem,
   checkTopicConfig,
   configValueYaml,
   parseKafkaTopicConfigs,

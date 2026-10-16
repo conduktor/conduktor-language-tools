@@ -2,14 +2,9 @@ import * as vscode from 'vscode';
 import {
   blankDocumentAt,
   catalogDocuments,
-  kindSchema,
-  newResourceName,
   parseResourceDocuments,
-  skeletonYaml,
-  snippetOf,
-  snippetVariants,
+  resourceSnippets,
   type KindCatalog,
-  type KindVersion,
 } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
 import type { ClusterSelection } from '../explorer/clusterSelection';
@@ -45,30 +40,18 @@ export class SnippetCompletionProvider implements vscode.CompletionItemProvider 
     const selected = this.clusters.current();
     const known = (await this.names.lookup('KafkaCluster', [])).names.map((n) => n.name);
     const clusters = selected ? [selected, ...known.filter((c) => c !== selected)] : known;
-    const items: vscode.CompletionItem[] = [];
-    for (const name of state.spec.catalog.kindNames()) {
-      const kind = state.spec.catalog.latest(name)!;
-      if (!kind.bodySchema) continue;
-      const root = kindSchema(state.spec.schema, kind as KindVersion & { bodySchema: string });
-      const inCluster = kind.parentPathParams.includes('cluster');
-      const parents = Object.fromEntries(
-        kind.parentPathParams.map((param) => [param, param === 'cluster' ? (clusters[0] ?? '') : '']),
-      );
-      const choices: Record<string, string[]> =
-        inCluster && clusters.length > 0 ? { 'metadata.cluster': clusters } : {};
-      for (const { label, answers } of snippetVariants(root)) {
-        const text = skeletonYaml(root, kind, parents, newResourceName(kind), answers);
+    return resourceSnippets(state.spec.catalog, state.spec.schema, clusters).map(
+      ({ kind, variant, snippet, detail }) => {
         const item = new vscode.CompletionItem(
-          `Conduktor: ${name}${label ? ` (${label})` : ''}`,
+          `Conduktor: ${kind}${variant ? ` (${variant})` : ''}`,
           vscode.CompletionItemKind.Snippet,
         );
-        item.insertText = new vscode.SnippetString(snippetOf(text, choices));
-        item.filterText = `${name} ${label ?? ''} conduktor`;
-        item.detail = `${kind.group} · v${kind.version}`;
+        item.insertText = new vscode.SnippetString(snippet);
+        item.filterText = `${kind} ${variant ?? ''} conduktor`;
+        item.detail = detail;
         item.range = range;
-        items.push(item);
-      }
-    }
-    return items;
+        return item;
+      },
+    );
   }
 }

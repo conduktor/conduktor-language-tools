@@ -10,11 +10,11 @@ import {
   type KindVersion,
   type Resource,
   type YamlPath,
+  documentAt,
 } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { ExplorerProvider } from '../explorer/explorerProvider';
 import type { SyncFolder } from '../sync/syncFolder';
-import { documentAt } from './documents';
 import type { Names } from './names';
 import { referenceTarget } from './referenceProviders';
 

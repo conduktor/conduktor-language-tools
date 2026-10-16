@@ -3,6 +3,7 @@ import {
   canChange,
   catalogDocuments,
   planDocuments,
+  summarise,
   upsertDocuments,
   type ReadInclude,
   type ResourceDocument,
@@ -12,7 +13,6 @@ import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import { includeReaderFor } from '../editing/includes';
 import { isInView } from '../explorer/explorerModel';
-import { summarise } from '../editing/summary';
 import type { Output } from '../output';
 import { driftNotes, sharedIdentities } from './conflicts';
 import type { LocalEntry, SyncFolder } from './syncFolder';

@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-import { describeSources, referenceAt, valueAt, type Reference } from '@conduktor/vscode-core';
+import { describeSources, referenceAt, valueAt, type Reference, documentAt } from '@conduktor/vscode-core';
 import type { SessionManager, SessionState } from '../connections/session';
 import type { ExplorerProvider } from '../explorer/explorerProvider';
 import type { SyncFolder } from '../sync/syncFolder';
-import { documentAt } from './documents';
 import type { Names } from './names';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;

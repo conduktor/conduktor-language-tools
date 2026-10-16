@@ -1,7 +1,14 @@
 import * as vscode from 'vscode';
-import { rangeOf, referencingKinds, referrersOf, valueAt, type Resource } from '@conduktor/vscode-core';
+import {
+  rangeOf,
+  referencingKinds,
+  referrersOf,
+  valueAt,
+  type Resource,
+  documentAt,
+  parsedDocuments,
+} from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
-import { documentAt, parsedDocuments } from './documents';
 import type { Names, RepoDocument } from './names';
 import type { SyncFolder } from '../sync/syncFolder';
 

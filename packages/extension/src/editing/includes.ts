@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import * as vscode from 'vscode';
-import { containedFile } from '@conduktor/vscode-core';
-import { includeRoot } from '../sync/folders';
+import { containedFile, includeRoot } from '@conduktor/vscode-core';
 
 /** Where a file's schemaFile or descriptionFile is, refused when it would reach outside the workspace. */
 export function includePath(uri: vscode.Uri, file: string): string {

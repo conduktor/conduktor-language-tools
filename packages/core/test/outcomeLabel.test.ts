@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { outcomeLabel } from '../src/editing/summary';
+import { outcomeLabel } from '../src/plan/summary';
 
 describe('outcomeLabel', () => {
   it('marks each result so it reads at a glance', () => {

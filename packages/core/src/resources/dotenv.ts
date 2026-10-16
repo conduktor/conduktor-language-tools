@@ -1,4 +1,5 @@
-import { dirname } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 /** KEY=value lines, as docker --env-file reads them: no expansion, comments, blank and malformed lines skipped. */
 export function parseDotenv(text: string): Record<string, string> {
@@ -27,4 +28,41 @@ export function envSearchPath(
     if (same(dir, stops.workspace) || same(dir, stops.home) || stops.isRepoRoot(dir) || dirname(dir) === dir)
       return folders;
   }
+}
+
+const read = new Map<string, { mtimeMs: number; values: Record<string, string> }>();
+
+/**
+ * The ${VAR} values for a file: `base` (the editor's environment), with the nearest .env's on top — searched up to the
+ * file's workspace folder, repository root or home folder. Synchronous, because editors ask for lenses synchronously.
+ */
+export function fileVariables(
+  file: string,
+  base: Readonly<Record<string, string | undefined>>,
+  stops: { workspace?: string; home: string },
+): Readonly<Record<string, string | undefined>> {
+  const search = envSearchPath(file, {
+    ...stops,
+    isRepoRoot: (dir) => existsSync(join(dir, '.git')),
+    caseInsensitive: process.platform === 'win32',
+  });
+  for (const dir of search) {
+    const values = dotenvAt(join(dir, '.env'));
+    if (values) return { ...base, ...values };
+  }
+  return base;
+}
+
+function dotenvAt(file: string): Record<string, string> | undefined {
+  let mtimeMs: number;
+  try {
+    ({ mtimeMs } = statSync(file));
+  } catch {
+    return undefined;
+  }
+  const cached = read.get(file);
+  if (cached?.mtimeMs === mtimeMs) return cached.values;
+  const values = parseDotenv(readFileSync(file, 'utf8'));
+  read.set(file, { mtimeMs, values });
+  return values;
 }

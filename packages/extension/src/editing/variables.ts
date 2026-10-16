@@ -1,10 +1,6 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
 import * as vscode from 'vscode';
-import { envSearchPath, parseDotenv } from '@conduktor/vscode-core';
-
-const read = new Map<string, { mtimeMs: number; values: Record<string, string> }>();
+import { fileVariables } from '@conduktor/vscode-core';
 
 /**
  * The ${VAR} values for a file: VS Code's environment, with the nearest .env's on top — searched up to the file's
@@ -12,29 +8,8 @@ const read = new Map<string, { mtimeMs: number; values: Record<string, string> }
  */
 export function variablesFor(uri: vscode.Uri): Readonly<Record<string, string | undefined>> {
   if (uri.scheme !== 'file') return process.env;
-  const stops = {
+  return fileVariables(uri.fsPath, process.env, {
     workspace: vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath,
     home: homedir(),
-    isRepoRoot: (dir: string) => existsSync(join(dir, '.git')),
-    caseInsensitive: process.platform === 'win32',
-  };
-  for (const dir of envSearchPath(uri.fsPath, stops)) {
-    const values = dotenvAt(join(dir, '.env'));
-    if (values) return { ...process.env, ...values };
-  }
-  return process.env;
-}
-
-function dotenvAt(file: string): Record<string, string> | undefined {
-  let mtimeMs: number;
-  try {
-    ({ mtimeMs } = statSync(file));
-  } catch {
-    return undefined;
-  }
-  const cached = read.get(file);
-  if (cached?.mtimeMs === mtimeMs) return cached.values;
-  const values = parseDotenv(readFileSync(file, 'utf8'));
-  read.set(file, { mtimeMs, values });
-  return values;
+  });
 }

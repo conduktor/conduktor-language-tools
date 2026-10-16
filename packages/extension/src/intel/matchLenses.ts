@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
-import { findReferences, matcher, rangeOf } from '@conduktor/vscode-core';
+import { findReferences, matcher, rangeOf, parsedDocuments } from '@conduktor/vscode-core';
 import type { SessionManager } from '../connections/session';
-import { parsedDocuments } from './documents';
 import { lensTitle } from './lensTitle';
 import type { Names } from './names';
 

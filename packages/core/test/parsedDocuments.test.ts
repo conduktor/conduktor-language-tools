@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { buildSpec } from '@conduktor/vscode-core';
+import { buildSpec } from '../src/openapi/loadSpec';
 import { describe, expect, it } from 'vitest';
-import { documentAt, parsedDocuments } from '../src/intel/documents';
+import { documentAt, parsedDocuments } from '../src/resources/parsedDocuments';
 
 const { catalog } = buildSpec(
   readFileSync(new URL('../../core/snapshot/public-api-doc.yaml', import.meta.url), 'utf8'),

@@ -1,5 +1,8 @@
 import { parseDocument } from 'yaml';
-import { catalogDocuments, isRecord, type KindCatalog, type Resource } from '@conduktor/vscode-core';
+import type { KindCatalog } from '../openapi/kindCatalog';
+import { isRecord } from '../util';
+import { catalogDocuments } from './parseDocuments';
+import type { Resource } from './types';
 
 export interface ParsedDocument {
   start: number;

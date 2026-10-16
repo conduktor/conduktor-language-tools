@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { containedFile, isInside, workspaceFile } from '../src/tools/workspacePath';
+import { containedFile, includeRoot, isInside, workspaceFile } from '../src/tools/workspacePath';
 import { ToolError } from '../src/tools/types';
 
 describe('isInside', () => {
@@ -76,5 +76,20 @@ describe('containedFile', () => {
     expect(() => containedFile(work, 'dangling')).toThrow(/outside/);
     expect(() => containedFile(work, 'out-dir/new.avsc')).toThrow(/outside/);
     expect(containedFile(work, 'schemas/new.avsc')).toBe(join(work, 'schemas', 'new.avsc'));
+  });
+});
+
+describe('includeRoot', () => {
+  it('is the workspace folder holding the file, where the CLI would run', () => {
+    expect(includeRoot('/work/conduktor/local/clusters/c/kafka/Topic/t.yaml', ['/other', '/work'])).toBe('/work');
+  });
+
+  it('is the innermost workspace folder when folders nest', () => {
+    expect(includeRoot('/work/gitops/topics/t.yaml', ['/work', '/work/gitops'])).toBe('/work/gitops');
+  });
+
+  it("is the file's own folder outside the workspace", () => {
+    expect(includeRoot('/elsewhere/local/global/t.yaml', ['/work'])).toBe('/elsewhere/local/global');
+    expect(includeRoot('/workshop/t.yaml', ['/work'])).toBe('/workshop');
   });
 });

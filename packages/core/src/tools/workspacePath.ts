@@ -49,3 +49,10 @@ export function workspaceFile(root: string | undefined, file: string): string {
     throw new ToolError((error as Error).message);
   }
 }
+
+// The CLI reads schemaFile and descriptionFile relative to where it runs: the workspace folder holding the file. A
+// file outside the workspace (a sync folder elsewhere) has no such place, so its own folder stands in.
+export function includeRoot(file: string, folders: readonly string[]): string {
+  const holding = folders.filter((folder) => isInside(folder, file)).sort((a, b) => b.length - a.length);
+  return holding[0] ?? path.dirname(file);
+}
