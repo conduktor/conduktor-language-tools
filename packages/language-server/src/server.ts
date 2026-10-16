@@ -201,6 +201,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
 
   documents.onDidOpen(({ document }) => resources.schedule(document.uri, false));
   documents.onDidSave(({ document }) => resources.schedule(document.uri, true));
+  // TextDocuments fires this on open too, right after onDidOpen: an opened file is published from here.
   documents.onDidChangeContent(({ document }) => {
     if (resources.edited(document.uri)) refreshLenses();
     void publish(document);

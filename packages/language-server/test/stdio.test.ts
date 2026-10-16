@@ -138,4 +138,13 @@ describe('the bundled language server over stdio', () => {
       silent.close();
     }
   }, 30_000);
+
+  it('publishes a file’s problems as soon as it is opened, once the server is ready', async () => {
+    const server = await start(undefined);
+    server.open('file:///work/first.yaml', BAD_TOPIC);
+    await server.diagnostics('file:///work/first.yaml', (d) => d.length > 0);
+    server.open('file:///work/second.yaml', BAD_TOPIC);
+    const diagnostics = await server.diagnostics('file:///work/second.yaml', (d) => d.length > 0);
+    expect(diagnostics[0]?.range.start.line).toBe(4);
+  }, 30_000);
 });
