@@ -8,6 +8,7 @@ import {
   referenceAt,
   valueAt,
   type KindCatalog,
+  type NameLookup,
   type NameSource,
   type Resource,
 } from '@conduktor/core';
@@ -40,13 +41,16 @@ export class Names {
 
   constructor(private readonly host: NamesHost) {}
 
-  /** `editing` is the resource being written, whose half-typed name is not one to offer. */
+  /**
+   * `editing` is the resource being written, whose half-typed name is not one to offer. `checked` is true only when the
+   * Console answered: a name missing from both is only missing then.
+   */
   async lookup(
     catalog: KindCatalog,
     kind: string,
     parents: readonly string[],
     editing?: Editing,
-  ): Promise<{ name: string; sources: NameSource[] }[]> {
+  ): Promise<{ names: { name: string; sources: NameSource[] }[]; checked: boolean }> {
     const index = new NameIndex();
     const params = catalog.latest(kind)?.parentPathParams ?? [];
     for (const resource of this.localResources(catalog, editing)) {
@@ -54,9 +58,21 @@ export class Names {
       if (resource.kind === kind && typeof name === 'string' && sameParents(parentsIn(resource, params), parents))
         index.add(kind, parents, name, 'repo');
     }
-    for (const resource of await this.consoleResources(kind, parents))
-      index.add(kind, parents, resource.metadata.name, 'console');
-    return index.list(kind, parents);
+    await this.host.settled();
+    const live = await this.listed(kind, parents);
+    for (const resource of live ?? []) index.add(kind, parents, resource.metadata.name, 'console');
+    return { names: index.list(kind, parents), checked: live !== undefined };
+  }
+
+  /** The lookups core's reference problems need, against a catalog. */
+  lookupFor(catalog: KindCatalog): NameLookup {
+    return {
+      lookup: (kind, parents) => this.lookup(catalog, kind, parents),
+      instances: async () => [
+        ...(await this.consoleResources('ApplicationInstance', [])),
+        ...this.localResources(catalog).filter((resource) => resource.kind === 'ApplicationInstance'),
+      ],
+    };
   }
 
   /**
@@ -138,7 +154,10 @@ export async function referenceCompletions(
   // `cluster:` with nothing after it yet: a value needs the space.
   const space = text[start - 1] === ':' ? ' ' : '';
   const range = { start: document.positionAt(start), end: document.positionAt(end) };
-  const found = await names.lookup(catalog, target.kind, target.parents, { uri: document.uri, start: parsed.start });
+  const { names: found } = await names.lookup(catalog, target.kind, target.parents, {
+    uri: document.uri,
+    start: parsed.start,
+  });
   return {
     isIncomplete: names.incomplete(),
     items: found.map(({ name, sources }) => ({
@@ -165,13 +184,13 @@ export function ownScope(resource: Resource, catalog: KindCatalog): { kind: stri
   return parents.every((parent) => parent !== '') ? { kind: resource.kind, parents } : undefined;
 }
 
-function parentsIn(resource: Resource, params: readonly string[]): string[] {
+export function parentsIn(resource: Resource, params: readonly string[]): string[] {
   return params.map((param) => {
     const value = resource.metadata?.[param];
     return typeof value === 'string' ? value : '';
   });
 }
 
-function sameParents(a: readonly string[], b: readonly string[]): boolean {
+export function sameParents(a: readonly string[], b: readonly string[]): boolean {
   return a.join('/') === b.join('/');
 }

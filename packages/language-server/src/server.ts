@@ -5,13 +5,18 @@ import {
   buildSpec,
   describeError,
   isRecord,
+  parsedDocuments,
   presetFromTemplate,
+  referenceProblems,
+  type KindCatalog,
   TOPIC_PRESETS,
   type TopicPreset,
 } from '@conduktor/core';
 import {
   CodeLensRefreshRequest,
   CompletionTriggerKind,
+  DiagnosticSeverity,
+  type Diagnostic,
   MessageType,
   ShowMessageNotification,
   TextDocuments,
@@ -24,6 +29,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CREDENTIAL_VARIABLES, SETTINGS_SECTION } from './connectionSettings';
 import { labelCompletions } from './labels';
+import { definitionAt, fieldHoverAt, referencesAt } from './navigation';
 import {
   APPLY_PRESET,
   presetActions,
@@ -36,6 +42,15 @@ import { atValueStart, Names, referenceCompletions } from './references';
 import { COMMANDS, Resources } from './resources';
 import { createSchemaService } from './schemaService';
 import { isReady, openSession, type Session, type SessionOptions } from './session';
+
+// How long after a change the other open files have their references checked again.
+const REPUBLISH_DELAY_MS = 300;
+
+const SEVERITIES = {
+  error: DiagnosticSeverity.Error,
+  warning: DiagnosticSeverity.Warning,
+  information: DiagnosticSeverity.Information,
+} as const;
 
 // How long a reference's completion waits for a Console still connecting, before offering the open files' names alone.
 const NAMES_WAIT_MS = 3_000;
@@ -78,6 +93,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
       const diagnostics = [
         ...(await schema.validate(document)),
         ...(catalog ? topicConfigDiagnostics(document, catalog) : []),
+        ...(catalog ? await referenceDiagnostics(document, catalog) : []),
         ...resources.diagnostics(document),
       ];
       // An edit made while this ran publishes its own.
@@ -175,6 +191,8 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
         hoverProvider: true,
         codeLensProvider: { resolveProvider: false },
         codeActionProvider: true,
+        definitionProvider: true,
+        referencesProvider: true,
         executeCommandProvider: { commands: [...Object.values(COMMANDS), APPLY_PRESET] },
       },
       serverInfo: { name: 'conduktor-console', version: options.version },
@@ -205,10 +223,12 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   documents.onDidChangeContent(({ document }) => {
     if (resources.edited(document.uri)) refreshLenses();
     void publish(document);
+    republishOthers(document.uri);
   });
   documents.onDidClose(({ document }) => {
     resources.closed(document.uri);
     void lsp.sendDiagnostics({ uri: document.uri, diagnostics: [] });
+    republishOthers(document.uri);
   });
 
   const names = new Names({
@@ -217,6 +237,39 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     connecting: () => connecting,
     documents: () => documents.all(),
   });
+
+  /** What is wrong with the references of a file's resources, against what the open files and the Console hold. */
+  const referenceDiagnostics = async (document: TextDocument, catalog: KindCatalog): Promise<Diagnostic[]> => {
+    const consoleName = session?.connection?.name ?? 'the Console';
+    const lookup = names.lookupFor(catalog);
+    const found: Diagnostic[] = [];
+    for (const parsed of parsedDocuments(document.getText(), catalog)) {
+      if (!parsed.resource) continue;
+      for (const { start, end, message, severity } of await referenceProblems(
+        parsed.text,
+        parsed.resource,
+        catalog,
+        consoleName,
+        lookup,
+      ))
+        found.push({
+          range: { start: document.positionAt(parsed.start + start), end: document.positionAt(parsed.start + end) },
+          message,
+          severity: SEVERITIES[severity],
+          source: 'Conduktor',
+        });
+    }
+    return found;
+  };
+
+  // A change in one file can resolve or break the references of the others.
+  let othersTimer: ReturnType<typeof setTimeout> | undefined;
+  const republishOthers = (changed: string) => {
+    clearTimeout(othersTimer);
+    othersTimer = setTimeout(() => {
+      for (const other of documents.all()) if (other.uri !== changed) void publish(other);
+    }, REPUBLISH_DELAY_MS);
+  };
 
   lsp.onCompletion(async ({ textDocument, position, context }) => {
     await schemaReady;
@@ -240,7 +293,23 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     const document = documents.get(textDocument.uri);
     const spec = schema.current();
     if (!document || !spec) return null;
-    return topicConfigHover(document, position, spec.catalog) ?? schema.hover(document, position);
+    return (
+      topicConfigHover(document, position, spec.catalog) ??
+      (await fieldHoverAt(document, position, spec, names, () => schema.hover(document, position))) ??
+      schema.hover(document, position)
+    );
+  });
+  lsp.onDefinition(async ({ textDocument, position }) => {
+    await schemaReady;
+    const document = documents.get(textDocument.uri);
+    const spec = schema.current();
+    return document && spec ? definitionAt(document, position, spec, documents.all()) : [];
+  });
+  lsp.onReferences(async ({ textDocument, position }) => {
+    await schemaReady;
+    const document = documents.get(textDocument.uri);
+    const spec = schema.current();
+    return document && spec ? referencesAt(document, position, spec, documents.all()) : [];
   });
   lsp.onCodeLens(async ({ textDocument }) => {
     await sessionLoaded;

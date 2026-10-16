@@ -26,7 +26,7 @@ async function start(settings: unknown, options: { zedSettings?: boolean; answer
 const BAD_TOPIC = [
   'apiVersion: v2',
   'kind: Topic',
-  'metadata: { name: orders, cluster: local }',
+  'metadata: { name: orders, cluster: local-kafka }',
   'spec:',
   '  partitions: three',
   '  ',

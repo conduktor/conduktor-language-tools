@@ -39,12 +39,29 @@ export interface FakeConsole {
  * `local-kafka` (with the topics `orders` and `payments`, labelled) and `prod-kafka`, and dry-runs or applies topics: more than 12 partitions breaks a policy, `orders`
  * exists already, anything else would be created.
  */
-export async function fakeConsole(options: { delayMs?: number } = {}): Promise<FakeConsole> {
+export async function fakeConsole(
+  options: {
+    delayMs?: number;
+    /** Leaves every PUT unanswered: dry runs never finish, so nothing they publish gets in a test's way. */
+    silentWrites?: boolean;
+  } = {},
+): Promise<FakeConsole> {
   const requests: ConsoleRequest[] = [];
   const server: Server = createServer((request, response) => {
     let body = '';
     request.on('data', (chunk) => (body += chunk));
-    request.on('end', () => setTimeout(answer, options.delayMs ?? 0));
+    request.on('end', () => {
+      if (options.silentWrites && request.method === 'PUT') {
+        requests.push({
+          method: request.method,
+          url: request.url!,
+          authorization: request.headers.authorization,
+          body,
+        });
+        return;
+      }
+      setTimeout(answer, options.delayMs ?? 0);
+    });
     const answer = () => {
       requests.push({ method: request.method!, url: request.url!, authorization: request.headers.authorization, body });
       const json = (status: number, value: unknown) =>
@@ -81,7 +98,10 @@ export async function fakeConsole(options: { delayMs?: number } = {}): Promise<F
   return {
     url: `http://127.0.0.1:${(server.address() as { port: number }).port}`,
     requests,
-    close: () => server.close(),
+    close: () => {
+      server.closeAllConnections();
+      server.close();
+    },
   };
 }
 
