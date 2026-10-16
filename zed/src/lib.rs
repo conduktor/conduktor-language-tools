@@ -28,10 +28,19 @@ impl ConduktorConsole {
             id,
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
-        let version = zed::npm_package_latest_version(PACKAGE_NAME)?;
-        if !Self::server_exists()
-            || zed::npm_package_installed_version(PACKAGE_NAME)?.as_ref() != Some(&version)
-        {
+        // npm unreachable (offline, registry down): an earlier install still runs.
+        let version = match zed::npm_package_latest_version(PACKAGE_NAME) {
+            Ok(version) => version,
+            Err(_) if Self::server_exists() => {
+                self.installed = true;
+                return Ok(SERVER_PATH.to_string());
+            }
+            Err(error) => return Err(error),
+        };
+        let installed = zed::npm_package_installed_version(PACKAGE_NAME)
+            .ok()
+            .flatten();
+        if !Self::server_exists() || installed.as_ref() != Some(&version) {
             zed::set_language_server_installation_status(
                 id,
                 &zed::LanguageServerInstallationStatus::Downloading,
