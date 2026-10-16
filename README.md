@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/conduktor/vscode-conduktor/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/download-latest%20.vsix-bcfe68?style=flat-square&labelColor=072024"></a>
+  <a href="https://github.com/conduktor/conduktor-language-tools/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/download-latest%20.vsix-bcfe68?style=flat-square&labelColor=072024"></a>
   <img alt="VS Code 1.101 or later" src="https://img.shields.io/badge/VS%20Code-1.101%2B-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white">
   <img alt="Works with the conduktor CLI 0.9.3" src="https://img.shields.io/badge/conduktor%20CLI-0.9.3-bcfe68?style=flat-square&labelColor=072024">
   <img alt="Tools for Copilot, Claude Code and MCP" src="https://img.shields.io/badge/AI%20agents-Copilot%20%C2%B7%20Claude%20Code%20%C2%B7%20MCP-8b5cf6?style=flat-square">
@@ -106,11 +106,11 @@ They never change the Console, and never see a secret.
 ## Quick start
 
 1. **Install.** Download `conduktor-console-<version>.vsix` from the
-   [latest release](https://github.com/conduktor/vscode-conduktor/releases/latest) and run **Extensions: Install from
+   [latest release](https://github.com/conduktor/conduktor-language-tools/releases/latest) and run **Extensions: Install from
    VSIX…** in VS Code — or, with the [GitHub CLI](https://cli.github.com), fetch and install the latest in one go:
 
    ```sh
-   gh release download --repo conduktor/vscode-conduktor --pattern '*.vsix' \
+   gh release download --repo conduktor/conduktor-language-tools --pattern '*.vsix' \
      --output /tmp/conduktor-console.vsix --clobber && code --install-extension /tmp/conduktor-console.vsix
    ```
 

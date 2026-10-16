@@ -3,9 +3,9 @@
 Your Kafka platform's resources as YAML, checked against your Conduktor Console as you type.
 
 > **Preview — in internal testing.** Source, full guide and releases:
-> [github.com/conduktor/vscode-conduktor](https://github.com/conduktor/vscode-conduktor) ·
-> [latest release](https://github.com/conduktor/vscode-conduktor/releases/latest) ·
-> [report a problem](https://github.com/conduktor/vscode-conduktor/issues)
+> [github.com/conduktor/conduktor-language-tools](https://github.com/conduktor/conduktor-language-tools) ·
+> [latest release](https://github.com/conduktor/conduktor-language-tools/releases/latest) ·
+> [report a problem](https://github.com/conduktor/conduktor-language-tools/issues)
 
 Browse every resource a Conduktor Console manages, write them as YAML with the Console's own schema behind you, and
 know — before anything changes — exactly what the Console will say. It sits between the `conduktor` CLI and the

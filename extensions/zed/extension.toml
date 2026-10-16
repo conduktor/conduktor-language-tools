@@ -4,7 +4,7 @@ description = "Conduktor Console resources as YAML, checked against your Console
 version = "0.0.1"
 schema_version = 1
 authors = ["Conduktor"]
-repository = "https://github.com/conduktor/vscode-conduktor"
+repository = "https://github.com/conduktor/conduktor-language-tools"
 
 # Next to Zed's yaml-language-server: this one only answers YAML that holds Console resources.
 [language_servers.conduktor-console]

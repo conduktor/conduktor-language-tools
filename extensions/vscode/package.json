@@ -9,11 +9,11 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/conduktor/vscode-conduktor"
+    "url": "https://github.com/conduktor/conduktor-language-tools"
   },
-  "homepage": "https://github.com/conduktor/vscode-conduktor#readme",
+  "homepage": "https://github.com/conduktor/conduktor-language-tools#readme",
   "bugs": {
-    "url": "https://github.com/conduktor/vscode-conduktor/issues"
+    "url": "https://github.com/conduktor/conduktor-language-tools/issues"
   },
   "preview": true,
   "galleryBanner": {

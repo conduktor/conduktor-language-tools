@@ -1,5 +1,5 @@
 {
-  "name": "vscode-conduktor",
+  "name": "conduktor-language-tools",
   "private": true,
   "packageManager": "pnpm@12.6.0",
   "engines": {
