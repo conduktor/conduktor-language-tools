@@ -1,0 +1,31 @@
+{
+  "name": "@conduktor/console-language-server",
+  "version": "0.0.1",
+  "description": "Conduktor Console resources in any LSP editor: the Console's schema, checked as you type",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "conduktor-console-language-server": "./dist/server.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conduktor/vscode-core": "workspace:*",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "yaml": "^2.9.0",
+    "yaml-language-server": "^1.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.0",
+    "vitest": "^5.0.0",
+    "vscode-jsonrpc": "^8.2.1"
+  }
+}

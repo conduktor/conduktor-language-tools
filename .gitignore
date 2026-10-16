@@ -7,3 +7,7 @@ out/
 
 # The default sync folder when this repository is the open workspace (F5 / local testing)
 /conduktor/
+
+# Zed builds a dev extension in place
+/zed/target/
+/zed/extension.wasm

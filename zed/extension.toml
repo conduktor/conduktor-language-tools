@@ -1,0 +1,15 @@
+id = "conduktor-console-lsp"
+name = "Conduktor Console"
+description = "Conduktor Console resources as YAML, checked against your Console's schema as you type."
+version = "0.0.1"
+schema_version = 1
+authors = ["Conduktor"]
+repository = "https://github.com/conduktor/vscode-conduktor"
+
+# Next to Zed's yaml-language-server: this one only answers YAML that holds Console resources.
+[language_servers.conduktor-console]
+name = "Conduktor Console"
+languages = ["YAML"]
+
+[language_servers.conduktor-console.language_ids]
+"YAML" = "yaml"

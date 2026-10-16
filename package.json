@@ -15,7 +15,8 @@
     "package": "pnpm --filter conduktor-console package",
     "test:vscode": "pnpm --filter conduktor-console test:vscode",
     "sync-tools": "pnpm --filter conduktor-console sync-tools",
-    "install-local": "pnpm package && node scripts/install-local.mjs"
+    "install-local": "pnpm package && node scripts/install-local.mjs",
+    "install-zed-dev": "pnpm --filter @conduktor/console-language-server build && node scripts/install-zed-dev.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",

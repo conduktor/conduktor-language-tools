@@ -354,6 +354,46 @@ carries a redacted value back is refused.
 - The Console's API returns no field paths in its errors, so a failure is placed on the resource's first line.
 - Offline, schemas fall back to the last OpenAPI cached for the Console, then to the one bundled with the extension.
 
+## Zed (preview)
+
+In Zed, a language server brings the Console to every Conduktor YAML. It runs next to Zed's own YAML server and
+answers only for Console resources:
+
+- the Console's schema: completion, hover, errors, and a whole resource per kind in an empty file or after `---`;
+- the names a field refers to — a Topic's cluster, an Application's owner, a service account's ACLs — from your open
+  files and the Console, offered as soon as the value starts;
+- the labels already in use — keys under `labels:`, most used first, then the values a key takes — from your open
+  files and the Console's resources of the same kind;
+- a Topic's `spec.configs`: every Kafka topic config with its docs and default, the values it takes, problems for
+  unknown keys and refused values, and presets (and the Console's topic templates) in the code actions;
+- a dry run of each file when it is opened and saved, with what the Console refuses on the resource's first line;
+- **Dry run** and, in dev, **Apply** in the code actions (cmd-.), and above each resource with `"code_lens": "on"`
+  in Zed's settings. Apply dry-runs first and asks before changing anything.
+
+References and field docs come next. The tree, live documents and the status bar have no equivalent: Zed
+extensions cannot add UI.
+
+1. Build the server and put it on your `PATH`: `pnpm install && pnpm install-zed-dev` links
+   `~/.local/bin/conduktor-console-language-server` to the build.
+2. In Zed, run **zed: install dev extension** and choose this repository's `zed/` folder.
+3. With the `conduktor` CLI set up, there is nothing else to do: the server checks against the Console in
+   `CDK_BASE_URL`, with `CDK_API_KEY`, in prod. **Switch to dev mode** in the code actions (cmd-.) lets Apply change
+   it until Zed restarts, after a confirmation.
+
+   To check against another Console, or give a project its own, name it in Zed's settings (**zed: open settings**)
+   or the project's `.zed/settings.json`; changes apply as soon as they are saved:
+
+   ```json
+   "lsp": {
+     "conduktor-console": {
+       "settings": { "url": "http://localhost:8080", "name": "local", "mode": "prod", "token": "<token>" }
+     }
+   }
+   ```
+
+   Leave `token` out to take it from `CONDUKTOR_TOKEN`. Without any Console, resources are checked against the schema
+   bundled with the server, and the first one you open says how to name one.
+
 ## Roadmap
 
 - **Git from the sync folder:** commit staged changes, explicit deletions, and conflict handling for drift.

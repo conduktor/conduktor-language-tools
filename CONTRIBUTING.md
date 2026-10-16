@@ -76,6 +76,9 @@ packages/core/        no VS Code dependency; unit-tested with Vitest
 packages/mcp/         stdio MCP server over the core tools, bundled as dist/mcp-server.js
 packages/extension/   VS Code wiring: connections, explorer, live documents, CodeLenses, validation, sync folder,
                       CLI runner, agents
+packages/language-server/
+                      LSP server over the core, for Zed and other LSP editors, bundled as dist/server.cjs
+zed/                  the Zed extension (Rust, which Zed builds to wasm): runs that server from the PATH, else from npm
 docs/specs/           designs
 docs/plans/           implementation plans, as executed
 docs/assets/          the README's illustrations and screenshots (SHOTS.md says how to capture them)

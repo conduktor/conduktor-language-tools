@@ -241,6 +241,37 @@ importers:
         specifier: ^5.0.0
         version: 5.0.3(@types/node@22.20.4)(vite@8.3.2(@types/node@22.20.4)(esbuild@0.28.2)(yaml@2.9.1))
 
+  packages/language-server:
+    dependencies:
+      '@conduktor/vscode-core':
+        specifier: workspace:*
+        version: link:../core
+      vscode-languageserver:
+        specifier: ^9.0.1
+        version: 9.0.1
+      vscode-languageserver-textdocument:
+        specifier: ^1.0.12
+        version: 1.0.15
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.1
+      yaml-language-server:
+        specifier: ^1.24.0
+        version: 1.24.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.4
+      esbuild:
+        specifier: ^0.28.0
+        version: 0.28.2
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.3(@types/node@22.20.4)(vite@8.3.2(@types/node@22.20.4)(esbuild@0.28.2)(yaml@2.9.1))
+      vscode-jsonrpc:
+        specifier: ^8.2.1
+        version: 8.2.1
+
   packages/mcp:
     dependencies:
       '@conduktor/vscode-core':
@@ -2744,6 +2775,10 @@ packages:
 
   vscode-jsonrpc@8.2.0:
     resolution: {integrity: sha512-C+r0eKJUIfiDIfwJhria30+TYWPtuHJXHtI7J0YlOmKAo7ogxP20T0zxB7HZQIFhIyvoBPwWskjxrvAtfjyZfA==}
+    engines: {node: '>=14.0.0'}
+
+  vscode-jsonrpc@8.2.1:
+    resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
     engines: {node: '>=14.0.0'}
 
   vscode-languageserver-protocol@3.17.5:
@@ -5405,6 +5440,8 @@ snapshots:
       - msw
 
   vscode-jsonrpc@8.2.0: {}
+
+  vscode-jsonrpc@8.2.1: {}
 
   vscode-languageserver-protocol@3.17.5:
     dependencies:
