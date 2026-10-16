@@ -13,3 +13,4 @@ export {
 } from './patterns';
 export { referencingKinds, referrersOf, type Reach, type ReferenceTarget } from './reverse';
 export { REFERENCE_RULES, type ReferenceRule } from './table';
+export { instanceOf, referenceProblems, type NameLookup, type ReferenceProblem } from './problems';

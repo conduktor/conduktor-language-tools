@@ -133,6 +133,10 @@ export {
   REFERENCE_RULES,
   referencingKinds,
   referrersOf,
+  instanceOf,
+  referenceProblems,
+  type NameLookup,
+  type ReferenceProblem,
   type Instance,
   type NameSource,
   type OwnedResource,
@@ -172,6 +176,9 @@ export {
 } from './cli';
 export {
   fieldDocs,
+  fieldHover,
+  kindHover,
+  markdownCode,
   headingSlug,
   kindDoc,
   parseReferencePage,
