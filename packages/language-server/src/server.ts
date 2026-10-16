@@ -305,11 +305,11 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     const spec = schema.current();
     return document && spec ? definitionAt(document, position, spec, documents.all()) : [];
   });
-  lsp.onReferences(async ({ textDocument, position }) => {
+  lsp.onReferences(async ({ textDocument, position, context }) => {
     await schemaReady;
     const document = documents.get(textDocument.uri);
     const spec = schema.current();
-    return document && spec ? referencesAt(document, position, spec, documents.all()) : [];
+    return document && spec ? referencesAt(document, position, spec, documents.all(), context.includeDeclaration) : [];
   });
   lsp.onCodeLens(async ({ textDocument }) => {
     await sessionLoaded;

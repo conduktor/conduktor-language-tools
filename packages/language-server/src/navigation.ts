@@ -85,12 +85,16 @@ export function definitionAt(
   });
 }
 
-/** From a resource's name to what refers to it in the open files: by name, by a pattern that matches it, or by `*`. */
+/**
+ * From a resource's name to what refers to it in the open files: by name, by a pattern that matches it, or by `*`.
+ * With `includeDeclaration`, the resource's own name comes first.
+ */
 export function referencesAt(
   document: TextDocument,
   position: Position,
   spec: LoadedSpec,
   documents: readonly TextDocument[],
+  includeDeclaration: boolean,
 ): Location[] {
   const offset = document.offsetAt(position);
   const parsed = documentAt(document.getText(), offset, spec.catalog);
@@ -99,9 +103,10 @@ export function referencesAt(
   const kind = resource && spec.catalog.latest(resource.kind);
   if (!kind || at?.path.join('.') !== 'metadata.name' || typeof resource?.metadata?.name !== 'string') return [];
   const target = { kind: kind.kind, parents: parentsIn(resource, kind.parentPathParams), name: resource.metadata.name };
+  const declaration = includeDeclaration ? [locationOf(document, parsed.start + at.start, parsed.start + at.end)] : [];
   const referencing = new Set(referencingKinds(kind.kind));
   const candidates = located(documents, spec).filter((d) => referencing.has(d.resource.kind));
-  return referrersOf(
+  const referrers = referrersOf(
     target,
     candidates.map((d) => d.resource),
     spec.catalog,
@@ -110,6 +115,7 @@ export function referencesAt(
     const range = rangeOf(candidate.text, reference.path);
     return range ? [locationOf(candidate.document, candidate.start + range[0], candidate.start + range[1])] : [];
   });
+  return [...declaration, ...referrers];
 }
 
 function located(documents: readonly TextDocument[], spec: LoadedSpec) {

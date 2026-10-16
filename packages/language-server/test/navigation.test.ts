@@ -119,4 +119,19 @@ describe('navigation', () => {
       ['file:///work/used-b.yaml', 4],
     ]);
   }, 30_000);
+
+  it('includes the resource itself when the editor asks for its declaration', async () => {
+    const server = await start();
+    server.open('file:///work/decl-cluster.yaml', cluster('decl'));
+    server.open('file:///work/decl-a.yaml', topic('a', 'decl'));
+    const found: Location[] = await server.connection.sendRequest('textDocument/references', {
+      textDocument: { uri: 'file:///work/decl-cluster.yaml' },
+      position: { line: 3, character: 9 },
+      context: { includeDeclaration: true },
+    });
+    expect(found.map((l) => [l.uri, l.range.start.line])).toEqual([
+      ['file:///work/decl-cluster.yaml', 3],
+      ['file:///work/decl-a.yaml', 4],
+    ]);
+  }, 30_000);
 });
