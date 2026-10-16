@@ -1,4 +1,4 @@
-import { documentAt, isRecord, valueAt, type KindCatalog, type Resource } from '@conduktor/vscode-core';
+import { documentAt, isRecord, valueAt, type KindCatalog, type Resource } from '@conduktor/core';
 import { CompletionItemKind, type CompletionItem, type CompletionList, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { stringify } from 'yaml';

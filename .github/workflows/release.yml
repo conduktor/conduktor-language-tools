@@ -42,11 +42,11 @@ jobs:
             label="${GITHUB_REF_NAME#v}"
             prerelease=$([[ -n "${BASH_REMATCH[2]}" ]] && echo true || echo false)
           else
-            version=$(node -p "require('./packages/extension/package.json').version")
+            version=$(node -p "require('./extensions/vscode/package.json').version")
             label="$version-${GITHUB_SHA::7}"
             prerelease=false
           fi
-          (cd packages/extension && npm pkg set version="$version")
+          (cd extensions/vscode && npm pkg set version="$version")
           {
             echo "label=$label"
             echo "prerelease=$prerelease"
@@ -66,7 +66,7 @@ jobs:
           flags=(--no-dependencies --skip-license --out "$GITHUB_WORKSPACE/$VSIX")
           if [[ "$PRERELEASE" == true ]]; then flags+=(--pre-release); fi
           pnpm --filter conduktor-console exec node esbuild.mjs
-          (cd packages/extension && pnpm exec vsce package "${flags[@]}")
+          (cd extensions/vscode && pnpm exec vsce package "${flags[@]}")
 
       - uses: actions/upload-artifact@v7
         with:

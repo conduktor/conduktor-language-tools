@@ -1,6 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { agentInstructions, conduktorTools, describeError, type ToolContext } from '@conduktor/vscode-core';
+import { agentInstructions, conduktorTools, describeError, type ToolContext } from '@conduktor/core';
 
 export function createConduktorServer(context: () => ToolContext | Promise<ToolContext>, version: string): Server {
   const server = new Server(

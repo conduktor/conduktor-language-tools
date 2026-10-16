@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - extensions/vscode
 allowBuilds:
   '@vscode/vsce-sign': false
   esbuild: false

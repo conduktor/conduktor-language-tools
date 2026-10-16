@@ -1,4 +1,4 @@
-import { isRecord, type ConnectionMode } from '@conduktor/vscode-core';
+import { isRecord, type ConnectionMode } from '@conduktor/core';
 
 /** Where Zed users write the settings this server reads, for messages that point them there. */
 export const SETTINGS_PATH = 'lsp.conduktor-console.settings';

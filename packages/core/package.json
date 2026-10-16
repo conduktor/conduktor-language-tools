@@ -1,5 +1,5 @@
 {
-  "name": "@conduktor/vscode-core",
+  "name": "@conduktor/core",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

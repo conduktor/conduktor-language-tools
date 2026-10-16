@@ -1,4 +1,4 @@
-import { claimsForEditing, resourceSnippets, type LoadedSpec, type ResourceSnippet } from '@conduktor/vscode-core';
+import { claimsForEditing, resourceSnippets, type LoadedSpec, type ResourceSnippet } from '@conduktor/core';
 import type { CompletionList, Diagnostic, Hover, Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { getLanguageService } from 'yaml-language-server/lib/esm/languageservice/yamlLanguageService';

@@ -15,7 +15,7 @@ import {
   type ResourceDocument,
   type UpsertItem,
   type UpsertOutcome,
-} from '@conduktor/vscode-core';
+} from '@conduktor/core';
 import { DiagnosticSeverity, type CodeAction, type CodeLens, type Diagnostic, type Range } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { ReadySession, Session } from './session';

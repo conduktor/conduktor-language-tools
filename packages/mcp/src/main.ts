@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ConsoleClient, loadSpec, workspaceFile, type ToolContext } from '@conduktor/vscode-core';
+import { ConsoleClient, loadSpec, workspaceFile, type ToolContext } from '@conduktor/core';
 import { createConduktorServer } from './server';
 
 declare const CONDUKTOR_VERSION: string;

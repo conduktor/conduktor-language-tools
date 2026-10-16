@@ -4,7 +4,7 @@ import {
   parseResourceDocuments,
   type KindCatalog,
   type ResourceSnippet,
-} from '@conduktor/vscode-core';
+} from '@conduktor/core';
 import { CompletionItemKind, InsertTextFormat, type CompletionList, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 

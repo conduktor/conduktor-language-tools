@@ -9,5 +9,5 @@ out/
 /conduktor/
 
 # Zed builds a dev extension in place
-/zed/target/
-/zed/extension.wasm
+/extensions/zed/target/
+/extensions/zed/extension.wasm

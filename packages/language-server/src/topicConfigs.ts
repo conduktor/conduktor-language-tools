@@ -12,7 +12,7 @@ import {
   TOPIC_CONFIGS,
   type KindCatalog,
   type TopicPreset,
-} from '@conduktor/vscode-core';
+} from '@conduktor/core';
 import {
   CompletionItemKind,
   DiagnosticSeverity,

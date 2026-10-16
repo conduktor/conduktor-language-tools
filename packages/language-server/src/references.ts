@@ -10,7 +10,7 @@ import {
   type KindCatalog,
   type NameSource,
   type Resource,
-} from '@conduktor/vscode-core';
+} from '@conduktor/core';
 import { CompletionItemKind, type CompletionList, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { ReadySession } from './session';

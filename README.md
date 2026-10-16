@@ -375,7 +375,7 @@ extensions cannot add UI.
 
 1. Build the server and put it on your `PATH`: `pnpm install && pnpm install-zed-dev` links
    `~/.local/bin/conduktor-console-language-server` to the build.
-2. In Zed, run **zed: install dev extension** and choose this repository's `zed/` folder.
+2. In Zed, run **zed: install dev extension** and choose this repository's `extensions/zed/` folder.
 3. With the `conduktor` CLI set up, there is nothing else to do: the server checks against the Console in
    `CDK_BASE_URL`, with `CDK_API_KEY`, in prod. **Switch to dev mode** in the code actions (cmd-.) lets Apply change
    it until Zed restarts, after a confirmation.

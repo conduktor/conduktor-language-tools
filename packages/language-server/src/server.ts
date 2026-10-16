@@ -8,7 +8,7 @@ import {
   presetFromTemplate,
   TOPIC_PRESETS,
   type TopicPreset,
-} from '@conduktor/vscode-core';
+} from '@conduktor/core';
 import {
   CodeLensRefreshRequest,
   CompletionTriggerKind,

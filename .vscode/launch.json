@@ -5,8 +5,8 @@
       "name": "Run extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/packages/extension"],
-      "outFiles": ["${workspaceFolder}/packages/extension/dist/**/*.js"],
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode"],
+      "outFiles": ["${workspaceFolder}/extensions/vscode/dist/**/*.js"],
       "preLaunchTask": "build"
     }
   ]

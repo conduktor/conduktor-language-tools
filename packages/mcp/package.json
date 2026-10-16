@@ -1,5 +1,5 @@
 {
-  "name": "@conduktor/vscode-mcp",
+  "name": "@conduktor/mcp",
   "private": true,
   "type": "module",
   "main": "./src/server.ts",
@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conduktor/vscode-core": "workspace:*",
+    "@conduktor/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "zod": "^4.0.0"
   },

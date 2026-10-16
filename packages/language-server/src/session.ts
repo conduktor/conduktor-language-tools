@@ -10,7 +10,7 @@ import {
   loadSpec,
   type LoadedSpec,
   type SpecCache,
-} from '@conduktor/vscode-core';
+} from '@conduktor/core';
 import { ConnectionSettingsError, connectionFrom, SETTINGS_PATH, type Connection } from './connectionSettings';
 
 export interface SessionOptions {
