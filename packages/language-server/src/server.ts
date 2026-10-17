@@ -9,6 +9,7 @@ import {
   presetFromTemplate,
   referenceProblems,
   type KindCatalog,
+  type ReferenceTarget,
   TOPIC_PRESETS,
   type TopicPreset,
 } from '@conduktor/core';
@@ -17,6 +18,8 @@ import {
   CompletionTriggerKind,
   DiagnosticSeverity,
   DidChangeWatchedFilesNotification,
+  ErrorCodes,
+  ResponseError,
   type Diagnostic,
   MessageType,
   ShowMessageNotification,
@@ -29,6 +32,7 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CREDENTIAL_VARIABLES, envValue, SETTINGS_SECTION } from './connectionSettings';
+import { documentSymbols, quickFixes, renameEdit, renameTargetAt, withFixes, workspaceSymbols } from './editing';
 import { labelCompletions } from './labels';
 import { definitionAt, fieldHoverAt, referencesAt } from './navigation';
 import {
@@ -82,6 +86,8 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   let connecting = true;
   let generation = 0;
   let hinted = false;
+  // What was last published for each open document: its quick fixes come from there.
+  const published = new Map<string, Diagnostic[]>();
 
   // A notification, not window.show*Message: those are requests, which wait on an answer nothing here needs.
   const show = (type: MessageType, message: string) =>
@@ -104,6 +110,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
       ];
       // An edit made while this ran publishes its own.
       if (documents.get(document.uri)?.version !== document.version) return;
+      published.set(document.uri, diagnostics);
       await lsp.sendDiagnostics({ uri: document.uri, version: document.version, diagnostics });
       if (!hinted && session && !session.connection && schema.claims(document)) {
         hinted = true;
@@ -201,6 +208,9 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
         codeActionProvider: true,
         definitionProvider: true,
         referencesProvider: true,
+        documentSymbolProvider: true,
+        workspaceSymbolProvider: true,
+        renameProvider: { prepareProvider: true },
         executeCommandProvider: { commands: [...Object.values(COMMANDS), APPLY_PRESET] },
       },
       serverInfo: { name: 'conduktor-console', version: options.version },
@@ -244,6 +254,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   });
   documents.onDidClose(({ document }) => {
     resources.closed(document.uri);
+    published.delete(document.uri);
     void lsp.sendDiagnostics({ uri: document.uri, diagnostics: [] });
     // Its file, saved or not, counts again.
     void index.changed(document.uri).then(() => republishOthers(document.uri));
@@ -272,13 +283,20 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     for (const { start: at, text, resource } of parsedDocuments(document.getText(), catalog)) {
       if (!resource) continue;
       const problems = await referenceProblems(text, resource, catalog, consoleName, lookup);
-      for (const { start, end, message, severity } of problems)
-        found.push({
-          range: { start: document.positionAt(at + start), end: document.positionAt(at + end) },
-          message,
-          severity: SEVERITIES[severity],
-          source: 'Conduktor',
-        });
+      for (const { start, end, message, severity, fixes } of problems)
+        found.push(
+          withFixes(
+            {
+              range: { start: document.positionAt(at + start), end: document.positionAt(at + end) },
+              message,
+              severity: SEVERITIES[severity],
+              source: 'Conduktor',
+            },
+            document,
+            at,
+            fixes,
+          ),
+        );
     }
     return found;
   };
@@ -335,6 +353,48 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     if (!document || !spec) return [];
     return referencesAt(document, position, spec, await index.located(spec.catalog), context.includeDeclaration);
   });
+  lsp.onDocumentSymbol(async ({ textDocument }) => {
+    await schemaReady;
+    const document = documents.get(textDocument.uri);
+    const catalog = schema.current()?.catalog;
+    return document && catalog ? documentSymbols(document, catalog) : [];
+  });
+  lsp.onWorkspaceSymbol(async ({ query }) => {
+    await schemaReady;
+    const catalog = schema.current()?.catalog;
+    return catalog ? workspaceSymbols(query, await index.located(catalog), catalog) : [];
+  });
+  lsp.onPrepareRename(async ({ textDocument, position }) => {
+    await schemaReady;
+    const document = documents.get(textDocument.uri);
+    const catalog = schema.current()?.catalog;
+    const found = document && catalog ? renameTargetAt(document, position, catalog) : undefined;
+    return found ? { range: found.range, placeholder: found.target.name } : null;
+  });
+  lsp.onRenameRequest(async ({ textDocument, position, newName }) => {
+    await schemaReady;
+    const document = documents.get(textDocument.uri);
+    const catalog = schema.current()?.catalog;
+    const found = document && catalog ? renameTargetAt(document, position, catalog) : undefined;
+    if (!found || !catalog) return null;
+    if (newName.trim() === '' || /[\r\n]/.test(newName))
+      throw new ResponseError(ErrorCodes.InvalidParams, 'A name is one line of text.');
+    const { edit, patterns } = renameEdit(found.target, newName, await index.located(catalog), catalog);
+    void renamed(found.target, newName, patterns, catalog);
+    return edit;
+  });
+  /** What a rename in the files leaves as it was: the Console's resource, and the patterns that covered it. */
+  const renamed = async (target: ReferenceTarget, newName: string, patterns: number, catalog: KindCatalog) => {
+    const { names: known } = await names.lookup(catalog, target.kind, target.parents);
+    const consoleName = session?.connection?.name ?? 'The Console';
+    const notes = [
+      known.find((n) => n.name === target.name)?.sources.includes('console') &&
+        `${consoleName} still has ${target.kind} '${target.name}': applying creates '${newName}' beside it.`,
+      patterns > 0 &&
+        `${patterns === 1 ? 'A pattern or wildcard' : `${patterns} patterns or wildcards`} covering '${target.name}' stay as written.`,
+    ].filter(Boolean);
+    if (notes.length > 0) show(MessageType.Info, `Renamed in your files only. ${notes.join(' ')}`);
+  };
   lsp.onCodeLens(async ({ textDocument }) => {
     await sessionLoaded;
     const document = documents.get(textDocument.uri);
@@ -391,6 +451,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     if (!document || !catalog) return [];
     const actions = resources.actions(document, range);
     return [
+      ...quickFixes(document, range, published.get(document.uri) ?? [], catalog),
       ...actions,
       ...(actions.length > 0 ? modeAction() : []),
       ...presetActions(document, range, catalog, await topicPresets()),

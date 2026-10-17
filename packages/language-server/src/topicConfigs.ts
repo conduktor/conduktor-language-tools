@@ -28,6 +28,7 @@ import {
 } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { valueEdit } from './completions';
+import { withFixes } from './editing';
 
 export const APPLY_PRESET = 'conduktor.applyTopicPreset';
 
@@ -93,17 +94,24 @@ export function topicConfigHover(document: TextDocument, position: Position, cat
   };
 }
 
-/** Unknown config keys (warnings, on the key) and values Kafka would refuse (errors, on the value). */
+/** Unknown config keys (warnings, on the key) and values Kafka would refuse (errors, on the value), with their fixes. */
 export function topicConfigDiagnostics(document: TextDocument, catalog: KindCatalog): Diagnostic[] {
   return parsedDocuments(document.getText(), catalog)
     .filter((parsed) => parsed.resource?.kind === 'Topic')
     .flatMap((parsed) =>
-      topicConfigProblems(parsed.text, parsed.resource).map(({ start, end, message, severity }) => ({
-        range: rangeOf(document, parsed.start + start, parsed.start + end),
-        message,
-        severity: severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
-        source: 'Conduktor',
-      })),
+      topicConfigProblems(parsed.text, parsed.resource).map(({ start, end, message, severity, fixes }) =>
+        withFixes(
+          {
+            range: rangeOf(document, parsed.start + start, parsed.start + end),
+            message,
+            severity: severity === 'error' ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning,
+            source: 'Conduktor',
+          },
+          document,
+          parsed.start,
+          fixes,
+        ),
+      ),
     );
 }
 
