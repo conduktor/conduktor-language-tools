@@ -405,3 +405,7 @@ extensions cannot add UI.
 
 Building from source, running the tests, cutting a release and finding your way around the code: see
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Apache-2.0: see [LICENSE](LICENSE).
