@@ -4,14 +4,19 @@ import type { SessionManager } from '../connections/session';
 import { conduktorDiagnostic, debouncedDiagnostics, rangeIn } from './diagnostics';
 import type { Names } from './names';
 
-export function referenceDiagnostics(sessions: SessionManager, names: Names): vscode.Disposable {
-  const lookup: NameLookup = {
+/** Where core's reference problems find names: the repository and the Console. */
+export function nameLookup(names: Names): NameLookup {
+  return {
     lookup: (kind, parents) => names.lookup(kind, parents),
     instances: async () => [
       ...((await names.resources('ApplicationInstance', [])) ?? []),
       ...(await names.repoDocuments('ApplicationInstance')).map((document) => document.resource),
     ],
   };
+}
+
+export function referenceDiagnostics(sessions: SessionManager, names: Names): vscode.Disposable {
+  const lookup = nameLookup(names);
   const check = async (document: vscode.TextDocument, collection: vscode.DiagnosticCollection) => {
     const state = sessions.current();
     if (state.status !== 'ready') {

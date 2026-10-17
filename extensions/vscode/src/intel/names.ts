@@ -14,6 +14,16 @@ export interface RepoDocument {
   resource: Resource;
 }
 
+/** The range between two offsets of a repository document's text, in its file. */
+export function repoRange(document: RepoDocument, start: number, end: number): vscode.Range {
+  const position = (offset: number) => {
+    const before = document.fullText.slice(0, document.start + offset);
+    const line = before.split('\n').length - 1;
+    return new vscode.Position(line, before.length - before.lastIndexOf('\n') - 1);
+  };
+  return new vscode.Range(position(start), position(end));
+}
+
 export class Names implements vscode.Disposable {
   private lists = new Map<string, Promise<Resource[] | undefined>>();
   private files = new Map<string, Promise<RepoDocument[]>>();

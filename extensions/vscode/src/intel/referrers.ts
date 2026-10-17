@@ -9,7 +9,7 @@ import {
   parsedDocuments,
 } from '@conduktor/core';
 import type { SessionManager } from '../connections/session';
-import type { Names, RepoDocument } from './names';
+import { repoRange, type Names, type RepoDocument } from './names';
 import type { SyncFolder } from '../sync/syncFolder';
 
 export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeLensProvider, vscode.Disposable {
@@ -84,7 +84,7 @@ export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeL
       const document = documents[index];
       if (!document) return [];
       const range = rangeOf(document.text, reference.path);
-      return range ? [new vscode.Location(document.uri, rangeIn(document, range))] : [];
+      return range ? [new vscode.Location(document.uri, repoRange(document, ...range))] : [];
     });
   }
 
@@ -92,15 +92,6 @@ export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeL
     for (const listener of this.listeners) listener.dispose();
     this.changed.dispose();
   }
-}
-
-function rangeIn(document: RepoDocument, [start, end]: [number, number]): vscode.Range {
-  const position = (offset: number) => {
-    const before = document.fullText.slice(0, document.start + offset);
-    const line = before.split('\n').length - 1;
-    return new vscode.Position(line, before.length - before.lastIndexOf('\n') - 1);
-  };
-  return new vscode.Range(position(start), position(end));
 }
 
 function scalarText(value: unknown): string {

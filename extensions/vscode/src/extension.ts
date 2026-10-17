@@ -33,6 +33,7 @@ import { Names } from './intel/names';
 import { referenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
+import { QuickFixes, ResourceRename, ResourceSymbols } from './intel/editing';
 import { SnippetCompletionProvider } from './intel/snippets';
 import { registerCliCommands } from './cli/commands';
 import { validateFolder } from './editing/validateFolder';
@@ -79,6 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
   const names = new Names(sessions, sync);
   const matchLenses = new MatchLensProvider(sessions, names);
   const referrers = new ReferrersProvider(sessions, names, sync);
+  const symbols = new ResourceSymbols(sessions, names);
   const topicConfigs = new TopicConfigProvider(sessions, names);
   const clusters = new ClusterSelection(context, sessions);
   const explorer = new ExplorerProvider(sessions, sync, clusters);
@@ -173,6 +175,14 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, matchLenses),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, referrers),
     vscode.languages.registerReferenceProvider({ language: 'yaml' }, referrers),
+    vscode.languages.registerDocumentSymbolProvider({ language: 'yaml' }, symbols),
+    vscode.languages.registerWorkspaceSymbolProvider(symbols),
+    vscode.languages.registerRenameProvider({ language: 'yaml' }, new ResourceRename(sessions, names)),
+    vscode.languages.registerCodeActionsProvider(
+      { language: 'yaml' },
+      new QuickFixes(sessions, names),
+      QuickFixes.metadata,
+    ),
     vscode.commands.registerCommand(
       'conduktor.showMatches',
       async (kindName: string, parents: string[], matched: string[]) => {

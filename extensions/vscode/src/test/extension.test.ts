@@ -2075,6 +2075,120 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     }
   });
 
+  test('outlines a file, finds resources by name and renames one everywhere it is named', async () => {
+    const api = await activate();
+    const state = readySession(api);
+    await useTempSyncRoot(api, 'conduktor-rename-');
+    const id = `vscode-rename-${Date.now()}`;
+    const kind = (name: string) => state.spec.catalog.latest(name)!;
+    try {
+      const group = await api.sync.writeNew(
+        kind('Group'),
+        [],
+        stringify({ apiVersion: 'v2', kind: 'Group', metadata: { name: id }, spec: { displayName: 'G' } }),
+        id,
+      );
+      const app = await api.sync.writeNew(
+        kind('Application'),
+        [],
+        stringify({
+          apiVersion: 'v1',
+          kind: 'Application',
+          metadata: { name: `${id}-app` },
+          spec: { title: 'A', owner: id },
+        }),
+        `${id}-app`,
+      );
+      const appDoc = await vscode.workspace.openTextDocument(app);
+
+      const outline = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+        'vscode.executeDocumentSymbolProvider',
+        app,
+      );
+      const own = outline.find((symbol) => symbol.name === `${id}-app`);
+      assert.deepStrictEqual([own?.detail, own?.selectionRange.start.line], ['Application', 3]);
+      const found = await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
+        'vscode.executeWorkspaceSymbolProvider',
+        id,
+      );
+      assert.deepStrictEqual(
+        found
+          .filter((symbol) => symbol.name.startsWith(id))
+          .map((symbol) => [symbol.name, symbol.location.uri.toString()])
+          .sort(),
+        [
+          [id, group.toString()],
+          [`${id}-app`, app.toString()],
+        ],
+      );
+
+      const owner = appDoc.positionAt(appDoc.getText().indexOf(`owner: ${id}`) + 'owner: '.length + 1);
+      const prepared = await vscode.commands.executeCommand<{ placeholder: string }>(
+        'vscode.prepareRename',
+        app,
+        owner,
+      );
+      assert.strictEqual(prepared.placeholder, id);
+      await assert.rejects(
+        async () => vscode.commands.executeCommand('vscode.prepareRename', app, new vscode.Position(1, 7)),
+        /renames a resource from its name/,
+      );
+      const edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
+        'vscode.executeDocumentRenameProvider',
+        app,
+        owner,
+        `${id}-renamed`,
+      );
+      assert.deepStrictEqual(
+        edit
+          .entries()
+          .map(([uri, edits]) => [uri.toString(), edits.map((e) => e.newText)])
+          .sort(),
+        [
+          [app.toString(), [`${id}-renamed`]],
+          [group.toString(), [`${id}-renamed`]],
+        ].sort(),
+      );
+    } finally {
+      await useWorkspaceSyncRoot(api);
+    }
+  });
+
+  test('offers quick fixes for its own problems, and a missing apiVersion', async () => {
+    const api = await activate();
+    readySession(api);
+    await useWorkspaceSyncRoot(api);
+    const problems = (uri: vscode.Uri) => vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'Conduktor');
+    const fixes = async (uri: vscode.Uri, range: vscode.Range) =>
+      (
+        await vscode.commands.executeCommand<vscode.CodeAction[]>(
+          'vscode.executeCodeActionProvider',
+          uri,
+          range,
+          vscode.CodeActionKind.QuickFix.value,
+        )
+      )
+        // VS Code's chat adds its own, which edit nothing until run.
+        .filter((action) => action.edit)
+        .map((action) => action.title);
+    const topic = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content:
+        'apiVersion: v2\nkind: Topic\nmetadata:\n  name: vscode-fix\n  cluster: locl-kafka\nspec:\n  partitions: 1\n  replicationFactor: 1\n  configs:\n    retention.mss: "1"\n',
+    });
+    await until(() => problems(topic.uri).length >= 2);
+    const typo = problems(topic.uri).find((d) => d.message.includes("'locl-kafka'"))!;
+    assert.deepStrictEqual(await fixes(topic.uri, typo.range), ["Change to 'local-kafka'"]);
+    const key = problems(topic.uri).find((d) => d.message.startsWith('retention.mss'))!;
+    assert.deepStrictEqual(await fixes(topic.uri, key.range), ["Change to 'retention.ms'"]);
+
+    const unversioned = await vscode.workspace.openTextDocument({
+      language: 'yaml',
+      content: 'kind: Topic\nmetadata:\n  name: vscode-fix\n',
+    });
+    assert.deepStrictEqual(await fixes(unversioned.uri, new vscode.Range(0, 0, 0, 0)), ['Add apiVersion: v2']);
+  });
+
   test('counts referrers quickly for a cluster thousands of resources point at', async () => {
     const api = await activate();
     readySession(api);
