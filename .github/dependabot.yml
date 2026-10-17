@@ -1,0 +1,40 @@
+# Weekly updates, grouped so a week's minor and patch bumps come as one pull request. The ignored majors are held on
+# purpose; lift an ignore when its reason no longer holds.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Node 22 is the lowest Node we support (engines, and VS Code 1.101's runtime): newer types would allow APIs it
+      # does not have.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
+      # Follows engines.vscode: raising it drops the editors built on older VS Code.
+      - dependency-name: '@types/vscode'
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      # yaml-language-server depends on vscode-languageserver 9; a second major would split the protocol types.
+      - dependency-name: vscode-languageserver
+        update-types: [version-update:semver-major]
+      - dependency-name: vscode-jsonrpc
+        update-types: [version-update:semver-major]
+      # typescript-eslint supports TypeScript below 6.1 only.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: cargo
+    directory: /extensions/zed
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

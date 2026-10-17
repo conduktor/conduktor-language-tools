@@ -110,6 +110,6 @@ resources.
 ## Conventions
 
 - Checks pass before every commit: typecheck, lint, format, unit tests, and the live suite for changes to the
-  extension.
+  extension. CI (`.github/workflows/ci.yml`) runs all but the live suite on every pull request, on Node 22 and 24.
 - Tests first: a test that has been seen failing, then the change that makes it pass.
 - Plans for larger work go in `docs/plans/`, their designs in `docs/specs/`.
