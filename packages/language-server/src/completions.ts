@@ -5,12 +5,25 @@ import {
   type KindCatalog,
   type ResourceSnippet,
 } from '@conduktor/core';
-import { CompletionItemKind, InsertTextFormat, type CompletionList, type Position } from 'vscode-languageserver';
+import {
+  CompletionItemKind,
+  InsertTextFormat,
+  type CompletionList,
+  type Position,
+  type TextEdit,
+} from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 const SEPARATOR = /^---[ \t]*(?:#.*)?$/gm;
 const KIND_LINE = /^kind:[ \t]*["']?([A-Za-z]+)/m;
 const VERSION = /^v\d+$/;
+
+/** A completion's edit of the scalar from `start` to `end`: after a bare `key:`, with the space a value needs first. */
+export function valueEdit(document: TextDocument, start: number, end: number): (value: string) => TextEdit {
+  const range = { start: document.positionAt(start), end: document.positionAt(end) };
+  const space = document.getText()[start - 1] === ':' ? ' ' : '';
+  return (value) => ({ range, newText: `${space}${value}` });
+}
 
 /**
  * A whole resource per kind where the document around the cursor is blank, or `undefined` when it is not. Zed starts

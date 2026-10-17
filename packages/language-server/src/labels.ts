@@ -1,8 +1,9 @@
-import { documentAt, isRecord, valueAt, type KindCatalog, type Resource } from '@conduktor/core';
-import { CompletionItemKind, type CompletionItem, type CompletionList, type Position } from 'vscode-languageserver';
+import { isRecord, type KindCatalog, type Resource } from '@conduktor/core';
+import { CompletionItemKind, type CompletionItem, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { stringify } from 'yaml';
-import { metadataOf, ownScope, type Names } from './references';
+import { valueEdit } from './completions';
+import { metadataOf, ownScope, resourceAt, type Names } from './references';
 
 // Set by the Console for self-service ownership: not labels to write by hand.
 const MANAGED = new Set(['conduktor.io/application', 'conduktor.io/application-instance']);
@@ -17,58 +18,45 @@ export async function labelCompletions(
   position: Position,
   catalog: KindCatalog,
   names: Names,
-  options: { typedSpace: boolean },
-): Promise<CompletionList | undefined> {
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-  const parsed = documentAt(text, offset, catalog);
-  if (!parsed?.resource) return undefined;
-  const { resource } = parsed;
+  typedSpace: boolean,
+): Promise<CompletionItem[] | undefined> {
+  const here = resourceAt(document, position, catalog);
+  if (!here) return undefined;
+  const { resource, value } = here;
   const inUse = async () => {
     const scope = ownScope(resource, catalog);
     const consoleResources = scope ? await names.consoleResources(scope.kind, scope.parents) : [];
-    return [...names.localResources(catalog, { uri: document.uri, start: parsed.start }), ...consoleResources]
+    return [...names.localResources(catalog, here.editing), ...consoleResources]
       .map(labelsOf)
       .filter((labels) => Object.keys(labels).length > 0);
   };
 
-  const at = valueAt(parsed.text, offset - parsed.start);
-  if (at?.path.length === 3 && at.path[0] === 'metadata' && at.path[1] === 'labels') {
-    const key = String(at.path[2]);
-    const values = tally((await inUse()).map((labels) => labels[key]));
-    const start = parsed.start + at.start;
-    // `team:` with nothing after it yet: a value needs the space.
-    const space = text[start - 1] === ':' ? ' ' : '';
-    const range = { start: document.positionAt(start), end: document.positionAt(parsed.start + at.end) };
-    return list(
-      names,
-      values.map(([value, count], i) => ({
-        label: value,
-        kind: CompletionItemKind.Value,
-        detail: `${key} on ${resources(count)}`,
-        sortText: rank(i),
-        textEdit: { range, newText: `${space}${scalar(value)}` },
-      })),
-    );
+  if (value?.path.length === 3 && value.path[0] === 'metadata' && value.path[1] === 'labels') {
+    const key = String(value.path[2]);
+    const edit = valueEdit(document, value.start, value.end);
+    return tally((await inUse()).map((labels) => labels[key])).map(([label, count], i) => ({
+      label,
+      kind: CompletionItemKind.Value,
+      detail: `${key} on ${resources(count)}`,
+      sortText: rank(i),
+      textEdit: edit(scalar(label)),
+    }));
   }
 
-  const key = options.typedSpace ? undefined : labelKeyAt(text, offset);
+  const key = typedSpace ? undefined : labelKeyAt(document.getText(), here.offset);
   if (key === undefined) return undefined;
   const has = new Set(Object.keys(labelsOf(resource)));
   const keys = tally((await inUse()).flatMap((labels) => Object.keys(labels))).filter(
     ([name]) => !MANAGED.has(name) && !has.has(name),
   );
   const range = { start: document.positionAt(key), end: position };
-  return list(
-    names,
-    keys.map(([name, count], i) => ({
-      label: name,
-      kind: CompletionItemKind.Property,
-      detail: `label on ${resources(count)}`,
-      sortText: rank(i),
-      textEdit: { range, newText: `${scalar(name)}: ` },
-    })),
-  );
+  return keys.map(([name, count], i) => ({
+    label: name,
+    kind: CompletionItemKind.Property,
+    detail: `label on ${resources(count)}`,
+    sortText: rank(i),
+    textEdit: { range, newText: `${scalar(name)}: ` },
+  }));
 }
 
 /**
@@ -114,10 +102,6 @@ function tally(values: readonly (string | undefined)[]): [string, number][] {
   const counts = new Map<string, number>();
   for (const value of values) if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
   return [...counts].sort(([a, m], [b, n]) => n - m || a.localeCompare(b));
-}
-
-function list(names: Names, items: CompletionItem[]): CompletionList {
-  return { isIncomplete: names.incomplete(), items };
 }
 
 const rank = (i: number) => String(i).padStart(4, '0');

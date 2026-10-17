@@ -13,8 +13,9 @@ import {
   type NameSource,
   type Resource,
 } from '@conduktor/core';
-import { CompletionItemKind, type CompletionList, type Position } from 'vscode-languageserver';
+import { CompletionItemKind, type CompletionItem, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
+import { valueEdit } from './completions';
 import type { ReadySession } from './session';
 
 /** The resource being written, by its document and where it starts there. */
@@ -30,8 +31,6 @@ export interface NamesHost {
   session(): ReadySession | undefined;
   /** Resolves once the session has loaded, or once waiting for it is no longer worth it. */
   settled(): Promise<void>;
-  /** Whether a session is still connecting to its Console. */
-  connecting(): boolean;
   documents(): readonly TextDocument[];
 }
 
@@ -76,14 +75,6 @@ export class Names {
     };
   }
 
-  /**
-   * Whether what was looked up may still miss the Console's names, its session still connecting: a completion list
-   * says so, for the editor to ask again as the user types.
-   */
-  incomplete(): boolean {
-    return this.host.connecting();
-  }
-
   /** Every resource the open files hold, of any kind, but the one being written. */
   localResources(catalog: KindCatalog, editing?: Editing): Resource[] {
     return this.host
@@ -125,50 +116,47 @@ export class Names {
   }
 }
 
+/** The resource under the cursor, as being edited, and the scalar under the cursor, at offsets in the whole file. */
+export function resourceAt(document: TextDocument, position: Position, catalog: KindCatalog) {
+  const offset = document.offsetAt(position);
+  const parsed = documentAt(document.getText(), offset, catalog);
+  if (!parsed?.resource) return undefined;
+  const at = valueAt(parsed.text, offset - parsed.start);
+  const value = at && { ...at, start: parsed.start + at.start, end: parsed.start + at.end };
+  return { resource: parsed.resource, editing: { uri: document.uri, start: parsed.start }, offset, value };
+}
+
 /** The names a reference under the cursor can take — a Topic's cluster, an Application's owner — or `undefined`. */
 export async function referenceCompletions(
   document: TextDocument,
   position: Position,
   catalog: KindCatalog,
   names: Names,
-  options: { typedSpace: boolean },
-): Promise<CompletionList | undefined> {
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-  const parsed = documentAt(text, offset, catalog);
-  if (!parsed?.resource) return undefined;
-  const at = valueAt(parsed.text, offset - parsed.start);
-  if (!at) return undefined;
-  const reference = referenceAt(parsed.resource, catalog, at.path);
+  typedSpace: boolean,
+): Promise<CompletionItem[] | undefined> {
+  const here = resourceAt(document, position, catalog);
+  if (!here?.value) return undefined;
+  const { resource, value } = here;
+  const reference = referenceAt(resource, catalog, value.path);
   // A resource's own name: the ones that exist already, to write one that is there. Not on a space, where a new name
   // is as likely as an existing one and the list would only be in the way.
   const target = reference?.parents
     ? { kind: reference.kind, parents: reference.parents }
-    : !options.typedSpace && at.path.join('.') === 'metadata.name'
-      ? ownScope(parsed.resource, catalog)
+    : !typedSpace && value.path.join('.') === 'metadata.name'
+      ? ownScope(resource, catalog)
       : undefined;
   if (!target) return undefined;
 
-  const start = parsed.start + at.start;
-  const end = parsed.start + at.end;
-  const quote = /^["']/.exec(text.slice(start, end))?.[0] ?? '';
-  // `cluster:` with nothing after it yet: a value needs the space.
-  const space = text[start - 1] === ':' ? ' ' : '';
-  const range = { start: document.positionAt(start), end: document.positionAt(end) };
-  const { names: found } = await names.lookup(catalog, target.kind, target.parents, {
-    uri: document.uri,
-    start: parsed.start,
-  });
-  return {
-    isIncomplete: names.incomplete(),
-    items: found.map(({ name, sources }) => ({
-      label: name,
-      kind: CompletionItemKind.Reference,
-      detail: `${target.kind} · ${describeSources(sources)}`,
-      ...(quote && { filterText: `${quote}${name}` }),
-      textEdit: { range, newText: `${space}${quote}${name}${quote}` },
-    })),
-  };
+  const quote = /^["']/.exec(document.getText().slice(value.start, value.end))?.[0] ?? '';
+  const edit = valueEdit(document, value.start, value.end);
+  const { names: found } = await names.lookup(catalog, target.kind, target.parents, here.editing);
+  return found.map(({ name, sources }) => ({
+    label: name,
+    kind: CompletionItemKind.Reference,
+    detail: `${target.kind} · ${describeSources(sources)}`,
+    ...(quote && { filterText: `${quote}${name}` }),
+    textEdit: edit(`${quote}${name}${quote}`),
+  }));
 }
 
 /** Where typing a space opens completion: right after `key: ` or a list's `- `, where a value starts. */

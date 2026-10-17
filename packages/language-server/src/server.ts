@@ -86,6 +86,9 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   const refreshLenses = () => {
     if (lensRefresh) void lsp.sendRequest(CodeLensRefreshRequest.type).catch(() => undefined);
   };
+  const confirm = async (message: string, action: string) =>
+    (await lsp.window.showWarningMessage(message, { title: action }))?.title === action;
+  const ready = () => (session && isReady(session) ? session : undefined);
 
   const publish = async (document: TextDocument): Promise<void> => {
     try {
@@ -114,7 +117,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     Object.entries(options.env).filter(([name]) => !(CREDENTIAL_VARIABLES as readonly string[]).includes(name)),
   );
   const resources = new Resources({
-    session: () => (session && isReady(session) ? session : undefined),
+    session: ready,
     document: (uri) => documents.get(uri),
     workspaceFolders: () => folders,
     env,
@@ -125,8 +128,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
       refreshLenses();
     },
     show: (level, message) => show(level === 'warning' ? MessageType.Warning : MessageType.Info, message),
-    confirm: async (message, action) =>
-      (await lsp.window.showWarningMessage(message, { title: action }))?.title === action,
+    confirm,
     log: (message) => lsp.console.info(message),
     progress: async (title, task) => {
       const reporter = await lsp.window.createWorkDoneProgress();
@@ -237,9 +239,8 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   });
 
   const names = new Names({
-    session: () => (session && isReady(session) ? session : undefined),
+    session: ready,
     settled: () => Promise.race([sessionLoaded, new Promise<void>((resolve) => setTimeout(resolve, NAMES_WAIT_MS))]),
-    connecting: () => connecting,
     documents: () => documents.all(),
   });
 
@@ -248,17 +249,12 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     const consoleName = session?.connection?.name ?? 'the Console';
     const lookup = names.lookupFor(catalog);
     const found: Diagnostic[] = [];
-    for (const parsed of parsedDocuments(document.getText(), catalog)) {
-      if (!parsed.resource) continue;
-      for (const { start, end, message, severity } of await referenceProblems(
-        parsed.text,
-        parsed.resource,
-        catalog,
-        consoleName,
-        lookup,
-      ))
+    for (const { start: at, text, resource } of parsedDocuments(document.getText(), catalog)) {
+      if (!resource) continue;
+      const problems = await referenceProblems(text, resource, catalog, consoleName, lookup);
+      for (const { start, end, message, severity } of problems)
         found.push({
-          range: { start: document.positionAt(parsed.start + start), end: document.positionAt(parsed.start + end) },
+          range: { start: document.positionAt(at + start), end: document.positionAt(at + end) },
           message,
           severity: SEVERITIES[severity],
           source: 'Conduktor',
@@ -285,11 +281,13 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     const typedSpace =
       context?.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter === ' ';
     if (typedSpace && !atValueStart(document, position)) return null;
-    const list =
-      (await referenceCompletions(document, position, spec.catalog, names, { typedSpace })) ??
-      (await labelCompletions(document, position, spec.catalog, names, { typedSpace })) ??
-      topicConfigCompletions(document, position, spec.catalog) ??
-      (await schema.complete(document, position));
+    const named =
+      (await referenceCompletions(document, position, spec.catalog, names, typedSpace)) ??
+      (await labelCompletions(document, position, spec.catalog, names, typedSpace));
+    // Names may still miss the Console's while it connects: the list says so, for the editor to ask again as one types.
+    const list = named
+      ? { isIncomplete: connecting, items: named }
+      : (topicConfigCompletions(document, position, spec.catalog) ?? (await schema.complete(document, position)));
     // Nothing to offer after a typed space is no list at all, rather than an empty one.
     return typedSpace && !list?.items.length ? null : list;
   });
@@ -331,8 +329,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     if (connection.mode === target) return;
     if (target === 'dev') {
       const question = `Switch ${connection.name} to dev mode until Zed restarts? Apply will then be able to change it, after a dry run and your confirmation.`;
-      if ((await lsp.window.showWarningMessage(question, { title: 'Switch to dev' }))?.title !== 'Switch to dev')
-        return;
+      if (!(await confirm(question, 'Switch to dev'))) return;
     }
     session = { ...session, connection: { ...connection, mode: target } };
     show(MessageType.Info, `${connection.name} is in ${target} mode${target === 'dev' ? ' until Zed restarts' : ''}.`);
@@ -340,8 +337,9 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   };
 
   const modeAction = (): CodeAction[] => {
-    if (!session || !isReady(session)) return [];
-    const { name, mode } = session.connection;
+    const current = ready();
+    if (!current) return [];
+    const { name, mode } = current.connection;
     const title =
       mode === 'prod'
         ? `Switch ${name} to dev mode, to apply (until Zed restarts)`

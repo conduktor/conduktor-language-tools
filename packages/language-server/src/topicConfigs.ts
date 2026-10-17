@@ -27,6 +27,7 @@ import {
   type TextEdit,
 } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
+import { valueEdit } from './completions';
 
 export const APPLY_PRESET = 'conduktor.applyTopicPreset';
 
@@ -61,8 +62,7 @@ export function topicConfigCompletions(
       ...new Set([...(configChoices(config) ?? []), ...(config?.default !== undefined ? [config.default] : [])]),
     ];
     const quoted = document.getText(range).startsWith('"');
-    // `cleanup.policy:` with nothing after it yet: a value needs the space.
-    const space = document.getText()[start - 1] === ':' ? ' ' : '';
+    const edit = valueEdit(document, start, parsed.start + context.end);
     return {
       isIncomplete: false,
       items: values.map((value) => {
@@ -72,7 +72,7 @@ export function topicConfigCompletions(
           kind: CompletionItemKind.Value,
           ...(value === config?.default && { detail: 'default' }),
           ...(quoted && { filterText: yaml }),
-          textEdit: { range, newText: `${space}${yaml}` },
+          textEdit: edit(yaml),
         };
       }),
     };

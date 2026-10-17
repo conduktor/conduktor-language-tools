@@ -231,7 +231,8 @@ export class Resources {
     if (!stale()) this.record(uri, plan, 'dry run');
     const summary = summarise(name, plan);
     this.host.log(summary.text);
-    this.shellHint(uri, apply);
+    const path = filePath(uri);
+    if (path) this.host.log(`Same from a shell: conduktor apply -f ${path}${apply ? '' : ' --dry-run'}`);
     if (!apply || summary.failed > 0) {
       this.host.show(summary.failed > 0 ? 'warning' : 'info', summary.text);
       return;
@@ -278,7 +279,11 @@ export class Resources {
   private variables(uri: string): Env {
     const path = filePath(uri);
     if (!path) return this.host.env;
-    return fileVariables(path, this.host.env, { workspace: this.workspaceOf(path), home: this.host.home });
+    const workspace = this.host
+      .workspaceFolders()
+      .filter((folder) => isInside(folder, path))
+      .sort((a, b) => b.length - a.length)[0];
+    return fileVariables(path, this.host.env, { workspace, home: this.host.home });
   }
 
   private includeReader(uri: string): ((file: string) => string) | undefined {
@@ -286,18 +291,6 @@ export class Resources {
     if (!path) return undefined;
     // A cloned repository's schemaFile must not reach past it: what is read is sent to the Console.
     return (file) => readFileSync(containedFile(includeRoot(path, this.host.workspaceFolders()), file), 'utf8');
-  }
-
-  private workspaceOf(path: string): string | undefined {
-    return this.host
-      .workspaceFolders()
-      .filter((folder) => isInside(folder, path))
-      .sort((a, b) => b.length - a.length)[0];
-  }
-
-  private shellHint(uri: string, apply: boolean): void {
-    const path = filePath(uri);
-    if (path) this.host.log(`Same from a shell: conduktor apply -f ${path}${apply ? '' : ' --dry-run'}`);
   }
 }
 
@@ -307,7 +300,6 @@ function filePath(uri: string): string | undefined {
 
 function lineAt(document: TextDocument, offset: number): Range {
   const { line } = document.positionAt(offset);
-  const end = document.offsetAt({ line: line + 1, character: 0 });
-  const text = document.getText({ start: { line, character: 0 }, end: document.positionAt(end) });
+  const text = document.getText({ start: { line, character: 0 }, end: { line: line + 1, character: 0 } });
   return { start: { line, character: 0 }, end: { line, character: text.replace(/\r?\n$/, '').length } };
 }

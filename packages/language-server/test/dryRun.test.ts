@@ -2,37 +2,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CodeAction, CodeLens } from 'vscode-languageserver';
-import {
-  buildServer,
-  fakeConsole,
-  matching,
-  startServer,
-  type FakeConsole,
-  type StartOptions,
-  type Started,
-} from './harness';
+import { describe, expect, it } from 'vitest';
+import { matching, useServers, type StartOptions } from './harness';
 
-let directory: string;
-let fake: FakeConsole;
-const running: Started[] = [];
-
-beforeAll(async () => {
-  directory = buildServer();
-  fake = await fakeConsole();
-  return () => fake.close();
-}, 60_000);
-
-afterAll(() => {
-  running.forEach((server) => server.stop());
-});
-
-async function start(mode: 'dev' | 'prod', options: Omit<StartOptions, 'settings'> = {}): Promise<Started> {
-  const server = await startServer(directory, { settings: { url: fake.url, name: 'fake', mode }, ...options });
-  running.push(server);
-  return server;
-}
+const servers = useServers();
+const start = (mode: 'dev' | 'prod', options: Omit<StartOptions, 'settings'> = {}) =>
+  servers.start({ settings: { url: servers.fake.url, name: 'fake', mode }, ...options });
+// Nothing set up: the Console the conduktor CLI points at.
+const fromCli = () => servers.start({ env: { CDK_BASE_URL: servers.fake.url, CDK_API_KEY: 'secret' } });
 
 // Each test writes to its own cluster, so the requests it looks at are its own.
 const topics = (cluster: string) =>
@@ -48,23 +25,9 @@ const topics = (cluster: string) =>
     'spec: { partitions: 100, replicationFactor: 1 }',
   ].join('\n');
 
-const requestsTo = (cluster: string) => fake.requests.filter((r) => r.url.includes(`/cluster/${cluster}/`));
+const requestsTo = (cluster: string) => servers.fake.requests.filter((r) => r.url.includes(`/cluster/${cluster}/`));
 const applied = (cluster: string) =>
   requestsTo(cluster).filter((r) => r.method === 'PUT' && !r.url.includes('dryMode'));
-
-async function lenses(server: Started, uri: string): Promise<string[]> {
-  const found: CodeLens[] = await server.connection.sendRequest('textDocument/codeLens', { textDocument: { uri } });
-  return found.map((lens) => lens.command!.title);
-}
-
-async function actions(server: Started, uri: string, line: number): Promise<CodeAction[]> {
-  const position = { line, character: 0 };
-  return server.connection.sendRequest('textDocument/codeAction', {
-    textDocument: { uri },
-    range: { start: position, end: position },
-    context: { diagnostics: [] },
-  });
-}
 
 describe('dry runs against the Console', () => {
   it("dry-runs a file once opened, and puts what the Console refuses on the resource's first line", async () => {
@@ -81,7 +44,7 @@ describe('dry runs against the Console', () => {
       ['PUT', 'dryMode=true', 'Bearer secret'],
       ['PUT', 'dryMode=true', 'Bearer secret'],
     ]);
-    expect(await lenses(server, uri)).toEqual(['Dry run all (2)', 'Dry run · ~ Updated', 'Dry run · ✗ failed']);
+    expect(await server.lenses(uri)).toEqual(['Dry run all (2)', 'Dry run · ~ Updated', 'Dry run · ✗ failed']);
   }, 30_000);
 
   it('says what the Console would do, from a code action', async () => {
@@ -89,14 +52,13 @@ describe('dry runs against the Console', () => {
     const uri = 'file:///work/action.yaml';
     server.open(uri, topics('c-action'));
 
-    const titles = (await actions(server, uri, 1)).map((a) => a.title).filter((t) => !t.startsWith('Preset: '));
-    expect(titles).toEqual([
+    const actions = await server.actions(uri, 1);
+    expect(actions.map((a) => a.title).filter((t) => !t.startsWith('Preset: '))).toEqual([
       'Dry run Topic orders on fake',
       'Dry run the 2 resources of this file',
       'Switch fake to dev mode, to apply (until Zed restarts)',
     ]);
-    const [dryRun] = await actions(server, uri, 1);
-    await server.run(dryRun!.command!);
+    await server.run(actions[0]!.command!);
     expect(await server.message((m) => m.message.startsWith('Dry run on fake'))).toEqual({
       type: 3,
       message: 'Dry run on fake: 1 Updated',
@@ -108,15 +70,14 @@ describe('dry runs against the Console', () => {
     const uri = 'file:///work/apply.yaml';
     server.open(uri, topics('c-apply'));
 
-    const titles = (await actions(server, uri, 1)).map((a) => a.title);
-    expect(titles).toContain('Apply Topic orders to fake');
+    expect((await server.actions(uri, 1)).map((a) => a.title)).toContain('Apply Topic orders to fake');
     await server.command('conduktor.apply', uri, 0);
     expect(server.prompts.map((p) => p.message)).toEqual(['Apply to fake? Dry run on fake: 1 Updated.']);
     expect(applied('c-apply')).toHaveLength(1);
     expect(await server.message((m) => m.message.startsWith('Applied'))).toMatchObject({
       message: 'Applied to fake: 1 Updated',
     });
-    expect(await lenses(server, uri)).toContain('Apply · ~ Updated');
+    expect(await server.lenses(uri)).toContain('Apply · ~ Updated');
   }, 30_000);
 
   it('applies nothing the user did not confirm', async () => {
@@ -145,8 +106,8 @@ describe('dry runs against the Console', () => {
     const server = await start('prod', { answer: 'Apply' });
     const uri = 'file:///work/prod.yaml';
     server.open(uri, topics('c-prod'));
-    expect((await actions(server, uri, 1)).map((a) => a.title).filter((t) => t.startsWith('Apply'))).toEqual([]);
-    expect((await lenses(server, uri)).filter((t) => t.startsWith('Apply'))).toEqual([]);
+    expect((await server.actions(uri, 1)).map((a) => a.title).filter((t) => t.startsWith('Apply'))).toEqual([]);
+    expect((await server.lenses(uri)).filter((t) => t.startsWith('Apply'))).toEqual([]);
     await server.command('conduktor.apply', uri, 0);
     expect(server.messages).toContainEqual({ type: 2, message: matching(/fake is in prod mode/) });
     expect(applied('c-prod')).toEqual([]);
@@ -158,7 +119,7 @@ describe('dry runs against the Console', () => {
     server.open(uri, 'apiVersion: v2\nkind: Topic\nmetadata: { name: "${CONDUKTOR_TOKEN}", cluster: c-token }\n');
     const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('Missing environment')));
     expect(diagnostics.map((d) => d.message)).toContain('Missing environment variables: CONDUKTOR_TOKEN');
-    expect(fake.requests.some((r) => r.body.includes('secret'))).toBe(false);
+    expect(servers.fake.requests.some((r) => r.body.includes('secret'))).toBe(false);
   }, 30_000);
 
   it("fills ${VAR} from the .env of the file's workspace folder", async () => {
@@ -173,8 +134,7 @@ describe('dry runs against the Console', () => {
   }, 30_000);
 
   it('works with nothing set up, against the Console the conduktor CLI points at', async () => {
-    const server = await startServer(directory, { env: { CDK_BASE_URL: fake.url, CDK_API_KEY: 'secret' } });
-    running.push(server);
+    const server = await fromCli();
     const uri = 'file:///work/cli.yaml';
     server.open(uri, topics('c-cli'));
     await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('partitions must be <= 12')));
@@ -183,8 +143,7 @@ describe('dry runs against the Console', () => {
   }, 30_000);
 
   it("never puts the CLI's API key into a resource", async () => {
-    const server = await startServer(directory, { env: { CDK_BASE_URL: fake.url, CDK_API_KEY: 'secret' } });
-    running.push(server);
+    const server = await fromCli();
     const uri = 'file:///work/cli-key.yaml';
     server.open(uri, 'apiVersion: v2\nkind: Topic\nmetadata: { name: "${CDK_API_KEY}", cluster: c-cli-key }\n');
     const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('Missing environment')));
@@ -196,12 +155,12 @@ describe('dry runs against the Console', () => {
     const uri = 'file:///work/switch.yaml';
     server.open(uri, topics('c-switch'));
 
-    const toDev = (await actions(server, uri, 1)).find((a) => a.title.startsWith('Switch fake to dev mode'))!;
+    const toDev = (await server.actions(uri, 1)).find((a) => a.title.startsWith('Switch fake to dev mode'))!;
     expect(toDev).toBeDefined();
     await server.run(toDev.command!);
     expect(server.prompts.map((p) => p.message)).toEqual([expect.stringMatching(/^Switch fake to dev mode/)]);
 
-    const titles = (await actions(server, uri, 1)).map((a) => a.title);
+    const titles = (await server.actions(uri, 1)).map((a) => a.title);
     expect(titles).toContain('Apply Topic orders to fake');
     expect(titles).toContain('Switch fake back to prod mode');
     await server.command('conduktor.apply', uri, 0);
@@ -214,6 +173,6 @@ describe('dry runs against the Console', () => {
     server.open(uri, topics('c-no-switch'));
     await server.command('conduktor.switchMode', 'dev');
     expect(server.prompts).toHaveLength(1);
-    expect((await actions(server, uri, 1)).map((a) => a.title).filter((t) => t.startsWith('Apply'))).toEqual([]);
+    expect((await server.actions(uri, 1)).map((a) => a.title).filter((t) => t.startsWith('Apply'))).toEqual([]);
   }, 30_000);
 });

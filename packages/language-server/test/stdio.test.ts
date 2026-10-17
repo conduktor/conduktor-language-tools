@@ -1,38 +1,9 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createServer } from 'node:http';
-import type { CodeLens, CompletionList, Hover } from 'vscode-languageserver';
-import {
-  anything,
-  buildServer,
-  fakeConsole,
-  matching,
-  startServer,
-  until,
-  type FakeConsole,
-  type Started,
-} from './harness';
+import { describe, expect, it } from 'vitest';
+import { buildServer, matching, until, useServers } from './harness';
 
-let directory: string;
-let fake: FakeConsole;
-const running: Started[] = [];
-
-beforeAll(async () => {
-  directory = buildServer();
-  fake = await fakeConsole();
-  return () => fake.close();
-}, 60_000);
-
-afterAll(() => {
-  running.forEach((server) => server.stop());
-});
-
-async function start(settings: unknown, options: { zedSettings?: boolean; answer?: string } = {}): Promise<Started> {
-  const server = await startServer(directory, { settings, ...options });
-  running.push(server);
-  return server;
-}
+const servers = useServers();
 
 const BAD_TOPIC = [
   'apiVersion: v2',
@@ -42,67 +13,49 @@ const BAD_TOPIC = [
   '  partitions: three',
   '  ',
 ].join('\n');
-const CONFIG_MAP = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n  ';
 
 describe('the bundled language server over stdio', () => {
   it('checks, completes and hovers resources with the schema of the Console in the settings', async () => {
-    const server = await start({ url: fake.url, name: 'fake' });
+    const server = await servers.start();
     server.open('file:///work/topic.yaml', BAD_TOPIC);
-    server.open('file:///work/config.yaml', CONFIG_MAP);
 
     const diagnostics = await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
-    expect(diagnostics).toContainEqual(expect.objectContaining({ source: 'Conduktor', range: anything() }));
+    expect(diagnostics).toContainEqual(expect.objectContaining({ source: 'Conduktor' }));
     expect(diagnostics.every((d) => d.range.start.line === 4)).toBe(true);
-    expect(fake.requests).toContainEqual(
+    expect(servers.fake.requests).toContainEqual(
       expect.objectContaining({ url: '/api/public/docs/docs.yaml', authorization: undefined }),
     );
-
-    const completion: CompletionList | null = await server.connection.sendRequest('textDocument/completion', {
-      textDocument: { uri: 'file:///work/topic.yaml' },
-      position: { line: 5, character: 2 },
-    });
-    expect(completion?.items.map((i) => i.label)).toContain('replicationFactor');
-
-    const hover: Hover | null = await server.connection.sendRequest('textDocument/hover', {
-      textDocument: { uri: 'file:///work/topic.yaml' },
-      position: { line: 3, character: 1 },
-    });
-    expect(JSON.stringify(hover?.contents)).toContain('TopicSpec');
-
-    const other: CompletionList | null = await server.connection.sendRequest('textDocument/completion', {
-      textDocument: { uri: 'file:///work/config.yaml' },
-      position: { line: 4, character: 2 },
-    });
-    expect(other).toBeNull();
+    expect((await server.completeAtEnd(BAD_TOPIC))?.map((i) => i.label)).toContain('replicationFactor');
+    expect(await server.hover('file:///work/topic.yaml', 3, 1)).toContain('TopicSpec');
+    expect(await server.completeAtEnd('apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n  ')).toBeUndefined();
   }, 30_000);
 
-  it('works from the bundled schema without a Console in the settings', async () => {
-    const server = await start(undefined);
-    server.open('file:///work/topic.yaml', BAD_TOPIC);
-    const diagnostics = await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
-    expect(diagnostics[0]?.source).toBe('Conduktor');
+  it('works from the bundled schema without a Console, and publishes each file as soon as it opens', async () => {
+    const server = await servers.start({});
+    server.open('file:///work/first.yaml', BAD_TOPIC);
+    expect((await server.diagnostics('file:///work/first.yaml', (d) => d.length > 0))[0]?.source).toBe('Conduktor');
+    server.open('file:///work/second.yaml', BAD_TOPIC);
+    const diagnostics = await server.diagnostics('file:///work/second.yaml', (d) => d.length > 0);
+    expect(diagnostics[0]?.range.start.line).toBe(4);
     expect(server.messages).toEqual([]);
   }, 30_000);
 
   it('warns when the Console cannot be reached, and checks with the schema it has', async () => {
-    const server = await start({ url: 'http://127.0.0.1:9', name: 'down' });
+    const server = await servers.start({ settings: { url: 'http://127.0.0.1:9', name: 'down' } });
     server.open('file:///work/topic.yaml', BAD_TOPIC);
     await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
     expect(server.messages).toContainEqual({ type: 2, message: matching(/^down: using the snapshot/) });
   }, 30_000);
 
   it('says what is wrong with the settings, and keeps checking with the bundled schema', async () => {
-    const server = await start({ url: 'http://localhost:8080', mode: 'apply' });
+    const server = await servers.start({ settings: { url: 'http://localhost:8080', mode: 'apply' } });
     server.open('file:///work/topic.yaml', BAD_TOPIC);
     await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
-    expect(server.messages).toContainEqual({
-      type: 1,
-      message: matching(/^lsp\.conduktor-console\.settings: "mode"/),
-    });
+    expect(server.messages).toContainEqual({ type: 1, message: matching(/^lsp\.conduktor-console\.settings: "mode"/) });
   }, 30_000);
 
   it("offers, once, to open Zed's settings when a resource is opened without a Console", async () => {
-    const server = await start(undefined, { zedSettings: true, answer: 'Open Settings' });
+    const server = await servers.start({ zedSettings: true, answer: 'Open Settings' });
     server.open('file:///work/topic.yaml', BAD_TOPIC);
     server.open('file:///work/other.yaml', BAD_TOPIC);
     await server.diagnostics('file:///work/other.yaml', (d) => d.length > 0);
@@ -112,64 +65,34 @@ describe('the bundled language server over stdio', () => {
   }, 30_000);
 
   it('connects to the Console as soon as the settings name it, without a restart', async () => {
-    const server = await start(undefined);
+    const server = await servers.start({});
     const uri = 'file:///work/live.yaml';
     server.open(uri, 'apiVersion: v2\nkind: Topic\nmetadata: { name: orders, cluster: c-live }\n');
     await server.diagnostics(uri, () => true);
-    expect(fake.requests.filter((r) => r.url.includes('/cluster/c-live/'))).toEqual([]);
+    expect(servers.fake.requests.filter((r) => r.url.includes('/cluster/c-live/'))).toEqual([]);
 
-    server.configure({ url: fake.url, name: 'later', mode: 'dev' });
-    const titles = async () =>
-      (await server.connection.sendRequest<CodeLens[]>('textDocument/codeLens', { textDocument: { uri } })).map(
-        (lens) => lens.command!.title,
-      );
-    await until(async () => (await titles()).includes('Apply'));
-    await until(() => fake.requests.some((r) => r.url.includes('/cluster/c-live/') && r.url.includes('dryMode')));
+    server.configure({ url: servers.fake.url, name: 'later', mode: 'dev' });
+    await until(async () => (await server.lenses(uri)).includes('Apply'));
+    await until(() =>
+      servers.fake.requests.some((r) => r.url.includes('/cluster/c-live/') && r.url.includes('dryMode')),
+    );
   }, 30_000);
 
   it('completes from the bundled schema while the Console has not answered yet', async () => {
-    const silent = createServer(() => undefined);
-    await new Promise<void>((resolve) => silent.listen(0, '127.0.0.1', resolve));
-    try {
-      const server = await start({ url: `http://127.0.0.1:${(silent.address() as { port: number }).port}` });
-      const uri = 'file:///work/slow.yaml';
-      server.open(uri, 'apiVersion: v2\nkind: Topic\nspec:\n  p');
-      const completion = await Promise.race([
-        server.connection.sendRequest<CompletionList | null>('textDocument/completion', {
-          textDocument: { uri },
-          position: { line: 3, character: 3 },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('completion waited on the Console')), 5_000),
-        ),
-      ]);
-      expect(completion?.items.map((i) => i.label)).toContain('partitions');
-    } finally {
-      silent.closeAllConnections();
-      silent.close();
-    }
-  }, 30_000);
-
-  it('publishes a file’s problems as soon as it is opened, once the server is ready', async () => {
-    const server = await start(undefined);
-    server.open('file:///work/first.yaml', BAD_TOPIC);
-    await server.diagnostics('file:///work/first.yaml', (d) => d.length > 0);
-    server.open('file:///work/second.yaml', BAD_TOPIC);
-    const diagnostics = await server.diagnostics('file:///work/second.yaml', (d) => d.length > 0);
-    expect(diagnostics[0]?.range.start.line).toBe(4);
+    const silent = await servers.startConsole({ unanswered: 'all' });
+    const server = await servers.start({ settings: { url: silent.url } });
+    const completion = await Promise.race([
+      server.completeAtEnd('apiVersion: v2\nkind: Topic\nspec:\n  p'),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('completion waited on the Console')), 5_000)),
+    ]);
+    expect(completion?.map((i) => i.label)).toContain('partitions');
   }, 30_000);
 
   it('stays up, and says why, when its bundled schema cannot be read', async () => {
     const broken = buildServer();
     rmSync(join(broken, 'dist', 'public-api-doc.yaml'));
-    const server = await startServer(broken, {});
-    running.push(server);
-    const message = await server.message((m) => m.type === 1);
-    expect(message.message).toContain('public-api-doc.yaml');
-    const hover: unknown = await server.connection.sendRequest('textDocument/hover', {
-      textDocument: { uri: 'file:///work/none.yaml' },
-      position: { line: 0, character: 0 },
-    });
-    expect(hover).toBeNull();
+    const server = await servers.start({}, broken);
+    expect((await server.message((m) => m.type === 1)).message).toContain('public-api-doc.yaml');
+    expect(await server.hover('file:///work/none.yaml', 0, 0)).toBeNull();
   }, 60_000);
 });

@@ -1,27 +1,20 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { ToolContext } from '@conduktor/core';
 import { describe, expect, it } from 'vitest';
 import { createConduktorServer } from '../src/server';
-import { fakeContext } from './fakeContext';
+import { fakeContext, resultText as text } from './fakeContext';
 
-async function connect(context: ToolContext) {
+async function connect() {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  await createConduktorServer(() => context, '0.0.0-test').connect(serverSide);
+  await createConduktorServer(fakeContext, '0.0.0-test').connect(serverSide);
   const client = new Client({ name: 'test', version: '0' });
   await client.connect(clientSide);
   return client;
 }
 
-const text = (result: unknown) =>
-  CallToolResultSchema.parse(result)
-    .content.map((part) => (part.type === 'text' ? part.text : ''))
-    .join('');
-
 describe('Conduktor MCP server', () => {
   it('lists the core tools with their input schemas and tells agents the workflow', async () => {
-    const client = await connect(fakeContext());
+    const client = await connect();
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual([
       'conduktor_list_kinds',
@@ -35,7 +28,7 @@ describe('Conduktor MCP server', () => {
   });
 
   it('runs a tool and returns its text', async () => {
-    const client = await connect(fakeContext());
+    const client = await connect();
     const result = await client.callTool({
       name: 'conduktor_validate',
       arguments: { yaml: 'apiVersion: v2\nkind: Topic\nmetadata: { name: t, cluster: c }\nspec: { partitions: x }\n' },
@@ -48,7 +41,7 @@ describe('Conduktor MCP server', () => {
   });
 
   it('reports tool errors as errors the agent can read', async () => {
-    const client = await connect(fakeContext());
+    const client = await connect();
     const result = await client.callTool({ name: 'conduktor_dry_run', arguments: { yaml: 'kind: Topic' } });
     expect(result.isError).toBe(true);
     expect(text(result)).toMatch(/No Conduktor resources found/);

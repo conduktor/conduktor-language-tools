@@ -33,14 +33,11 @@ describe('the schema service', () => {
   });
 
   it('takes a document from its kind alone, and says what is missing', async () => {
-    const service = loaded();
-    const diagnostics = await service.validate(doc('kind: Topic', 'spec:', '  '));
+    const diagnostics = await loaded().validate(doc('kind: Topic', 'spec:', '  '));
     expect(diagnostics.map((d) => d.message)).toContain('Missing property "apiVersion".');
-    const completion = await service.complete(doc('kind: Topic', 'apiVersion: '), { line: 1, character: 12 });
-    expect(completion?.items.map((i) => i.label)).toContain('v2');
   });
 
-  it('offers only the versions of the kind being written', async () => {
+  it('offers only the versions of the kind being written, from its kind alone', async () => {
     const completion = await loaded().complete(doc('kind: Topic', 'apiVersion: '), { line: 1, character: 12 });
     const versions = completion?.items.map((i) => i.label).filter((label) => /^v\d+$/.test(label));
     expect(versions).toEqual(['v2']);

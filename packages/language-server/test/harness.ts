@@ -10,13 +10,19 @@ import {
   StreamMessageWriter,
   type MessageConnection,
 } from 'vscode-jsonrpc/node';
-import { expect } from 'vitest';
+import { afterAll, beforeAll, expect } from 'vitest';
 import type {
   ApplyWorkspaceEditParams,
+  CodeAction,
+  CodeLens,
   Command,
+  CompletionItem,
+  CompletionList,
   ConfigurationParams,
   Diagnostic,
   ExecuteCommandParams,
+  Hover,
+  MarkupContent,
   ShowDocumentParams,
   PublishDiagnosticsParams,
   ShowMessageParams,
@@ -38,36 +44,31 @@ export interface FakeConsole {
   close(): void;
 }
 
+interface FakeConsoleOptions {
+  delayMs?: number;
+  /**
+   * Requests left unanswered: every PUT, so dry runs never finish and nothing they publish gets in a test's way; or
+   * all of them, as a Console that hangs.
+   */
+  unanswered?: 'writes' | 'all';
+}
+
 /**
  * A Console that serves the bundled OpenAPI, accepts the token `secret` as an admin key, holds the clusters
- * `local-kafka` (with the topics `orders` and `payments`, labelled) and `prod-kafka`, and dry-runs or applies topics: more than 12 partitions breaks a policy, `orders`
- * exists already, anything else would be created.
+ * `local-kafka` (with the topics `orders` and `payments`, labelled) and `prod-kafka`, and dry-runs or applies topics:
+ * more than 12 partitions breaks a policy, `orders` exists already, anything else would be created.
  */
-export async function fakeConsole(
-  options: {
-    delayMs?: number;
-    /** Leaves every PUT unanswered: dry runs never finish, so nothing they publish gets in a test's way. */
-    silentWrites?: boolean;
-  } = {},
-): Promise<FakeConsole> {
+async function fakeConsole(options: FakeConsoleOptions = {}): Promise<FakeConsole> {
   const requests: ConsoleRequest[] = [];
   const server: Server = createServer((request, response) => {
     let body = '';
     request.on('data', (chunk: Buffer) => (body += chunk.toString()));
     request.on('end', () => {
-      if (options.silentWrites && request.method === 'PUT') {
-        requests.push({
-          method: request.method,
-          url: request.url!,
-          authorization: request.headers.authorization,
-          body,
-        });
-        return;
-      }
+      requests.push({ method: request.method!, url: request.url!, authorization: request.headers.authorization, body });
+      if (options.unanswered === 'all' || (options.unanswered === 'writes' && request.method === 'PUT')) return;
       setTimeout(answer, options.delayMs ?? 0);
     });
     const answer = () => {
-      requests.push({ method: request.method!, url: request.url!, authorization: request.headers.authorization, body });
       const json = (status: number, value: unknown) =>
         response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(value));
       if (request.url === '/api/public/docs/docs.yaml') {
@@ -111,7 +112,6 @@ export async function fakeConsole(
 
 // Vitest types its asymmetric matchers `any`; a field of an expected object takes them as the opaque values they are.
 export const matching = (pattern: RegExp): unknown => expect.stringMatching(pattern);
-export const anything = (): unknown => expect.anything();
 
 /** Polls until the check holds: for what the server does on its own, with nothing to wait on. */
 export async function until(check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> {
@@ -130,6 +130,40 @@ export function buildServer(): string {
     stdio: 'pipe',
   });
   return directory;
+}
+
+/**
+ * For a test file: builds the server and starts a fake Console before its tests, and stops every server and Console
+ * they started after them.
+ */
+export function useServers() {
+  let directory: string | undefined;
+  let fake: FakeConsole | undefined;
+  const stops: (() => void)[] = [];
+  /** A fake Console, stopped after the file's tests; another one is for a test that needs it slow or silent. */
+  const startConsole = async (options: FakeConsoleOptions = {}) => {
+    const started = await fakeConsole(options);
+    stops.push(() => started.close());
+    return started;
+  };
+  beforeAll(async () => {
+    directory = buildServer();
+    fake = await startConsole();
+  }, 60_000);
+  afterAll(() => stops.forEach((stop) => stop()));
+
+  return {
+    get fake() {
+      return fake!;
+    },
+    startConsole,
+    /** A server, by default connected to the fake Console as `fake`; another build of it from `build`. */
+    start: async (options: StartOptions = { settings: { url: fake!.url, name: 'fake' } }, build = directory!) => {
+      const server = await startServer(build, options);
+      stops.push(() => server.stop());
+      return server;
+    },
+  };
 }
 
 export interface StartOptions {
@@ -158,6 +192,14 @@ export interface Started {
   /** The edits the server asked to apply. */
   edits: ApplyWorkspaceEditParams[];
   open(uri: string, text: string): void;
+  /** Opens the text in a new file and asks for completion at its end: as typed, or as Zed asks once a space is typed. */
+  completeAtEnd(text: string, space?: boolean): Promise<CompletionItem[] | undefined>;
+  /** The hover's markdown, `null` when there is none. */
+  hover(uri: string, line: number, character: number): Promise<string | null>;
+  /** The titles of a file's code lenses. */
+  lenses(uri: string): Promise<string[]>;
+  /** The code actions at the start of a line. */
+  actions(uri: string, line: number): Promise<CodeAction[]>;
   /** Changes the settings, as Zed does when the user edits them. */
   configure(settings: unknown): void;
   command(command: string, ...args: unknown[]): Promise<unknown>;
@@ -166,7 +208,9 @@ export interface Started {
   stop(): void;
 }
 
-export async function startServer(directory: string, options: StartOptions = {}): Promise<Started> {
+let files = 0;
+
+async function startServer(directory: string, options: StartOptions): Promise<Started> {
   const home = mkdtempSync(join(directory, 'home-'));
   if (options.zedSettings) {
     mkdirSync(join(home, '.config', 'zed'), { recursive: true });
@@ -233,6 +277,10 @@ export async function startServer(directory: string, options: StartOptions = {})
     Promise.race([connection.sendRequest('workspace/executeCommand', params), exited]);
   const push = () =>
     void connection.sendNotification('workspace/didChangeConfiguration', { settings: { conduktor: settings ?? null } });
+  const open = (uri: string, text: string) =>
+    void connection.sendNotification('textDocument/didOpen', {
+      textDocument: { uri, languageId: 'yaml', version: 1, text },
+    });
   connection.listen();
 
   const folders = options.folders ?? [];
@@ -269,9 +317,34 @@ export async function startServer(directory: string, options: StartOptions = {})
         (value) => typeof (value as ShowMessageParams).type === 'number' && predicate(value as ShowMessageParams),
         messages,
       ),
-    open: (uri, text) =>
-      void connection.sendNotification('textDocument/didOpen', {
-        textDocument: { uri, languageId: 'yaml', version: 1, text },
+    open,
+    completeAtEnd: async (text, space = false) => {
+      const uri = `file:///work/completion-${++files}.yaml`;
+      open(uri, text);
+      const lines = text.split('\n');
+      const list = await connection.sendRequest<CompletionList | null>('textDocument/completion', {
+        textDocument: { uri },
+        position: { line: lines.length - 1, character: lines.at(-1)!.length },
+        ...(space && { context: { triggerKind: 2, triggerCharacter: ' ' } }),
+      });
+      return list?.items;
+    },
+    hover: async (uri, line, character) => {
+      const found = await connection.sendRequest<Hover | null>('textDocument/hover', {
+        textDocument: { uri },
+        position: { line, character },
+      });
+      return found && (found.contents as MarkupContent).value;
+    },
+    lenses: async (uri) =>
+      (await connection.sendRequest<CodeLens[]>('textDocument/codeLens', { textDocument: { uri } })).map(
+        (lens) => lens.command!.title,
+      ),
+    actions: (uri, line) =>
+      connection.sendRequest('textDocument/codeAction', {
+        textDocument: { uri },
+        range: { start: { line, character: 0 }, end: { line, character: 0 } },
+        context: { diagnostics: [] },
       }),
     command: (command, ...args) => execute({ command, arguments: args }),
     run: ({ command, arguments: args = [] }) => execute({ command, arguments: args }),

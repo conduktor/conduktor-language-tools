@@ -1,18 +1,16 @@
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer, type IncomingMessage } from 'node:http';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import { build } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { snapshotPath } from './fakeContext';
-import { readFileSync } from 'node:fs';
+import { resultText as text, snapshotPath } from './fakeContext';
 
 const requests: { method: string; url: string; authorization: string | undefined }[] = [];
-const console_ = createServer((request: IncomingMessage, response) => {
+const console_ = createServer((request, response) => {
   requests.push({ method: request.method!, url: request.url!, authorization: request.headers.authorization });
   let body = '';
   request.on('data', (chunk: Buffer) => (body += chunk.toString()));
@@ -31,11 +29,6 @@ const console_ = createServer((request: IncomingMessage, response) => {
 });
 const client = new Client({ name: 'test', version: '0' });
 let directory: string;
-
-const text = (result: unknown) =>
-  CallToolResultSchema.parse(result)
-    .content.map((part) => (part.type === 'text' ? part.text : ''))
-    .join('');
 
 beforeAll(async () => {
   await new Promise<void>((resolve) => console_.listen(0, '127.0.0.1', resolve));
@@ -74,7 +67,7 @@ afterAll(async () => {
 });
 
 describe('the bundled MCP server over stdio', () => {
-  it('dry-runs a workspace file against the Console named in its environment', async () => {
+  it('dry-runs a workspace file against the Console named in its environment, whose schema it loaded', async () => {
     const result = await client.callTool({ name: 'conduktor_dry_run', arguments: { path: 'topic.yaml' } });
     expect(JSON.parse(text(result))).toMatchObject({
       console: 'fake',
@@ -85,6 +78,7 @@ describe('the bundled MCP server over stdio', () => {
       url: '/api/public/kafka/v2/cluster/local/topic?dryMode=true',
       authorization: 'Bearer secret',
     });
+    expect(requests).toContainEqual({ method: 'GET', url: '/api/public/docs/docs.yaml', authorization: undefined });
   });
 
   it('reads only files inside its working directory', async () => {
@@ -106,9 +100,5 @@ describe('the bundled MCP server over stdio', () => {
     const output = text(result);
     expect(output).not.toContain('secret');
     expect(JSON.parse(output)).toHaveProperty(['documents', 0, 'variables'], ['CONDUKTOR_TOKEN']);
-  });
-
-  it('loaded the schema from the Console', () => {
-    expect(requests.some((r) => r.url === '/api/public/docs/docs.yaml' && r.authorization === undefined)).toBe(true);
   });
 });
