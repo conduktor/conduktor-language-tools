@@ -3,8 +3,6 @@
   "workspaces": {
     ".": {
       "entry": ["scripts/*.{ts,mjs}"],
-      // The release workflow runs vsce from extensions/vscode, which lists @vscode/vsce among its devDependencies.
-      "ignoreBinaries": ["vsce"],
     },
     "extensions/vscode": {
       "entry": [

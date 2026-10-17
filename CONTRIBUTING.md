@@ -1,7 +1,8 @@
 # Contributing
 
 How to build Conduktor Console for VS Code from source, run its tests, cut a release, and find your way around the
-code. For what the extension does and how to use it, see the [README](README.md).
+code. For what the extensions do and how to use them, see the READMEs of [VS Code](extensions/vscode/README.md) and
+[Zed](extensions/zed/README.md).
 
 ## Install from source
 
@@ -100,7 +101,7 @@ extensions/vscode/    VS Code wiring: connections, explorer, live documents, Cod
 extensions/zed/       the Zed extension (Rust, which Zed builds to wasm): runs the language server from the PATH,
                       else from npm
 docs/specs/           designs
-docs/assets/          the README's illustrations and screenshots (SHOTS.md says how to capture them)
+docs/assets/          the READMEs' illustrations and screenshots (SHOTS.md says how to capture them)
 ```
 
 ## Snapshots

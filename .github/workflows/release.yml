@@ -63,10 +63,10 @@ jobs:
           PRERELEASE: ${{ steps.version.outputs.prerelease }}
           VSIX: ${{ steps.version.outputs.vsix }}
         run: |
-          flags=(--no-dependencies --skip-license --out "$GITHUB_WORKSPACE/$VSIX")
+          flags=(--out "$GITHUB_WORKSPACE/$VSIX")
           if [[ "$PRERELEASE" == true ]]; then flags+=(--pre-release); fi
           pnpm --filter conduktor-console exec node esbuild.mjs
-          (cd extensions/vscode && pnpm exec vsce package "${flags[@]}")
+          pnpm --filter conduktor-console run vsix "${flags[@]}"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

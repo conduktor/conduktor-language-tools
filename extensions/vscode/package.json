@@ -818,7 +818,8 @@
     "test": "vitest run --dir test",
     "test:vscode": "node esbuild.mjs --tests && vscode-test",
     "test:ui": "node esbuild.mjs && vitest run --config test/ui/vitest.config.mts",
-    "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license --out dist/conduktor-console.vsix",
+    "package": "node esbuild.mjs && pnpm vsix --out dist/conduktor-console.vsix",
+    "vsix": "vsce package --no-dependencies --skip-license --baseContentUrl https://github.com/conduktor/conduktor-language-tools/blob/HEAD/extensions/vscode --baseImagesUrl https://github.com/conduktor/conduktor-language-tools/raw/HEAD/extensions/vscode",
     "sync-tools": "node scripts/sync-tool-manifest.mjs"
   },
   "dependencies": {

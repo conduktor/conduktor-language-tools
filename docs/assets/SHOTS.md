@@ -1,6 +1,7 @@
 # README screenshots
 
-The README's screenshots live in `docs/assets/shots/`: `explore.gif` and one PNG per section. To retake one, follow
+The screenshots of the READMEs (the repository's and VS Code's) live in `docs/assets/shots/`: `explore.gif` and one
+PNG per section. To retake one, follow
 its steps below and overwrite the file under the same name. GitHub shows images up to 10 MB.
 
 ## Setting up
