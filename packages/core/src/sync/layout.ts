@@ -1,3 +1,5 @@
+import { escapeRegExp } from '../util';
+
 export const ENVIRONMENTS_DIR = 'environments';
 export const STATE_DIR = '.conduktor';
 const REPO_FILES = ['conduktor.yaml', `${STATE_DIR}/.gitignore`, 'templates'];
@@ -26,12 +28,8 @@ export function baseDir(env: string): string {
  */
 export function basePathOf(syncRoot: string, file: string, copy: 'base' | 'applied' = 'base'): string | undefined {
   const root = syncRoot.replace(/\/+$/, '');
-  const match = new RegExp(`^${escaped(root)}/${ENVIRONMENTS_DIR}/([^/]+)/(.+)$`).exec(file);
+  const match = new RegExp(`^${escapeRegExp(root)}/${ENVIRONMENTS_DIR}/([^/]+)/(.+)$`).exec(file);
   return match ? `${root}/${STATE_DIR}/${copy}/${match[1]}/${match[2]}` : undefined;
-}
-
-function escaped(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // The sync folder used to be <root>/<env>/ with its base inside it. Only a folder carrying the extension's .conduktor

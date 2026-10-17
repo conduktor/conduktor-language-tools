@@ -3,7 +3,6 @@ import type { JsonSchema } from '../openapi/types';
 import { scalarRanges } from '../resources/yamlPaths';
 import { nextChoice, type Answers } from './variants';
 
-const TEXT = /[$}\\]/g;
 const CHOICE = /[,|\\]/g;
 
 /**
@@ -19,16 +18,21 @@ export function snippetOf(text: string, choices: Readonly<Record<string, readonl
   let at = 0;
   stops.forEach((stop, i) => {
     const n = i + 1;
-    snippet += text.slice(at, stop.start).replace(TEXT, '\\$&');
+    snippet += snippetText(text.slice(at, stop.start));
     // Choices and defaults are written as YAML scalars, so a name like `true` or `1e3` keeps its quotes.
     const options = (choices[stop.path.join('.')] ?? []).filter((option) => option !== '');
     if (options.length > 0)
-      snippet += `\${${n}|${options.map((option) => yamlScalar(option).replace(CHOICE, '\\$&')).join(',')}|}`;
+      snippet += `\${${n}|${options.map((option) => stringify(option).trimEnd().replace(CHOICE, '\\$&')).join(',')}|}`;
     else if (stop.quoted && stop.value === '') snippet += `"\${${n}}"`;
-    else snippet += `\${${n}:${text.slice(stop.start, stop.end).replace(TEXT, '\\$&')}}`;
+    else snippet += `\${${n}:${snippetText(text.slice(stop.start, stop.end))}}`;
     at = stop.end;
   });
-  return snippet + text.slice(at).replace(TEXT, '\\$&');
+  return snippet + snippetText(text.slice(at));
+}
+
+/** Text a snippet inserts as written. */
+export function snippetText(text: string): string {
+  return text.replace(/[$}\\]/g, '\\$&');
 }
 
 /** The variant sets worth a snippet: the default, and each option of every union directly under spec. */
@@ -61,10 +65,6 @@ function defaultAnswers(root: JsonSchema, fixed: Answers): Record<string, string
 
 function sorted(answers: Answers): [string, string | null][] {
   return Object.entries(answers).sort(([a], [b]) => a.localeCompare(b));
-}
-
-function yamlScalar(value: string): string {
-  return stringify(value).trimEnd();
 }
 
 function withoutKey(answers: Answers, key: string): Answers {

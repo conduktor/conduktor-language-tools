@@ -44,6 +44,12 @@ const consoleWith = (exists: string[] = []) =>
     });
   });
 
+// A Console where `kind` fails with `error` and everything else goes through.
+const failing = (kind: string, error: ConsoleError, result: 'Created' | 'NotChanged' = 'Created') =>
+  vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
+    resource.kind === kind ? Promise.reject(error) : Promise.resolve({ resource, upsertResult: result }),
+  );
+
 const documents = () => parseResourceDocuments(chain, { env: {} });
 const byName = (items: Awaited<ReturnType<typeof planDocuments>>) =>
   Object.fromEntries(items.map((i) => [i.document.resource!.metadata.name, i.outcome]));
@@ -91,30 +97,27 @@ describe('planDocuments', () => {
     });
   });
 
-  it('keeps a failure a failure when what it names already exists', async () => {
-    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
-      resource.kind === 'Application'
-        ? Promise.reject(new ConsoleError(404, 'Group not found', `Group with id 'team-a' not found`))
-        : Promise.resolve({ resource, upsertResult: 'NotChanged' as const }),
-    );
+  it.each([
+    [
+      'what it names already exists',
+      new ConsoleError(404, 'Group not found', "Group with id 'team-a' not found"),
+      'NotChanged',
+    ],
+    [
+      'the name is only part of a longer word',
+      new ConsoleError(404, 'Not found', 'team-ab is not a valid owner'),
+      'Created',
+    ],
+    [
+      'it is not a not-found or no-permission error',
+      new ConsoleError(422, 'Policy violation', 'owner team-a must have a description'),
+      'Created',
+    ],
+  ] as const)('keeps a failure a failure when %s', async (_, error, result) => {
     const items = await planDocuments(
-      { upsert },
+      { upsert: failing('Application', error, result) },
       snapshotCatalog,
-      documents().filter((d) => d.kind !== 'Topic'),
-    );
-    expect(byName(items).shop).toMatchObject({ status: 'error' });
-  });
-
-  it('does not take a short name inside a longer word for a dependency', async () => {
-    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
-      resource.kind === 'Application'
-        ? Promise.reject(new ConsoleError(400, 'Bad request', 'team-ab is not a valid owner'))
-        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
-    );
-    const items = await planDocuments(
-      { upsert },
-      snapshotCatalog,
-      documents().filter((d) => d.kind !== 'Topic' && d.kind !== 'ApplicationInstance'),
+      documents().filter((d) => d.kind === 'Group' || d.kind === 'Application'),
     );
     expect(byName(items).shop).toMatchObject({ status: 'error' });
   });
@@ -130,40 +133,18 @@ kind: Topic
 metadata: { name: payments, cluster: local }
 spec: { partitions: 1 }
 `;
-    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
-      resource.kind === 'Topic'
-        ? Promise.reject(new ConsoleError(403, 'Forbidden', 'Topic payments violates policy p1'))
-        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
-    );
+    const upsert = failing('Topic', new ConsoleError(403, 'Forbidden', 'Topic payments violates policy p1'));
     const items = await planDocuments({ upsert }, snapshotCatalog, parseResourceDocuments(yaml));
     expect(items.map((i) => [i.document.kind, i.outcome.status])).toEqual([
       ['Application', 'ok'],
       ['Topic', 'error'],
     ]);
   });
-
-  it('only waits on a not-found or no-permission error, not a rejected value that names a resource', async () => {
-    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
-      resource.kind === 'Application'
-        ? Promise.reject(new ConsoleError(422, 'Policy violation', 'owner team-a must have a description'))
-        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
-    );
-    const items = await planDocuments(
-      { upsert },
-      snapshotCatalog,
-      documents().filter((d) => d.kind === 'Group' || d.kind === 'Application'),
-    );
-    expect(byName(items).shop).toMatchObject({ status: 'error' });
-  });
 });
 
 describe('upsertDocuments with stopOnError', () => {
   it('applies in order, stops at the first failure and skips the rest', async () => {
-    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
-      resource.kind === 'Application'
-        ? Promise.reject(new ConsoleError(400, 'Bad request', 'owner is invalid'))
-        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
-    );
+    const upsert = failing('Application', new ConsoleError(400, 'Bad request', 'owner is invalid'));
     const items = await upsertDocuments({ upsert }, snapshotCatalog, documents(), { dryRun: false, stopOnError: true });
     expect(items.map((i) => [i.document.kind, i.outcome.status])).toEqual([
       ['Group', 'ok'],

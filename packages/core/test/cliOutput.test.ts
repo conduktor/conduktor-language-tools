@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readCliOutput } from '../src/cli';
+import { readCliOutput } from '../src/cli/output';
 
 describe('readCliOutput', () => {
   it("reads ctl's line for each resource, results and failures alike", () => {

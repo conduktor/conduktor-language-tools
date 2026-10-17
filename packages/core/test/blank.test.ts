@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankDocumentAt } from '../src/templates';
+import { blankDocumentAt } from '../src/templates/blank';
 
 describe('blankDocumentAt', () => {
   it('is the typed word in an empty document', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cliCommand, cliEnvironment, CTL_VERSION, ctlArgs, DEFAULT_CTL_IMAGE } from '../src/cli';
+import { cliCommand, cliEnvironment, ctlArgs } from '../src/cli/command';
 
 const docker = { kind: 'docker' as const, image: 'conduktor/conduktor-ctl:v0.9.3', platform: 'darwin' as const };
 const base = { env: 'dev', syncRoot: '/repo-on-host', consoleUrl: 'http://localhost:8080' };
@@ -8,7 +8,6 @@ describe('ctlArgs', () => {
   it('plans as a dry run with diffs and applies without one, never with state', () => {
     expect(ctlArgs('plan', 'dev')).toEqual(['apply', '-r', '-f', 'environments/dev', '--dry-run', '--print-diff']);
     expect(ctlArgs('apply', 'dev')).toEqual(['apply', '-r', '-f', 'environments/dev']);
-    expect(DEFAULT_CTL_IMAGE).toBe(`conduktor/conduktor-ctl:${CTL_VERSION}`);
   });
 });
 

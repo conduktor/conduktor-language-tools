@@ -3,10 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { KindCatalog } from '../src/openapi/kindCatalog';
 import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import type { OpenApiDoc } from '../src/openapi/types';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { snapshotCatalog, snapshotSchema } from './fixtures';
 
-const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const validate = new Ajv({ strict: false, validateFormats: false, allErrors: true }).compile(schema);
+const validate = new Ajv({ strict: false, validateFormats: false, allErrors: true }).compile(snapshotSchema);
 // The schema errors, so a failure shows them; none for a valid value.
 const errorsOf = (value: unknown) => (validate(value) ? [] : validate.errors);
 
@@ -45,16 +44,13 @@ describe('buildResourceSchema', () => {
     expect(errorsOf(topic)).toEqual([]);
   });
 
-  it('rejects a wrong field type inside the kind body', () => {
-    expect(validate({ ...topic, spec: { ...topic.spec, partitions: 'three' } })).toBe(false);
-  });
-
-  it('rejects a kind body without spec', () => {
-    expect(validate({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x', cluster: 'c' } })).toBe(false);
-  });
-
-  it('rejects a version the kind does not have', () => {
-    expect(validate({ ...topic, apiVersion: 'v9' })).toBe(false);
+  it.each([
+    ['a wrong field type inside the kind body', { ...topic, spec: { ...topic.spec, partitions: 'three' } }],
+    ['a kind body without spec', { apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x', cluster: 'c' } }],
+    ['a version the kind does not have', { ...topic, apiVersion: 'v9' }],
+    ['a Console kind without metadata', { apiVersion: 'v1', kind: 'Application', spec: {} }],
+  ])('rejects %s', (_, value) => {
+    expect(validate(value)).toBe(false);
   });
 
   it('does not judge documents that are not Console resources', () => {
@@ -65,14 +61,10 @@ describe('buildResourceSchema', () => {
     expect(validate({ apiVersion: 'argoproj.io/v1alpha1', kind: 'Application', metadata: { name: 'a' } })).toBe(true);
   });
 
-  it('still requires metadata on a Console kind', () => {
-    expect(validate({ apiVersion: 'v1', kind: 'Application', spec: {} })).toBe(false);
-  });
-
   it('is draft-07 with every reference resolvable', () => {
-    expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#');
-    const refs = JSON.stringify(schema).match(/"\$ref":"#\/definitions\/[^"]+"/g) ?? [];
-    const definitions = schema.definitions as Record<string, unknown>;
+    expect(snapshotSchema.$schema).toBe('http://json-schema.org/draft-07/schema#');
+    const refs = JSON.stringify(snapshotSchema).match(/"\$ref":"#\/definitions\/[^"]+"/g) ?? [];
+    const definitions = snapshotSchema.definitions as Record<string, unknown>;
     for (const ref of refs) expect(definitions).toHaveProperty([ref.slice('"$ref":"#/definitions/'.length, -1)]);
   });
 

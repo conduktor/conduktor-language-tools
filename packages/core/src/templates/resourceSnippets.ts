@@ -1,4 +1,4 @@
-import type { KindCatalog, KindVersion } from '../openapi/kindCatalog';
+import { hasBody, type KindCatalog } from '../openapi/kindCatalog';
 import { kindSchema } from '../openapi/kindSchema';
 import type { JsonSchema } from '../openapi/types';
 import { newResourceName } from '../resources/yamlText';
@@ -26,8 +26,8 @@ export function resourceSnippets(
   const snippets: ResourceSnippet[] = [];
   for (const name of catalog.kindNames()) {
     const kind = catalog.latest(name);
-    if (!kind?.bodySchema) continue;
-    const root = kindSchema(schema, kind as KindVersion & { bodySchema: string });
+    if (!hasBody(kind)) continue;
+    const root = kindSchema(schema, kind);
     const parents = Object.fromEntries(
       kind.parentPathParams.map((param) => [param, param === 'cluster' ? (clusters[0] ?? '') : '']),
     );

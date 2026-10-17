@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fieldHover, kindHover, markdownCode } from '../src/fieldDocs/hover';
-import { buildResourceSchema } from '../src/openapi/schemaBuilder';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { snapshotCatalog, snapshotSchema } from './fixtures';
 
-const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
 const topic = {
   apiVersion: 'v2',
   kind: 'Topic',
@@ -13,14 +11,14 @@ const topic = {
 
 describe('fieldHover', () => {
   it("gives a field's path, type, whether it is required, its docs and a link", () => {
-    const hover = fieldHover(schema, snapshotCatalog, topic, ['spec', 'partitions']);
+    const hover = fieldHover(snapshotSchema, snapshotCatalog, topic, ['spec', 'partitions']);
     expect(hover).toMatch(/^\*\*`spec\.partitions`\*\* · integer · required/);
     expect(hover).toMatch(/\[Docs\]\(https:\/\/docs\.conduktor\.io\//);
   });
 
   it('adds the line an editor gives about where a reference points', () => {
     const hover = fieldHover(
-      schema,
+      snapshotSchema,
       snapshotCatalog,
       topic,
       ['metadata', 'cluster'],

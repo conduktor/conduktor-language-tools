@@ -25,8 +25,7 @@ export function setFields(
     if (pair && empty(pair.value)) return applyEdits(text, [fill(text, pair, fields)]);
     if (key !== undefined && node === undefined && (parent.length > 0 || isMap(parentNode)))
       return setFields(text, parent, { [key]: fields as Record<string, Scalar> });
-    for (const [field, value] of Object.entries(fields)) document.setIn([...path, field], value);
-    return document.toString();
+    return reserialised(text, path, fields);
   }
   // Nested maps first, each against the text as it then stands.
   let current = text;
@@ -54,14 +53,16 @@ export function setFields(
   }
   if (missing.length > 0) {
     const insert = insertion(current, map, missing, anchor);
-    if (!insert) {
-      const fallback = parseDocument(current);
-      for (const [field, value] of Object.entries(fields)) fallback.setIn([...path, field], value);
-      return fallback.toString();
-    }
+    if (!insert) return reserialised(current, path, fields);
     edits.push(insert);
   }
   return applyEdits(current, edits);
+}
+
+function reserialised(text: string, path: readonly string[], fields: Readonly<Record<string, FieldValue>>): string {
+  const document = parseDocument(text);
+  for (const [field, value] of Object.entries(fields)) document.setIn([...path, field], value);
+  return document.toString();
 }
 
 interface Edit {
@@ -90,16 +91,24 @@ function empty(value: unknown): boolean {
 // The fields as the block under an empty `key:`, one level deeper than the key.
 function fill(text: string, pair: Pair, fields: Readonly<Record<string, FieldValue>>): Edit {
   const keyRange = (pair.key as { range: [number, number, number] }).range;
-  const lineEnd = text.indexOf('\n', keyRange[1]);
+  return linesAfter(text, keyRange[1], Object.entries(fields), columnOf(text, keyRange[0]) + 2);
+}
+
+// The fields as lines after the line holding `offset`.
+function linesAfter(text: string, offset: number, fields: [string, FieldValue][], indent: number): Edit {
+  const lineEnd = text.indexOf('\n', offset);
   const at = lineEnd === -1 ? text.length : lineEnd;
-  const indent = keyRange[0] - (text.lastIndexOf('\n', keyRange[0] - 1) + 1);
   return {
     at,
     end: at,
-    text: blockLines(Object.entries(fields), indent + 2)
+    text: blockLines(fields, indent)
       .map((line) => `\n${line}`)
       .join(''),
   };
+}
+
+function columnOf(text: string, offset: number): number {
+  return offset - (text.lastIndexOf('\n', offset - 1) + 1);
 }
 
 function insertion(
@@ -123,19 +132,8 @@ function insertion(
     (anchorKey
       ? map.items.find((item) => oneLine(item) && (item.key as { value: unknown }).value === anchorKey)
       : undefined) ?? [...map.items].reverse().find(oneLine);
-  if (anchor && isScalar(anchor.key) && anchor.key.range && isScalar(anchor.value) && anchor.value.range) {
-    const keyStart = anchor.key.range[0];
-    const indent = keyStart - (text.lastIndexOf('\n', keyStart - 1) + 1);
-    const lineEnd = text.indexOf('\n', anchor.value.range[1]);
-    const at = lineEnd === -1 ? text.length : lineEnd;
-    return {
-      at,
-      end: at,
-      text: blockLines(fields, indent)
-        .map((line) => `\n${line}`)
-        .join(''),
-    };
-  }
+  if (anchor && isScalar(anchor.key) && anchor.key.range && isScalar(anchor.value) && anchor.value.range)
+    return linesAfter(text, anchor.value.range[1], fields, columnOf(text, anchor.key.range[0]));
   const first = map.items[0]?.key;
   if (!isScalar(first) || !first.range) return undefined;
   const lineStart = text.lastIndexOf('\n', first.range[0] - 1) + 1;

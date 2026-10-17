@@ -67,10 +67,9 @@ export class ConsoleClient {
     const contentType = response.headers.get('content-type') ?? 'no content type';
     if (!contentType.includes('json')) {
       const [mediaType = ''] = contentType.split(';');
-      const got = mediaType.trim();
       throw new UnexpectedResponseError(
         response.status,
-        `${this.baseUrl} did not answer like a Conduktor Console (got ${got}). Check the URL.`,
+        `${this.baseUrl} did not answer like a Conduktor Console (got ${mediaType.trim()}). Check the URL.`,
       );
     }
     return (await response.json()) as T;

@@ -1,3 +1,4 @@
+import type { TopicConfigDoc } from './kafkaDocs';
 import { topicConfig } from './lookup';
 
 export interface TopicConfigProblem {
@@ -39,16 +40,24 @@ export function checkTopicConfig(key: string, value: unknown): TopicConfigProble
           .filter(Boolean)
       : [text];
   for (const item of items) {
-    const problem = outsideValid(key, item, config.validValues);
+    const problem = outsideValid(key, item, config);
     if (problem) return error(problem);
   }
   return undefined;
 }
 
+/** The values a config takes when Kafka lists them (`[compact, delete]`), not a range or an open list. */
+export function configChoices(config: TopicConfigDoc | undefined): string[] | undefined {
+  const [range = ''] = config?.validValues?.split(/\s+or\s+/) ?? [];
+  const [, choices] = /^\[([^\]]*)\]$/.exec(range.trim()) ?? [];
+  if (choices === undefined || choices.includes('...')) return undefined;
+  return choices.split(',').map((value) => value.trim());
+}
+
 // The forms Kafka's ConfigDef prints: [min,...], [min,...,max], [a, b, c], each optionally "or <value>".
-function outsideValid(key: string, value: string, valid: string | undefined): string | undefined {
-  if (!valid) return undefined;
-  const [range = '', extra] = valid.split(/\s+or\s+/).map((part) => part.trim());
+function outsideValid(key: string, value: string, config: TopicConfigDoc): string | undefined {
+  if (!config.validValues) return undefined;
+  const [range = '', extra] = config.validValues.split(/\s+or\s+/).map((part) => part.trim());
   if (extra !== undefined && value === extra) return undefined;
   const orExtra = extra === undefined ? '' : ` (or ${extra})`;
   const [, min, max] = /^\[(-?[\d.]+),\.\.\.(?:,(-?[\d.]+))?\]$/.exec(range) ?? [];
@@ -58,10 +67,7 @@ function outsideValid(key: string, value: string, valid: string | undefined): st
     if (max !== undefined && number > Number(max)) return `${key} is at most ${max}${orExtra}.`;
     return undefined;
   }
-  const [, choices] = /^\[([^\]]*)\]$/.exec(range) ?? [];
-  if (choices !== undefined && !choices.includes('...')) {
-    const options = choices.split(',').map((option) => option.trim());
-    if (!options.includes(value)) return `${key} takes ${options.join(', ')}; ${value} is not one of them.`;
-  }
+  const options = configChoices(config);
+  if (options && !options.includes(value)) return `${key} takes ${options.join(', ')}; ${value} is not one of them.`;
   return undefined;
 }

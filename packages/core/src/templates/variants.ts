@@ -49,6 +49,14 @@ export function unionOf(root: JsonSchema, node: JsonSchema): Union | undefined {
   return field && first ? { field, options: [first, ...others] } : undefined;
 }
 
+export function propertiesOf(node: JsonSchema): Record<string, JsonSchema> {
+  return isRecord(node.properties) ? (node.properties as Record<string, JsonSchema>) : {};
+}
+
+export function requiredOf(node: JsonSchema): Set<string> {
+  return new Set(Array.isArray(node.required) ? (node.required as string[]) : []);
+}
+
 export function partsOf(root: JsonSchema, node: JsonSchema): JsonSchema[] {
   const resolved = resolveNode(root, node);
   return Array.isArray(resolved.allOf)
@@ -62,8 +70,7 @@ export function bodyOf(root: JsonSchema): JsonSchema {
 
 /** The first union under `spec` not yet answered, walking chosen variants in document order. */
 export function nextChoice(root: JsonSchema, answers: Answers): Choice | undefined {
-  const body = bodyOf(root);
-  const spec = isRecord(body.properties) ? (body.properties as Record<string, JsonSchema>).spec : undefined;
+  const spec = propertiesOf(bodyOf(root)).spec;
   return spec && walk(root, spec, ['spec'], false, answers, 0, new Set());
 }
 
@@ -99,9 +106,8 @@ function walkObject(
   seen: ReadonlySet<JsonSchema>,
 ): Choice | undefined {
   for (const part of partsOf(root, node)) {
-    const properties = isRecord(part.properties) ? (part.properties as Record<string, JsonSchema>) : {};
-    const required = new Set(Array.isArray(part.required) ? (part.required as string[]) : []);
-    for (const [name, child] of Object.entries(properties)) {
+    const required = requiredOf(part);
+    for (const [name, child] of Object.entries(propertiesOf(part))) {
       const found = walk(root, child, [...path, name], !required.has(name), answers, depth + 1, seen);
       if (found) return found;
     }

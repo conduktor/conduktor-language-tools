@@ -101,12 +101,7 @@ describe('upsertDocuments', () => {
     const upsert = vi.fn((_target: unknown, _resource: unknown, _options: { dryRun: boolean }) =>
       Promise.resolve({ resource: {} as never, upsertResult: 'Updated' as const }),
     );
-    const documents = parseResourceDocuments(
-      'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec: {}\n',
-      {
-        env: {},
-      },
-    );
+    const documents = parseResourceDocuments('apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec: {}\n');
     const items = await upsertDocuments({ upsert }, snapshotCatalog, documents, { dryRun: false });
     expect(items[0]?.outcome).toEqual({ status: 'ok', result: 'Updated' });
     expect(upsert.mock.calls[0]?.[2]).toEqual({ dryRun: false });

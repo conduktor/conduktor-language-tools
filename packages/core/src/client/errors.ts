@@ -1,4 +1,4 @@
-import { isRecord } from '../util';
+import { isRecord, parseJson } from '../util';
 
 export class ConsoleError extends Error {
   override name = 'ConsoleError';
@@ -53,12 +53,4 @@ export function listProblem(error: unknown): ListProblem {
 
 export function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
-  }
 }

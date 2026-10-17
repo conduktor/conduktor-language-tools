@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { getLanguageService } from 'yaml-language-server/lib/umd/languageservice/yamlLanguageService';
-import { buildResourceSchema } from '../src/openapi/schemaBuilder';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { snapshotSchema } from './fixtures';
 
 const SCHEMA_URI = 'conduktor-schema://schema/test';
 const service = getLanguageService({
@@ -13,7 +12,7 @@ service.configure({
   validate: true,
   completion: true,
   hover: true,
-  schemas: [{ uri: SCHEMA_URI, fileMatch: ['*.yaml'], schema: buildResourceSchema(snapshotDoc, snapshotCatalog) }],
+  schemas: [{ uri: SCHEMA_URI, fileMatch: ['*.yaml'], schema: snapshotSchema }],
 });
 
 // yaml-language-server caches parsed documents by URI and version, so every document gets its own URI.

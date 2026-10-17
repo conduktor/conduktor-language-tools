@@ -26,9 +26,12 @@ describe('setFields', () => {
     );
   });
 
-  it('writes into flow maps', () => {
+  it('writes into flow maps, a missing map included', () => {
     expect(setFields('spec: { partitions: 1 }\n', ['spec'], { replicationFactor: 2 })).toBe(
       'spec: { partitions: 1, replicationFactor: 2 }\n',
+    );
+    expect(setFields('spec: { partitions: 1 }\n', ['spec', 'configs'], { 'cleanup.policy': 'compact' })).toBe(
+      'spec: { partitions: 1, configs: { cleanup.policy: compact } }\n',
     );
   });
 
@@ -56,6 +59,12 @@ describe('setFields', () => {
       'cleanup.policy': 'compact,delete',
     });
     expect(text).toBe('spec: { configs: { retention.ms: "a,b", cleanup.policy: "compact,delete" } }\n');
+  });
+
+  it('re-serialises only when no line can take the new key', () => {
+    expect(setFields('items:\n  - configs:\n      a: b\n', ['items', '0'], { partitions: 3 })).toBe(
+      'items:\n  - configs:\n      a: b\n    partitions: 3\n',
+    );
   });
 
   it('inserts before a nested map when there is no one-line field, rather than reformatting', () => {

@@ -1,31 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { expandEnvVars } from '../src/resources/envVars';
+import { expandEnvVars, referencedVariables } from '../src/resources/envVars';
 
 describe('expandEnvVars', () => {
-  it('replaces a set variable', () => {
-    expect(expandEnvVars('name: ${TOPIC}', { TOPIC: 'orders' })).toEqual({ text: 'name: orders', missing: [] });
+  it.each([
+    ['replaces a set variable', 'name: ${TOPIC}', { TOPIC: 'orders' }, 'name: orders', []],
+    ['uses the default when the variable is unset or empty', 'a: ${A:-x}\nb: ${B:-y}', { B: '' }, 'a: x\nb: y', []],
+    ['keeps a set-but-empty variable without default as empty', 'a: "${A}"', { A: '' }, 'a: ""', []],
+    ['reports unset variables without default', 'a: ${A}\nb: ${B}', {}, 'a: \nb: ', ['A', 'B']],
+    [
+      'turns $${VAR} into a literal ${VAR} for the server',
+      'expr: $${user.name}',
+      { 'user.name': 'nope' },
+      'expr: ${user.name}',
+      [],
+    ],
+    [
+      'keeps a default that contains a colon',
+      'url: ${URL:-http://localhost:8080}',
+      {},
+      'url: http://localhost:8080',
+      [],
+    ],
+  ])('%s', (_, input, env: Record<string, string>, text, missing) => {
+    expect(expandEnvVars(input, env)).toEqual({ text, missing });
   });
+});
 
-  it('uses the default when the variable is unset or empty', () => {
-    expect(expandEnvVars('a: ${A:-x}\nb: ${B:-y}', { B: '' }).text).toBe('a: x\nb: y');
-  });
-
-  it('keeps a set-but-empty variable without default as empty', () => {
-    expect(expandEnvVars('a: "${A}"', { A: '' })).toEqual({ text: 'a: ""', missing: [] });
-  });
-
-  it('reports unset variables without default', () => {
-    expect(expandEnvVars('a: ${A}\nb: ${B}', {})).toEqual({ text: 'a: \nb: ', missing: ['A', 'B'] });
-  });
-
-  it('turns $${VAR} into a literal ${VAR} for the server', () => {
-    expect(expandEnvVars('expr: $${user.name}', { 'user.name': 'nope' })).toEqual({
-      text: 'expr: ${user.name}',
-      missing: [],
-    });
-  });
-
-  it('keeps a default that contains a colon', () => {
-    expect(expandEnvVars('url: ${URL:-http://localhost:8080}', {}).text).toBe('url: http://localhost:8080');
+describe('referencedVariables', () => {
+  it('lists the variables a file needs, once each, ignoring escaped ones', () => {
+    expect(referencedVariables('a: ${A}\nb: ${B:-x}\nc: $${C}\nd: ${A}\n')).toEqual(['A', 'B']);
   });
 });

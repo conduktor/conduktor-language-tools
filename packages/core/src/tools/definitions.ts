@@ -1,5 +1,6 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import { stringify } from 'yaml';
+import { hasBody, type BodyKind, type KindVersion } from '../openapi/kindCatalog';
 import { itemPath, listPath } from '../openapi/paths';
 import { kindSchema } from '../openapi/kindSchema';
 import { PARENT_KINDS } from '../openapi/parents';
@@ -7,9 +8,9 @@ import type { JsonSchema } from '../openapi/types';
 import { planDocuments } from '../plan/planDocuments';
 import type { UpsertOutcome } from '../plan/upsertDocuments';
 import { referencedVariables } from '../resources/envVars';
-import { isRecord, kebabCase } from '../util';
+import { kebabCase, valueAtPath } from '../util';
 import { REDACTED, REDACTED_MESSAGE, redactedPaths, redactSecrets } from './redact';
-import { noSuchVersion, resolveKind, resourceDocuments, type BodyKind } from './resolve';
+import { noSuchVersion, resolveKind, resourceDocuments } from './resolve';
 import { ToolError, type ToolContext, type ToolDefinition } from './types';
 
 const LIST_LIMIT = 50;
@@ -41,20 +42,18 @@ const listKinds: ToolDefinition = {
       string,
       { kind: string; apiVersions: string[]; group: string; parents: string[]; applyOrder: number }
     >();
+    // Versions come in apply order: the group and order are the first one's, the parents the last one's.
     for (const kv of context.catalog.kinds()) {
-      const entry = kinds.get(kv.kind);
-      if (entry) {
-        entry.apiVersions.push(`v${kv.version}`);
-        entry.parents = kv.parentPathParams;
-      } else {
-        kinds.set(kv.kind, {
-          kind: kv.kind,
-          apiVersions: [`v${kv.version}`],
-          group: kv.group,
-          parents: kv.parentPathParams,
-          applyOrder: kv.order,
-        });
-      }
+      const entry = kinds.get(kv.kind) ?? {
+        kind: kv.kind,
+        apiVersions: [],
+        group: kv.group,
+        parents: [],
+        applyOrder: kv.order,
+      };
+      entry.apiVersions.push(`v${kv.version}`);
+      entry.parents = kv.parentPathParams;
+      kinds.set(kv.kind, entry);
     }
     return json({ console: context.connectionName, kinds: [...kinds.values()] });
   }),
@@ -218,19 +217,13 @@ function isVariable(value: unknown): boolean {
   return typeof value === 'string' && referencedVariables(value).length > 0;
 }
 
+// The value at a JSON pointer, the place Ajv gives an error.
 function valueAt(value: unknown, pointer: string): unknown {
-  return pointer
+  const keys = pointer
     .split('/')
     .slice(1)
-    .reduce<unknown>(
-      (node, key) =>
-        isRecord(node) || Array.isArray(node) ? (node as Record<string, unknown>)[unescapePointer(key)] : undefined,
-      value,
-    );
-}
-
-function unescapePointer(key: string): string {
-  return key.replace(/~1/g, '/').replace(/~0/g, '~');
+    .map((key) => key.replace(/~1/g, '/').replace(/~0/g, '~'));
+  return valueAtPath(value, keys);
 }
 
 const ajv = new Ajv({ strict: false, validateFormats: false, allErrors: true });
@@ -249,8 +242,8 @@ function schemaErrors(context: ToolContext, kindName: string, apiVersion: string
 }
 
 function describeAjvErrors(errors: readonly ErrorObject[]): { path: string; message: string }[] {
-  const seen = new Set<string>();
-  const described: { path: string; message: string }[] = [];
+  // Keyed by path and message, so each error is said once, where it first came.
+  const described = new Map<string, { path: string; message: string }>();
   for (const error of errors) {
     if (error.keyword === 'if') continue;
     const message =
@@ -258,12 +251,9 @@ function describeAjvErrors(errors: readonly ErrorObject[]): { path: string; mess
         ? `must be one of: ${(error.params as { allowedValues: unknown[] }).allowedValues.join(', ')}`
         : (error.message ?? 'is invalid');
     const path = error.instancePath || '/';
-    const key = `${path} ${message}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    described.push({ path, message });
+    described.set(`${path} ${message}`, { path, message });
   }
-  return described;
+  return [...described.values()];
 }
 
 function describeOutcome(outcome: UpsertOutcome) {
@@ -282,9 +272,9 @@ function describeOutcome(outcome: UpsertOutcome) {
   }
 }
 
-function bodyKind(kind: ReturnType<typeof resolveKind>): BodyKind {
-  if (!kind.bodySchema) throw new ToolError(`${kind.kind} v${kind.version} has no published schema.`);
-  return kind as BodyKind;
+function bodyKind(kind: KindVersion): BodyKind {
+  if (!hasBody(kind)) throw new ToolError(`${kind.kind} v${kind.version} has no published schema.`);
+  return kind;
 }
 
 function plural(param: string): string {

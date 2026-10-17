@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildResourceSchema } from '../src/openapi/schemaBuilder';
+import { hasBody } from '../src/openapi/kindCatalog';
 import { kindSchema } from '../src/openapi/kindSchema';
-import { findReferences, referenceAt, REFERENCE_RULES } from '../src/references';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { findReferences, referenceAt } from '../src/references/extract';
+import { REFERENCE_RULES } from '../src/references/table';
+import { snapshotCatalog, snapshotSchema } from './fixtures';
 
-const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
 interface Node {
   $ref?: string;
   oneOf?: Node[];
@@ -32,8 +32,8 @@ describe('the reference table', () => {
   it("names only fields that exist in each kind's schema", () => {
     const missing = REFERENCE_RULES.filter((rule) => {
       const kind = snapshotCatalog.latest(rule.kind);
-      if (!kind?.bodySchema) return true;
-      const root = kindSchema(schema, kind as typeof kind & { bodySchema: string }) as Node;
+      if (!hasBody(kind)) return true;
+      const root = kindSchema(snapshotSchema, kind) as Node;
       const item = rule.path.slice(0, rule.path.lastIndexOf('.'));
       const siblings = [rule.cluster, rule.connectCluster, rule.pattern && '.patternType']
         .filter((p): p is string => typeof p === 'string' && p.startsWith('.'))

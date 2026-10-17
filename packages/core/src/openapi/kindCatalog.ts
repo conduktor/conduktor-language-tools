@@ -17,6 +17,13 @@ export interface KindVersion {
   applyExample?: unknown;
 }
 
+/** A kind version with a published body schema, which a schema can be built for. */
+export type BodyKind = KindVersion & { bodySchema: string };
+
+export function hasBody(kind: KindVersion | undefined): kind is BodyKind {
+  return !!kind?.bodySchema;
+}
+
 export class KindCatalog {
   private constructor(private readonly byKind: ReadonlyMap<string, readonly KindVersion[]>) {}
 

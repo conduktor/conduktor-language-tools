@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { fromTemplate, templateDocument, templateName } from '../src/templates';
+import { fromTemplate, templateDocument, templateName } from '../src/templates/fromTemplate';
 
 const template = `# Our standard high-throughput topic
 apiVersion: v2

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rangeOf, valueAt } from '../src/resources/yamlPaths';
+import { fieldAt, rangeOf, valueAt } from '../src/resources/yamlPaths';
 
 const text = `apiVersion: v1
 kind: Application
@@ -48,5 +48,18 @@ describe('rangeOf', () => {
     const start = text.indexOf('orders.');
     expect(rangeOf(text, ['spec', 'resources', 0, 'name'])).toEqual([start, start + 7]);
     expect(rangeOf(text, ['spec', 'nothing'])).toBeUndefined();
+  });
+});
+
+describe('fieldAt', () => {
+  const at = (needle: string) => fieldAt(text, text.indexOf(needle) + 1);
+
+  it('names the field under a key or a value, the key with its own range', () => {
+    const members = text.indexOf('members');
+    expect(at('members')).toEqual({ path: ['spec', 'members'], start: members, end: members + 'members'.length });
+    expect(at('name: shop')?.path).toEqual(['metadata', 'name']);
+    expect(at('patternType')?.path).toEqual(['spec', 'resources', 0, 'patternType']);
+    expect(at('PREFIXED')?.path).toEqual(['spec', 'resources', 0, 'patternType']);
+    expect(at('kind')?.path).toEqual(['kind']);
   });
 });

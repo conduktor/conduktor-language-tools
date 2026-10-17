@@ -1,15 +1,12 @@
 import Ajv from 'ajv';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { buildResourceSchema } from '../src/openapi/schemaBuilder';
-import { kindSchema } from '../src/openapi/kindSchema';
-import { fixedNames, nextChoice, skeletonYaml } from '../src/templates';
+import { fixedNames, skeletonYaml } from '../src/templates/skeleton';
+import { nextChoice } from '../src/templates/variants';
 import type { JsonSchema } from '../src/openapi/types';
 import { isRecord } from '../src/util';
-import { at, snapshotCatalog, snapshotDoc } from './fixtures';
+import { at, rootOf, snapshotCatalog } from './fixtures';
 
-const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
 const firstAnswers = (kind: string) => {
   const answers: Record<string, string | null> = {};
   for (let c = nextChoice(rootOf(kind), answers); c; c = nextChoice(rootOf(kind), answers))

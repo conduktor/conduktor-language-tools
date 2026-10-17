@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { headingSlug, parseReferencePage } from '../src/fieldDocs';
+import { headingSlug, parseReferencePage } from '../src/fieldDocs/mdx';
 
 const page = `## ConsoleUser
 

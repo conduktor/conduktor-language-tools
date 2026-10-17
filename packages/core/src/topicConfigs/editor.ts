@@ -1,16 +1,9 @@
 import { rangeOf } from '../resources/yamlPaths';
+import { snippetText } from '../templates/snippet';
 import { isRecord } from '../util';
-import { checkTopicConfig } from './check';
+import { checkTopicConfig, configChoices } from './check';
 import type { TopicConfigDoc } from './kafkaDocs';
 import { configValueYaml } from './lookup';
-
-/** The values a config takes when Kafka lists them (`[compact, delete]`), not a range or an open list. */
-export function configChoices(config: TopicConfigDoc | undefined): string[] | undefined {
-  const [range = ''] = config?.validValues?.split(/\s+or\s+/) ?? [];
-  const [, choices] = /^\[([^\]]*)\]$/.exec(range.trim()) ?? [];
-  if (choices === undefined || choices.includes('...')) return undefined;
-  return choices.split(',').map((value) => value.trim());
-}
 
 /** A config's docs, as Markdown: what it does, its type, default, valid values and importance, and a link. */
 export function configMarkdown(config: TopicConfigDoc): string {
@@ -61,8 +54,4 @@ export function topicConfigProblems(text: string, resource: unknown): TopicConfi
     const [start, end] = problem.severity === 'warning' ? [keyStart, keyStart + key.length] : range;
     return [{ start, end, message: problem.message, severity: problem.severity }];
   });
-}
-
-function snippetText(text: string): string {
-  return text.replace(/[$}\\]/g, '\\$&');
 }

@@ -1,5 +1,5 @@
 import type { YamlPath } from '../resources/yamlPaths';
-import { bodyOf, partsOf, resolveNode, unionOf } from '../templates/variants';
+import { bodyOf, partsOf, propertiesOf, requiredOf, resolveNode, unionOf } from '../templates/variants';
 import { isRecord } from '../util';
 import type { JsonSchema } from './types';
 
@@ -31,12 +31,12 @@ export function schemaAt(root: JsonSchema, value: unknown, path: YamlPath): Fiel
     }
     const parts = variantParts(root, node, current);
     const fields = parts.flatMap((part) => {
-      const field = isRecord(part.properties) ? part.properties[segment] : undefined;
+      const field = propertiesOf(part)[segment];
       return isRecord(field) ? [field] : [];
     });
     const [first, ...others] = fields;
     if (!first) return undefined;
-    required = parts.some((part) => Array.isArray(part.required) && part.required.includes(segment));
+    required = parts.some((part) => requiredOf(part).has(segment));
     node = others.length === 0 ? first : { allOf: fields };
     current = isRecord(current) ? current[segment] : undefined;
   }
@@ -47,11 +47,9 @@ export function schemaAt(root: JsonSchema, value: unknown, path: YamlPath): Fiel
 // every option while nothing decides.
 function variantParts(root: JsonSchema, node: JsonSchema, current: unknown): JsonSchema[] {
   const union = unionOf(root, node);
-  const resolved = resolveNode(root, node);
-  const plain = Array.isArray(resolved.oneOf) ? resolved.oneOf : Array.isArray(resolved.anyOf) ? resolved.anyOf : [];
   const options = union
     ? union.options.map((option) => ({ parts: partsOf(root, option.schema), title: undefined }))
-    : (plain as JsonSchema[]).map((option) => ({
+    : alternativesOf(resolveNode(root, node)).map((option) => ({
         parts: partsOf(root, option),
         title: resolveNode(root, option).title,
       }));
@@ -63,12 +61,10 @@ function variantParts(root: JsonSchema, node: JsonSchema, current: unknown): Jso
 function fits(parts: readonly JsonSchema[], title: unknown, current: unknown): boolean {
   if (!isRecord(current)) return true;
   return parts.every((part) =>
-    Object.entries(isRecord(part.properties) ? (part.properties as Record<string, JsonSchema>) : {}).every(
-      ([key, property]) => {
-        const fixed = fixedValue(property, title);
-        return fixed === undefined || current[key] === undefined || current[key] === fixed;
-      },
-    ),
+    Object.entries(propertiesOf(part)).every(([key, property]) => {
+      const fixed = fixedValue(property, title);
+      return fixed === undefined || current[key] === undefined || current[key] === fixed;
+    }),
   );
 }
 
@@ -103,7 +99,11 @@ function describe(root: JsonSchema, node: JsonSchema): Omit<FieldSchema, 'requir
     return { type: `list of ${describe(root, typed.items).type}`, ...fallback };
   if (Array.isArray(typed.type)) return { type: typed.type.join(' or '), ...fallback };
   if (typeof typed.type === 'string') return { type: typed.type, ...fallback };
-  const options = Array.isArray(resolved.oneOf) ? resolved.oneOf : Array.isArray(resolved.anyOf) ? resolved.anyOf : [];
-  const types = [...new Set((options as JsonSchema[]).map((option) => describe(root, option).type))];
+  const types = [...new Set(alternativesOf(resolved).map((option) => describe(root, option).type))];
   return { type: types.length > 0 ? types.join(' or ') : 'any', ...fallback };
+}
+
+function alternativesOf(resolved: JsonSchema): JsonSchema[] {
+  const options = Array.isArray(resolved.oneOf) ? resolved.oneOf : Array.isArray(resolved.anyOf) ? resolved.anyOf : [];
+  return options as JsonSchema[];
 }

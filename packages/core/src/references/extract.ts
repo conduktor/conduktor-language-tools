@@ -1,7 +1,7 @@
 import type { KindCatalog } from '../openapi/kindCatalog';
 import type { YamlPath } from '../resources/yamlPaths';
-import { isRecord } from '../util';
-import { patternTypeOf, type PatternReading, type PatternType } from './patterns';
+import { isRecord, valueAtPath } from '../util';
+import { matcher, patternTypeOf, type PatternReading, type PatternType } from './patterns';
 import { REFERENCE_RULES, type ReferenceRule } from './table';
 
 export interface Reference {
@@ -70,6 +70,17 @@ function resolve(
   };
 }
 
+/**
+ * What a reference's value matches, when it is a pattern rather than one name: a PREFIXED value, or a permission's
+ * LITERAL foo*, which is a prefix too.
+ */
+export function patternMatcher(reference: Reference): ((name: string) => boolean) | undefined {
+  const { pattern } = reference;
+  if (pattern?.type === 'PREFIXED' || (pattern?.reading === 'rbac' && reference.value.endsWith('*')))
+    return matcher(pattern.reading, pattern.type, reference.value);
+  return undefined;
+}
+
 function concretePaths(resource: unknown, pattern: string): YamlPath[] {
   const segments = pattern.replace(/\[\]/g, '.[]').split('.');
   const walk = (node: unknown, i: number, at: YamlPath): YamlPath[] => {
@@ -87,10 +98,6 @@ function fits(pattern: string, path: YamlPath): boolean {
     segments.length === path.length &&
     segments.every((s, i) => (s === '[]' ? typeof path[i] === 'number' : s === path[i]))
   );
-}
-
-function valueAtPath(node: unknown, path: readonly (string | number)[]): unknown {
-  return path.reduce<unknown>((at, key) => (isRecord(at) || Array.isArray(at) ? (at as never)[key] : undefined), node);
 }
 
 // Document order, so Problems and lenses read top to bottom.

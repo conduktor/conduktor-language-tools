@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
-import { referencedVariables } from '../src/resources/envVars';
 import type { Resource } from '../src/resources/types';
 import { syncPath } from '../src/sync/paths';
 import { withSecretPlaceholders } from '../src/sync/placeholders';
@@ -149,12 +148,6 @@ describe('withSecretPlaceholders', () => {
   });
 });
 
-describe('referencedVariables', () => {
-  it('lists the variables a file needs, once each, ignoring escaped ones', () => {
-    expect(referencedVariables('a: ${A}\nb: ${B:-x}\nc: $${C}\nd: ${A}\n')).toEqual(['A', 'B']);
-  });
-});
-
 describe('drift and server-managed fields', () => {
   const subject = (spec: Record<string, unknown>): Resource => ({
     apiVersion: 'v2',
@@ -167,6 +160,14 @@ describe('drift and server-managed fields', () => {
     expect(driftOf(stringify(subject({})), subject({ id: 14, version: 1, guid: 'g' }))).toBeUndefined();
     const user: Resource = { apiVersion: 'v2', kind: 'User', metadata: { name: 'u' }, spec: {} };
     expect(driftOf(stringify(user), { ...user, metadata: { name: 'u', lastLoginDate: 'today' } })).toBeUndefined();
+    const zone: Resource = {
+      apiVersion: 'v2',
+      kind: 'PartnerZone',
+      metadata: { name: 'z' },
+      spec: { displayName: 'Z' },
+    };
+    const recorded = { name: 'z', id: 'i', updatedAt: 'now', status: 'READY', failedReason: '' };
+    expect(driftOf(stringify(zone), { ...zone, metadata: recorded })).toBeUndefined();
   });
 
   it('still sees a change to what was written', () => {
@@ -215,16 +216,5 @@ describe('drift and server-managed fields', () => {
     expect(driftOf(stringify(written), { ...live, spec: { ...live.spec, configs: { 'retention.ms': '1' } } })).toBe(
       'changed',
     );
-  });
-
-  it('ignores what the Console records on a partner zone', () => {
-    const zone: Resource = {
-      apiVersion: 'v2',
-      kind: 'PartnerZone',
-      metadata: { name: 'z' },
-      spec: { displayName: 'Z' },
-    };
-    const live = { ...zone, metadata: { name: 'z', id: 'i', updatedAt: 'now', status: 'READY', failedReason: '' } };
-    expect(driftOf(stringify(zone), live)).toBeUndefined();
   });
 });

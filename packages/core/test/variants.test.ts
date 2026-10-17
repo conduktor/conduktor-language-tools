@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildResourceSchema } from '../src/openapi/schemaBuilder';
-import { kindSchema } from '../src/openapi/kindSchema';
-import { nextChoice } from '../src/templates';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { nextChoice } from '../src/templates/variants';
+import { rootOf } from './fixtures';
 
-const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
 const choices = (kind: string, answers: Record<string, string | null> = {}) => {
   const asked: { path: string; options: string[]; optional: boolean }[] = [];
   const given: Record<string, string | null> = {};
@@ -36,9 +32,7 @@ describe('nextChoice', () => {
 
   it('asks for a union inside a chosen variant after its parent', () => {
     const asked = choices('KafkaCluster', { 'spec.kafkaFlavor': null }).map((c) => c.path);
-    expect(asked[0]).toBe('spec.schemaRegistry');
-    expect(asked).toContain('spec.schemaRegistry.security');
-    expect(asked.indexOf('spec.schemaRegistry.security')).toBe(1);
+    expect(asked.slice(0, 2)).toEqual(['spec.schemaRegistry', 'spec.schemaRegistry.security']);
   });
 
   it('asks nothing for a kind without unions', () => {

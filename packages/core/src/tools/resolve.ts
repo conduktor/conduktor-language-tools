@@ -4,8 +4,6 @@ import { referencedVariables } from '../resources/envVars';
 import { catalogDocuments, type ResourceDocument } from '../resources/parseDocuments';
 import { ToolError, type ToolContext } from './types';
 
-export type BodyKind = KindVersion & { bodySchema: string };
-
 export function resolveKind(context: ToolContext, kind: unknown, apiVersion?: unknown): KindVersion {
   if (typeof kind !== 'string' || kind === '') throw new ToolError('kind is required, for example Topic.');
   const latest = context.catalog.latest(kind);

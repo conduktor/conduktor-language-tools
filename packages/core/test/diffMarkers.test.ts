@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DiffMarkers } from '../src/cli';
+import { DiffMarkers } from '../src/cli/diffMarkers';
 
 const red = (text: string) => `\x1b[31m${text}\x1b[0m`;
 const green = (text: string) => `\x1b[32m${text}\x1b[0m`;

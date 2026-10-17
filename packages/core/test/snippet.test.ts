@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildResourceSchema } from '../src/openapi/schemaBuilder';
-import { kindSchema } from '../src/openapi/kindSchema';
-import { skeletonYaml, snippetOf, snippetVariants } from '../src/templates';
+import { skeletonYaml } from '../src/templates/skeleton';
+import { snippetOf, snippetVariants } from '../src/templates/snippet';
 import { parse } from 'yaml';
-import { at, snapshotCatalog, snapshotDoc } from './fixtures';
-
-const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
+import { at, rootOf, snapshotCatalog } from './fixtures';
 
 describe('snippetOf', () => {
   it('puts tab stops on the name, a choice of clusters and the empty placeholders', () => {

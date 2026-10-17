@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { topicConfigContext } from '../src/topicConfigs';
+import { topicConfigContext } from '../src/topicConfigs/context';
 
 const text = `apiVersion: v2
 kind: Topic

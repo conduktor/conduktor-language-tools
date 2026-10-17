@@ -2,7 +2,7 @@ import { describeError } from '../client/errors';
 import { isRecord } from '../util';
 import type { Resource } from './types';
 
-const DESCRIPTION_FILE = 'conduktor.io/descriptionFile';
+export const DESCRIPTION_FILE = 'conduktor.io/descriptionFile';
 
 export class IncludeError extends Error {
   override name = 'IncludeError';

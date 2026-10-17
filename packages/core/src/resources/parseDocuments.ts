@@ -76,14 +76,8 @@ function toResource(source: string, options: ParseOptions): Pick<ResourceDocumen
   } catch (error) {
     return { error: describeError(error) };
   }
-  if (
-    !isRecord(value) ||
-    !isRecord(value.metadata) ||
-    typeof value.metadata.name !== 'string' ||
-    !value.metadata.name
-  ) {
-    return { error: 'metadata.name is required' };
-  }
+  const name = isRecord(value) && isRecord(value.metadata) ? value.metadata.name : undefined;
+  if (typeof name !== 'string' || name === '') return { error: 'metadata.name is required' };
   return { resource: value as Resource };
 }
 

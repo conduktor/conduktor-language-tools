@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Resource } from '../src/resources/types';
-import { applyPreset, checkTopicConfig, presetFromTemplate, TOPIC_PRESETS } from '../src/topicConfigs';
+import { applyPreset, presetFromTemplate, TOPIC_PRESETS } from '../src/topicConfigs/presets';
+import { checkTopicConfig } from '../src/topicConfigs/check';
 import { at } from './fixtures';
 
 describe('topic presets', () => {

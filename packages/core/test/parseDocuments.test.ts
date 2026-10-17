@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { catalogDocuments, parseResourceDocuments } from '../src/resources/parseDocuments';
+import { catalogDocuments, claimsForEditing, parseResourceDocuments } from '../src/resources/parseDocuments';
 import { snapshotCatalog } from './fixtures';
 
 const file = `# Orders topics
@@ -52,18 +52,12 @@ describe('parseResourceDocuments', () => {
     expect(docs[3]!.resource?.metadata.name).toBe('shop');
   });
 
-  it('reports a document that is still invalid YAML after expanding variables', () => {
-    const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: { name: ${N}, labels: [unclosed }\n', {
-      env: { N: 't' },
-    });
-    expect(docs).toHaveLength(1);
-    expect(docs[0]).toMatchObject({ kind: 'Topic', apiVersion: 'v2' });
-    expect(docs[0]!.error).toBeTruthy();
-  });
-
-  it('reports invalid YAML on a resource-like document', () => {
-    const docs = parseResourceDocuments('apiVersion: v2\nkind: Topic\nmetadata: [unclosed\n', { env: {} });
-    expect(docs).toHaveLength(1);
+  it.each([
+    ['as written', 'metadata: [unclosed\n', {}],
+    ['once its variables are expanded', 'metadata: { name: ${N}, labels: [unclosed }\n', { N: 't' }],
+  ])('reports a resource-like document that is invalid YAML %s', (_, metadata, env) => {
+    const docs = parseResourceDocuments(`apiVersion: v2\nkind: Topic\n${metadata}`, { env });
+    expect(docs).toMatchObject([{ kind: 'Topic', apiVersion: 'v2' }]);
     expect(docs[0]!.error).toBeTruthy();
   });
 
@@ -133,4 +127,23 @@ describe('catalogDocuments', () => {
       [3, 'Application'],
     ]);
   });
+});
+
+describe('claimsForEditing', () => {
+  it.each([
+    ['as soon as it names a Console kind, before its apiVersion is written', 'kind: Topic\nspec:\n  '],
+    ['with a Console apiVersion', 'apiVersion: v2\nkind: Topic'],
+    ['in a file where any document is a Console resource', 'apiVersion: v1\nkind: ConfigMap\n---\nkind: Topic'],
+    ['that is half written, by its kind', 'kind: Topic\nspec:\n  partitions: [1'],
+  ])('takes a document %s', (_, text) => expect(claimsForEditing(text, snapshotCatalog)).toBe(true));
+
+  it.each([
+    ['Kubernetes', 'apiVersion: v1\nkind: ConfigMap'],
+    ['a namespaced kind the Console also has', 'apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  namespace: shop'],
+    ['Argo CD', 'apiVersion: argoproj.io/v1alpha1\nkind: Application'],
+    ['Strimzi', 'apiVersion: kafka.strimzi.io/v1beta2\nkind: KafkaTopic'],
+    ['an empty file', ''],
+    ['an unknown kind', 'kind: Topi'],
+    ['YAML without a kind', 'name: ci\non: push'],
+  ])('leaves %s alone', (_, text) => expect(claimsForEditing(text, snapshotCatalog)).toBe(false));
 });

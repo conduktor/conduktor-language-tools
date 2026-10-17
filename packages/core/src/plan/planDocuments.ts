@@ -1,6 +1,7 @@
 import type { ConsoleClient } from '../client/consoleClient';
 import type { KindCatalog } from '../openapi/kindCatalog';
 import type { ResourceDocument } from '../resources/parseDocuments';
+import { escapeRegExp } from '../util';
 import { upsertDocuments, type UpsertItem, type UpsertOptions } from './upsertDocuments';
 
 // Console's dry run cannot see what earlier steps of the same plan would create, so a dependent fails with a not-found
@@ -32,6 +33,5 @@ export async function planDocuments(
 const WAITING_STATUSES = new Set([403, 404]);
 
 function mentions(message: string, name: string): boolean {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^\\w.-])${escaped}($|[^\\w.-])`).test(message);
+  return new RegExp(`(^|[^\\w.-])${escapeRegExp(name)}($|[^\\w.-])`).test(message);
 }

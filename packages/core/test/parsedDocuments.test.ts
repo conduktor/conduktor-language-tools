@@ -1,12 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { buildSpec } from '../src/openapi/loadSpec';
 import { describe, expect, it } from 'vitest';
 import { documentAt, parsedDocuments } from '../src/resources/parsedDocuments';
+import { snapshotCatalog } from './fixtures';
 
-const { catalog } = buildSpec(
-  readFileSync(new URL('../../core/snapshot/public-api-doc.yaml', import.meta.url), 'utf8'),
-  'snapshot',
-);
 const text = `apiVersion: v1
 kind: ConfigMap
 metadata: { name: k8s, namespace: x }
@@ -19,18 +14,18 @@ spec: { owner: team-a }
 
 describe('parsedDocuments', () => {
   it('keeps only Console documents, with their offsets and parsed resources', () => {
-    const [app, ...rest] = parsedDocuments(text, catalog);
+    const [app, ...rest] = parsedDocuments(text, snapshotCatalog);
     expect(rest).toEqual([]);
     expect(app!.start).toBe(text.indexOf('apiVersion: v1\nkind: Application'));
     expect(app!.resource?.metadata.name).toBe('shop');
-    expect(documentAt(text, text.indexOf('team-a'), catalog)?.start).toBe(app!.start);
-    expect(documentAt(text, text.indexOf('k8s'), catalog)).toBeUndefined();
+    expect(documentAt(text, text.indexOf('team-a'), snapshotCatalog)?.start).toBe(app!.start);
+    expect(documentAt(text, text.indexOf('k8s'), snapshotCatalog)).toBeUndefined();
   });
 
   it('still reads a document with a broken line elsewhere, so completion keeps working while typing', () => {
     const [app] = parsedDocuments(
       'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec:\n  owner: \n  title: "unterminated\n',
-      catalog,
+      snapshotCatalog,
     );
     expect(app?.resource?.metadata.name).toBe('shop');
     expect(app?.resource?.spec).toHaveProperty('owner');

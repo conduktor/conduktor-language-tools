@@ -84,13 +84,11 @@ export function cliEnvironment(
   bound: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const allowed = (name: string) => !name.startsWith('CDK_') || name.startsWith('CDK_SECRET_');
-  const kept = (entries: [string, string | undefined][]) =>
+  const kept = (variables: Readonly<Record<string, string | undefined>>) =>
     Object.fromEntries(
-      entries.filter((entry): entry is [string, string] => entry[1] !== undefined && allowed(entry[0])),
+      Object.entries(variables).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined && allowed(entry[0]),
+      ),
     );
-  return {
-    ...kept(Object.entries(inherited)),
-    ...kept(Object.entries(dotenv)),
-    ...bound,
-  };
+  return { ...kept(inherited), ...kept(dotenv), ...bound };
 }

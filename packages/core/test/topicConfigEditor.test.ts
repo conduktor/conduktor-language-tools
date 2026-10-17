@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { topicConfig } from '../src/topicConfigs/lookup';
-import { configChoices, configKeySnippet, configMarkdown, topicConfigProblems } from '../src/topicConfigs/editor';
+import { configChoices } from '../src/topicConfigs/check';
+import { configKeySnippet, configMarkdown, topicConfigProblems } from '../src/topicConfigs/editor';
 
 describe('the topic config editor helpers', () => {
   it('read the values a config lists, and none for a range', () => {

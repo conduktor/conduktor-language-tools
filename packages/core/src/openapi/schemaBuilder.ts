@@ -1,5 +1,5 @@
 import { isRecord } from '../util';
-import { COMPONENT_REF, type KindCatalog, type KindVersion } from './kindCatalog';
+import { COMPONENT_REF, type BodyKind, type KindCatalog, type KindVersion } from './kindCatalog';
 import { toJsPattern } from './patterns';
 import type { JsonSchema, OpenApiDoc } from './types';
 
@@ -7,7 +7,6 @@ const OPENAPI_ONLY_KEYWORDS = new Set(['discriminator', 'example', 'externalDocs
 const NAME_MAP_KEYWORDS = new Set(['properties', 'patternProperties']);
 
 type Include = (name: string) => void;
-type BodyKind = KindVersion & { bodySchema: string };
 
 export function buildResourceSchema(doc: OpenApiDoc, catalog: KindCatalog): JsonSchema {
   const components = doc.components?.schemas ?? {};

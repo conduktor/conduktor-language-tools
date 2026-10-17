@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fieldDocs, kindDoc } from '../src/fieldDocs';
+import { fieldDocs, kindDoc } from '../src/fieldDocs/lookup';
 
 const texts = (kind: string, path: (string | number)[]) => fieldDocs(kind, path).map((d) => d.text);
 

@@ -11,13 +11,11 @@ import {
 } from '../src/sync/layout';
 
 describe('layout', () => {
-  it('names an environment after its connection, safe as one folder', () => {
+  it('names an environment after its connection, safe as one folder and never . or ..', () => {
     expect(environmentName('localhost:8080')).toBe('localhost-8080');
     expect(environmentName('Prod / EU')).toBe('Prod-EU');
     expect(environmentName('///')).toBe('console');
-  });
-
-  it('never names an environment . or .., which would point at the repository or environments/', () => {
+    // . or .. would point at the repository or environments/.
     expect(environmentName('.')).toBe('console');
     expect(environmentName('..')).toBe('console');
   });
@@ -52,19 +50,17 @@ describe('planMigration', () => {
     });
   });
 
-  it('has nothing to do without a legacy folder, or when the name is a reserved folder', () => {
-    expect(plan('environments/dev')).toEqual({ moves: [], refused: [] });
-    expect(planMigration('environments', new Set(['environments']))).toEqual({ moves: [], refused: [] });
-    expect(planMigration('.conduktor', new Set(['.conduktor']))).toEqual({ moves: [], refused: [] });
-  });
-
-  it('moves only a folder the extension wrote, which always has its .conduktor', () => {
-    expect(planMigration('dev', new Set(['dev']))).toEqual({ moves: [], refused: [] });
-  });
-
-  it('compares reserved folders without case, as macOS and Windows do', () => {
-    for (const env of ['.Conduktor', 'Environments', 'ENVIRONMENTS'])
-      expect(planMigration(env, new Set([env, `${env}/.conduktor`]))).toEqual({ moves: [], refused: [] });
+  it.each([
+    ['without a legacy folder', 'dev', ['dev/.conduktor', 'environments/dev']],
+    ['for a folder the extension did not write, which would have its .conduktor', 'dev', ['dev']],
+    ['for a reserved folder', 'environments', ['environments']],
+    ['for a reserved folder', '.conduktor', ['.conduktor']],
+    // macOS and Windows compare folder names without case.
+    ['for a reserved folder in another case', '.Conduktor', ['.Conduktor', '.Conduktor/.conduktor']],
+    ['for a reserved folder in another case', 'Environments', ['Environments', 'Environments/.conduktor']],
+    ['for a reserved folder in another case', 'ENVIRONMENTS', ['ENVIRONMENTS', 'ENVIRONMENTS/.conduktor']],
+  ])('moves nothing %s: %s', (_, env, existing) => {
+    expect(planMigration(env, new Set(existing))).toEqual({ moves: [], refused: [] });
   });
 
   it('lists every path the plan looks at', () => {
@@ -95,17 +91,11 @@ describe('planRootMove', () => {
     ]);
   });
 
-  it('keeps an environment whole: if either half exists at the target, neither moves', () => {
+  it('keeps an environment whole, and the repository files with one that could not move', () => {
     const { moves, refused } = planRootMove(['dev', 'prod'], from, new Set(['.conduktor/base/dev']));
-    expect(moves.map((m) => m.from)).not.toContain('environments/dev');
-    expect(moves.map((m) => m.from)).toContain('environments/prod');
+    // If either half of an environment exists at the target, neither moves.
+    expect(moves.map((m) => m.from)).toEqual(['environments/prod', '.conduktor/base/prod']);
     expect(refused).toEqual([{ from: '.conduktor/base/dev', to: '.conduktor/base/dev' }]);
-  });
-
-  it('leaves the repository files with an environment that could not move', () => {
-    const { moves } = planRootMove(['dev', 'prod'], from, new Set(['.conduktor/base/dev']));
-    expect(moves.map((m) => m.from)).not.toContain('conduktor.yaml');
-    expect(moves.map((m) => m.from)).not.toContain('.conduktor/.gitignore');
   });
 
   it('lists every path it looks at', () => {

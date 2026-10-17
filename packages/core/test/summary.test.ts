@@ -1,6 +1,6 @@
 import type { UpsertItem } from '../src/plan/upsertDocuments';
 import { describe, expect, it } from 'vitest';
-import { outcomeProblems, summarise } from '../src/plan/summary';
+import { outcomeLabel, outcomeProblems, summarise } from '../src/plan/summary';
 
 const item = (outcome: UpsertItem['outcome']): UpsertItem => ({
   document: { index: 0, start: 0, end: 0, kind: 'Topic', apiVersion: 'v2' },
@@ -57,5 +57,16 @@ describe('outcomeProblems', () => {
 
   it('has nothing to say about a success', () => {
     expect(outcomeProblems({ status: 'ok', result: 'Updated' }, 'here')).toEqual([]);
+  });
+});
+
+describe('outcomeLabel', () => {
+  it('marks each result so it reads at a glance', () => {
+    expect(outcomeLabel({ status: 'ok', result: 'Created' })).toBe('+ Created');
+    expect(outcomeLabel({ status: 'ok', result: 'Updated' })).toBe('~ Updated');
+    expect(outcomeLabel({ status: 'ok', result: 'NotChanged' })).toBe('= NotChanged');
+    expect(outcomeLabel({ status: 'error', message: 'No Ownership' })).toBe('✗ failed');
+    expect(outcomeLabel({ status: 'pending', message: 'x', waitingFor: ['team-a'] })).toBe('⏳ pending');
+    expect(outcomeLabel({ status: 'skipped' })).toBe('– skipped');
   });
 });

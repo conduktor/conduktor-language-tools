@@ -1,11 +1,10 @@
-import { parse, stringify } from 'yaml';
-import { expandIncludes } from '../resources/includes';
+import { stringify } from 'yaml';
+import { DESCRIPTION_FILE, expandIncludes } from '../resources/includes';
 import type { Resource } from '../resources/types';
 import { isRecord } from '../util';
-import { syncStatus, type SyncStatus } from './status';
+import { parsedResource, syncStatus, type SyncStatus } from './status';
 
 const SCHEMA_FILE = 'schemaFile';
-const DESCRIPTION_FILE = 'conduktor.io/descriptionFile';
 
 /** The resource with its included files read in, as YAML; undefined when it includes nothing or cannot be read. */
 export function expandedText(text: string, readInclude: (path: string) => string): string | undefined {
@@ -88,12 +87,8 @@ function includes(resource: Resource): { path: string; field: string }[] {
 }
 
 function resourceOf(text: string): Resource | undefined {
-  try {
-    const value: unknown = parse(text);
-    return isRecord(value) && isRecord(value.metadata) ? (value as Resource) : undefined;
-  } catch {
-    return undefined;
-  }
+  const resource = parsedResource(text);
+  return resource && isRecord(resource.metadata) ? resource : undefined;
 }
 
 function specOf(resource: Resource): Record<string, unknown> {

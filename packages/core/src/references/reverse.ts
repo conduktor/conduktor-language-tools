@@ -1,6 +1,5 @@
 import type { KindCatalog } from '../openapi/kindCatalog';
-import { findReferences, type Reference } from './extract';
-import { matcher } from './patterns';
+import { findReferences, patternMatcher, type Reference } from './extract';
 import { REFERENCE_RULES } from './table';
 
 export interface ReferenceTarget {
@@ -37,9 +36,7 @@ export function referencingKinds(kind: string): string[] {
 
 function reach(reference: Reference, name: string): Reach | undefined {
   if (reference.wildcard) return 'covers';
-  const { pattern } = reference;
-  // A permission's LITERAL foo* is a prefix; any other LITERAL names one resource.
-  const isPattern = pattern?.type === 'PREFIXED' || (pattern?.reading === 'rbac' && reference.value.endsWith('*'));
-  if (!pattern || !isPattern) return reference.value === name ? 'names' : undefined;
-  return matcher(pattern.reading, pattern.type, reference.value)(name) ? 'matches' : undefined;
+  const matches = patternMatcher(reference);
+  if (!matches) return reference.value === name ? 'names' : undefined;
+  return matches(name) ? 'matches' : undefined;
 }

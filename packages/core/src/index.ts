@@ -65,145 +65,95 @@ export { canChange, migrateMode, type ConnectionMode } from './connectionMode';
 export { PARENT_KINDS } from './openapi/parents';
 export { kindSchema } from './openapi/kindSchema';
 export { schemaAt, type FieldSchema } from './openapi/schemaAt';
-export {
-  agentInstructions,
-  conduktorTools,
-  containedFile,
-  includeRoot,
-  isInside,
-  ToolError,
-  workspaceFile,
-  type ToolContext,
-  type ToolDefinition,
-} from './tools';
+export { agentInstructions, conduktorTools } from './tools/definitions';
+export { ToolError, type ToolContext, type ToolDefinition } from './tools/types';
+export { containedFile, includeRoot, isInside, workspaceFile } from './tools/workspacePath';
 export { planDocuments } from './plan/planDocuments';
 export { referencedVariables } from './resources/envVars';
 export { envSearchPath, fileVariables, parseDotenv } from './resources/dotenv';
 export {
   baseDir,
   basePathOf,
-  bootstrapProgress,
-  collectResources,
-  defaultKinds,
-  describeBootstrap,
-  eachLimit,
-  driftOf,
-  ENV_EXAMPLE,
-  envExample,
-  environments,
-  REPO_CONFIG,
-  withEnvironment,
-  type EnvironmentConfig,
   environmentDir,
   environmentName,
   ENVIRONMENTS_DIR,
   migrationPaths,
   planMigration,
   planRootMove,
-  folderNameProblem,
-  resolveEnvironment,
   rootMovePaths,
   STATE_DIR,
-  syncPath,
-  syncStatus,
-  collapseIncludes,
-  expandedText,
-  includeRestores,
-  statusWithIncludes,
-  withSecretPlaceholders,
+  type Move,
+} from './sync/layout';
+export {
+  bootstrapProgress,
+  collectResources,
+  describeBootstrap,
+  eachLimit,
   type BootstrapResult,
   type BootstrapStage,
   type CollectOptions,
-  type Drift,
   type Fetched,
   type Skipped,
-  type Move,
-  type SyncStatus,
-} from './sync';
+} from './sync/bootstrap';
+export { ENV_EXAMPLE, envExample } from './sync/envExample';
+export { syncPath } from './sync/paths';
+export {
+  defaultKinds,
+  environments,
+  folderNameProblem,
+  REPO_CONFIG,
+  resolveEnvironment,
+  withEnvironment,
+  type EnvironmentConfig,
+} from './sync/repoConfig';
+export { withSecretPlaceholders } from './sync/placeholders';
+export { collapseIncludes, expandedText, includeRestores, statusWithIncludes } from './sync/includedStatus';
+export { driftOf, syncStatus, type Drift, type SyncStatus } from './sync/status';
+export { findReferences, referenceAt, type Reference } from './references/extract';
+export { describeSources, NameIndex, type NameSource } from './references/nameIndex';
 export {
   collides,
-  describeSources,
-  findReferences,
   matcher,
-  NameIndex,
   overlapsOf,
   patternTraps,
   patternTypeOf,
-  referenceAt,
-  REFERENCE_RULES,
-  referencingKinds,
-  referrersOf,
-  instanceOf,
-  referenceProblems,
-  type NameLookup,
-  type ReferenceProblem,
   type Instance,
-  type NameSource,
   type OwnedResource,
   type PatternReading,
   type PatternType,
-  type Reach,
-  type Reference,
-  type ReferenceRule,
-  type ReferenceTarget,
-} from './references';
-export {
-  blankDocumentAt,
-  fixedNames,
-  fromTemplate,
-  nextChoice,
-  skeletonYaml,
-  snippetOf,
-  snippetVariants,
-  resourceSnippets,
-  type ResourceSnippet,
-  templateDocument,
-  templateName,
-  type Answers,
-  type Choice,
-} from './templates';
+} from './references/patterns';
+export { referencingKinds, referrersOf, type Reach, type ReferenceTarget } from './references/reverse';
+export { REFERENCE_RULES, type ReferenceRule } from './references/table';
+export { instanceOf, referenceProblems, type NameLookup, type ReferenceProblem } from './references/problems';
+export { blankDocumentAt } from './templates/blank';
+export { fromTemplate, templateDocument, templateName } from './templates/fromTemplate';
+export { fixedNames, skeletonYaml } from './templates/skeleton';
+export { snippetOf, snippetVariants } from './templates/snippet';
+export { resourceSnippets, type ResourceSnippet } from './templates/resourceSnippets';
+export { nextChoice, type Answers, type Choice } from './templates/variants';
 export {
   cliCommand,
   cliEnvironment,
   CTL_VERSION,
   ctlArgs,
-  DiffMarkers,
   DEFAULT_CTL_IMAGE,
-  readCliOutput,
   type CliCommand,
-  type CliOutcome,
   type CliRunnerChoice,
-} from './cli';
+} from './cli/command';
+export { DiffMarkers } from './cli/diffMarkers';
+export { readCliOutput, type CliOutcome } from './cli/output';
+export { fieldDocs, kindDoc, REFERENCE_URL } from './fieldDocs/lookup';
+export { headingSlug, parseReferencePage, type FieldDoc, type KindDoc } from './fieldDocs/mdx';
+export { fieldHover, kindHover, markdownCode } from './fieldDocs/hover';
+export { checkTopicConfig, configChoices, type TopicConfigProblem } from './topicConfigs/check';
+export { topicConfigContext, type TopicConfigContext } from './topicConfigs/context';
+export { parseKafkaTopicConfigs, type TopicConfigDoc } from './topicConfigs/kafkaDocs';
+export { configValueYaml, topicConfig, TOPIC_CONFIGS } from './topicConfigs/lookup';
+export { applyPreset, presetFromTemplate, TOPIC_PRESETS, type TopicPreset } from './topicConfigs/presets';
 export {
-  fieldDocs,
-  fieldHover,
-  kindHover,
-  markdownCode,
-  headingSlug,
-  kindDoc,
-  parseReferencePage,
-  REFERENCE_URL,
-  type FieldDoc,
-  type KindDoc,
-} from './fieldDocs';
-export {
-  applyPreset,
-  configChoices,
   configKeySnippet,
   configMarkdown,
   topicConfigProblems,
   type TopicConfigRangeProblem,
-  checkTopicConfig,
-  configValueYaml,
-  parseKafkaTopicConfigs,
-  presetFromTemplate,
-  topicConfig,
-  topicConfigContext,
-  TOPIC_CONFIGS,
-  TOPIC_PRESETS,
-  type TopicConfigContext,
-  type TopicConfigDoc,
-  type TopicPreset,
-  type TopicConfigProblem,
-} from './topicConfigs';
+} from './topicConfigs/editor';
 export { setFields, type FieldValue } from './resources/setFields';

@@ -1,4 +1,4 @@
-import type { KindCatalog, KindVersion } from '../openapi/kindCatalog';
+import { hasBody, type KindCatalog } from '../openapi/kindCatalog';
 import { kindSchema } from '../openapi/kindSchema';
 import { schemaAt } from '../openapi/schemaAt';
 import type { JsonSchema } from '../openapi/types';
@@ -18,9 +18,7 @@ export function fieldHover(
   reference?: string,
 ): string {
   const kind = catalog.resolve(resource.apiVersion, resource.kind);
-  const field = kind?.bodySchema
-    ? schemaAt(kindSchema(schema, kind as KindVersion & { bodySchema: string }), resource, path)
-    : undefined;
+  const field = hasBody(kind) ? schemaAt(kindSchema(schema, kind), resource, path) : undefined;
   const docs = fieldDocs(resource.kind, path);
   const sections = new Set(docs.map((doc) => doc.url));
   const parts = [

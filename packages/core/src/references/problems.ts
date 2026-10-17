@@ -2,9 +2,9 @@ import type { KindCatalog } from '../openapi/kindCatalog';
 import { rangeOf } from '../resources/yamlPaths';
 import type { Resource } from '../resources/types';
 import { isRecord } from '../util';
-import { findReferences } from './extract';
+import { findReferences, patternMatcher } from './extract';
 import type { NameSource } from './nameIndex';
-import { matcher, overlapsOf, patternTraps, patternTypeOf, type Instance } from './patterns';
+import { overlapsOf, patternTraps, patternTypeOf, type Instance } from './patterns';
 
 /** Where an editor finds the names a reference can take. */
 export interface NameLookup {
@@ -50,10 +50,8 @@ export async function referenceProblems(
     if (reference.wildcard || !reference.parents) continue;
     const { names: known, checked } = await names.lookup(reference.kind, reference.parents);
     if (!checked) continue;
-    // A permission's LITERAL foo* is a prefix too; any other LITERAL names one resource.
-    const isPattern = pattern?.type === 'PREFIXED' || (pattern?.reading === 'rbac' && reference.value.endsWith('*'));
-    if (isPattern) {
-      const matches = matcher(pattern.reading, pattern.type, reference.value);
+    const matches = patternMatcher(reference);
+    if (matches) {
       if (!known.some((n) => matches(n.name))) problem(`Matches no ${reference.kind} yet.`, 'information');
     } else if (!known.some((n) => n.name === reference.value)) {
       problem(`${reference.kind} '${reference.value}' is not in the repository or on ${consoleName}.`, 'warning');

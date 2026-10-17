@@ -36,23 +36,12 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
   // A blank line inside the configs block belongs to spec when the cursor sits at spec's indentation.
   if (inConfigs && indentation > childIndent) {
     const colon = line.text.indexOf(':');
-    if (colon !== -1 && column > colon) {
-      const valueStart = line.start + colon + 1 + leadingSpace(line.text.slice(colon + 1));
-      return {
-        where: 'configValue',
-        key: line.text.slice(0, colon).trim(),
-        start: Math.min(valueStart, offset),
-        end: line.start + line.text.length,
-      };
-    }
     if (colon !== -1) {
-      const keyStart = line.start + indentation;
-      return {
-        where: 'configKeyName',
-        key: line.text.slice(0, colon).trim(),
-        start: keyStart,
-        end: line.start + colon,
-      };
+      const key = line.text.slice(0, colon).trim();
+      if (column <= colon)
+        return { where: 'configKeyName', key, start: line.start + indentation, end: line.start + colon };
+      const valueStart = line.start + colon + 1 + leadingSpace(line.text.slice(colon + 1));
+      return { where: 'configValue', key, start: Math.min(valueStart, offset), end: line.start + line.text.length };
     }
     const word = /\S*$/.exec(before)?.[0] ?? '';
     return {
@@ -63,12 +52,9 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
     };
   }
 
-  if (!before.includes(':') && /^\s*[a-z]*$/i.test(before) && /^\s*$/.test(line.text.slice(column))) {
-    if (indentation === childIndent) {
-      const word = /[a-z]*$/i.exec(before)?.[0] ?? '';
-      return { where: 'specKey', start: offset - word.length, end: offset };
-    }
-  }
+  // A key being typed directly under spec: letters so far, nothing after the cursor.
+  if (indentation === childIndent && /^\s*[a-z]*$/i.test(before) && /^\s*$/.test(line.text.slice(column)))
+    return { where: 'specKey', start: line.start + indentation, end: offset };
   return undefined;
 }
 

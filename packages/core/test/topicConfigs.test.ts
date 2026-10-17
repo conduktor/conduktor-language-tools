@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { configValueYaml, parseKafkaTopicConfigs, topicConfig, TOPIC_CONFIGS } from '../src/topicConfigs';
+import { configValueYaml, topicConfig, TOPIC_CONFIGS } from '../src/topicConfigs/lookup';
+import { parseKafkaTopicConfigs } from '../src/topicConfigs/kafkaDocs';
 
 const page = `<ul><li><h4><a id=cleanup.policy></a><a id=topicconfigs_cleanup.policy href=#topicconfigs_cleanup.policy>cleanup.policy</a></h4><p>Designates the <code>delete</code> or <a href=#compaction>compact</a> policy.</p><table><tbody><tr><th>Type:</th><td>list</td></tr><tr><th>Default:</th><td>delete</td></tr><tr><th>Valid Values:</th><td>[compact, delete]</td></tr><tr><th>Server Default Property:</th><td>log.cleanup.policy</td></tr><tr><th>Importance:</th><td>medium</td></tr></tbody></table></li></ul>`;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTopicConfig } from '../src/topicConfigs';
+import { checkTopicConfig } from '../src/topicConfigs/check';
 
 describe('checkTopicConfig', () => {
   it('accepts valid values, as strings or numbers', () => {
