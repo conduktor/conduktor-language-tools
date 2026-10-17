@@ -20,7 +20,9 @@ the cluster does not have reads **Not available**, with the Console's reason.
 **Write.** Any YAML with a Console `apiVersion` and `kind` gets the Console's JSON Schema: completion, errors, and
 field docs on hover. **New Resource…** builds a document for any kind and variant; snippets, topic config presets and
 the Console's topic templates fill in the rest. Fields that name other resources — owners, clusters, ACLs, permissions
-— are completed from your files and the Console, and checked.
+— are completed from your files and the Console, and checked, with quick fixes for a typo or a pattern the Console
+would read otherwise. **Rename Symbol** renames a resource in every file that names it; the Outline and **Go to Symbol
+in Workspace** list resources by name.
 
 **Check.** **Dry run** above every resource asks the Console what applying it would do. Conduktor YAML is dry-run for
 you when you open and save it, **Diff with Live** shows the change side by side, and **Validate Folder against

@@ -198,6 +198,13 @@ understood in the editor ([the full list](docs/specs/2026-10-04-references-desig
 - **CodeLens** above each pattern counts what it matches — `matches 12 Topic resources` — and lists them on click.
 - **Go to Definition** opens what a reference names; **Find All References** on a resource's name lists everything
   that refers to it — by name, by a pattern that matches it, or by `*`.
+- **Rename Symbol** (F2) on a resource's name, or on a reference to it, renames it in every file that names it.
+  Patterns and `*` stay as written. Only your files change: if the Console has the old name, applying creates the new
+  one beside it, and a message says so.
+- **Quick fixes** (cmd-.) for those problems: the closest existing name for a typo, `foo*` rewritten as PREFIXED
+  `foo`, a topic config's closest key or the values it takes, and a missing `apiVersion`.
+- The **Outline** lists a file's resources by name, and **Go to Symbol in Workspace** (cmd-T) finds one across the
+  repository.
 
 ### Check before anything changes
 
@@ -360,18 +367,24 @@ In Zed, a language server brings the Console to every Conduktor YAML. It runs ne
 answers only for Console resources:
 
 - the Console's schema: completion, hover, errors, and a whole resource per kind in an empty file or after `---`;
-- the names a field refers to — a Topic's cluster, an Application's owner, a service account's ACLs — from your open
-  files and the Console, offered as soon as the value starts;
-- the labels already in use — keys under `labels:`, most used first, then the values a key takes — from your open
-  files and the Console's resources of the same kind;
+- the names a field refers to — a Topic's cluster, an Application's owner, a service account's ACLs — from the
+  workspace's YAML files, open or not, and the Console, offered as soon as the value starts; a name that is in
+  neither is flagged, with the closest one as a quick fix;
+- go to definition, find references, and **editor: rename** (F2) on a resource's name or a reference to it, across
+  the workspace's files;
+- **project symbols** (cmd-T): any resource of the workspace, by name;
+- what a field is on hover, from the Conduktor reference docs;
+- the labels already in use — keys under `labels:`, most used first, then the values a key takes — from the
+  workspace's files and the Console's resources of the same kind;
 - a Topic's `spec.configs`: every Kafka topic config with its docs and default, the values it takes, problems for
-  unknown keys and refused values, and presets (and the Console's topic templates) in the code actions;
+  unknown keys and refused values with their fixes, and presets (and the Console's topic templates) in the code
+  actions;
 - a dry run of each file when it is opened and saved, with what the Console refuses on the resource's first line;
 - **Dry run** and, in dev, **Apply** in the code actions (cmd-.), and above each resource with `"code_lens": "on"`
   in Zed's settings. Apply dry-runs first and asks before changing anything.
 
-References and field docs come next. The tree, live documents and the status bar have no equivalent: Zed
-extensions cannot add UI.
+The tree, live documents, the status bar and a guided start have no equivalent: Zed extensions cannot add UI. Zed
+builds its outline from the YAML grammar, not from the server, so the outline shows keys rather than resources.
 
 1. Build the server and put it on your `PATH`: `pnpm install && pnpm install-zed-dev` links
    `~/.local/bin/conduktor-console-language-server` to the build.

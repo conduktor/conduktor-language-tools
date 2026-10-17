@@ -1,6 +1,6 @@
 # One language server for every editor
 
-Status: decided 2026-10-16, not started · follows the Zed language server (#1) and the repository's layout (#2).
+Status: decided 2026-10-16, step 1 done · follows the Zed language server (#1) and the repository's layout (#2).
 
 ## Intent
 
