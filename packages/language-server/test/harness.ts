@@ -21,10 +21,13 @@ import type {
   ConfigurationParams,
   Diagnostic,
   ExecuteCommandParams,
+  FileEvent,
   Hover,
   MarkupContent,
   ShowDocumentParams,
   PublishDiagnosticsParams,
+  Registration,
+  RegistrationParams,
   ShowMessageParams,
   ShowMessageRequestParams,
 } from 'vscode-languageserver';
@@ -200,6 +203,10 @@ export interface Started {
   lenses(uri: string): Promise<string[]>;
   /** The code actions at the start of a line. */
   actions(uri: string, line: number): Promise<CodeAction[]>;
+  /** Resolves once the server registered for the method, as it does with Zed for the files it watches. */
+  registered(method: string): Promise<unknown>;
+  /** Tells the server files changed on disk, as the editor does for the files it asked to watch. */
+  filesChanged(changes: FileEvent[]): void;
   /** Changes the settings, as Zed does when the user edits them. */
   configure(settings: unknown): void;
   command(command: string, ...args: unknown[]): Promise<unknown>;
@@ -264,6 +271,12 @@ async function startServer(directory: string, options: StartOptions): Promise<St
     edits.push(params);
     return { applied: true };
   });
+  const registrations: Registration[] = [];
+  connection.onRequest('client/registerCapability', (params: RegistrationParams) => {
+    registrations.push(...params.registrations);
+    params.registrations.forEach(settle);
+    return null;
+  });
   const shown: ShowDocumentParams[] = [];
   connection.onRequest('window/showDocument', (params: ShowDocumentParams) => {
     shown.push(params);
@@ -290,7 +303,10 @@ async function startServer(directory: string, options: StartOptions): Promise<St
       rootUri: null,
       workspaceFolders: folders.map((folder) => ({ uri: pathToFileURL(folder).href, name: folder })),
       clientInfo: { name: 'Zed', version: '1.24.2' },
-      capabilities: { window: { workDoneProgress: true }, workspace: { configuration: true } },
+      capabilities: {
+        window: { workDoneProgress: true },
+        workspace: { configuration: true, didChangeWatchedFiles: { dynamicRegistration: true } },
+      },
     }),
     exited,
   ]);
@@ -317,6 +333,9 @@ async function startServer(directory: string, options: StartOptions): Promise<St
         (value) => typeof (value as ShowMessageParams).type === 'number' && predicate(value as ShowMessageParams),
         messages,
       ),
+    registered: (method) =>
+      waitFor((value) => 'id' in (value as object) && (value as Registration).method === method, registrations),
+    filesChanged: (changes) => void connection.sendNotification('workspace/didChangeWatchedFiles', { changes }),
     open,
     completeAtEnd: async (text, space = false) => {
       const uri = `file:///work/completion-${++files}.yaml`;

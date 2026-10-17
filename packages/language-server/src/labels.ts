@@ -26,7 +26,7 @@ export async function labelCompletions(
   const inUse = async () => {
     const scope = ownScope(resource, catalog);
     const consoleResources = scope ? await names.consoleResources(scope.kind, scope.parents) : [];
-    return [...names.localResources(catalog, here.editing), ...consoleResources]
+    return [...(await names.localResources(catalog, here.editing)), ...consoleResources]
       .map(labelsOf)
       .filter((labels) => Object.keys(labels).length > 0);
   };

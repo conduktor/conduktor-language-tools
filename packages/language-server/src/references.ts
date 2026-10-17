@@ -5,7 +5,6 @@ import {
   listPath,
   NameIndex,
   parentsOf,
-  parsedDocuments,
   referenceAt,
   valueAt,
   type KindCatalog,
@@ -17,6 +16,7 @@ import { CompletionItemKind, type CompletionItem, type Position } from 'vscode-l
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { valueEdit } from './completions';
 import type { ReadySession } from './session';
+import type { Located } from './workspaceIndex';
 
 /** The resource being written, by its document and where it starts there. */
 export interface Editing {
@@ -31,10 +31,10 @@ export interface NamesHost {
   session(): ReadySession | undefined;
   /** Resolves once the session has loaded, or once waiting for it is no longer worth it. */
   settled(): Promise<void>;
-  documents(): readonly TextDocument[];
+  located(catalog: KindCatalog): Promise<Located[]>;
 }
 
-/** The names a reference can take: what the open files define, and what the Console holds. */
+/** The names a reference can take: what the workspace defines, and what the Console holds. */
 export class Names {
   private lists = new Map<string, { at: number; resources: Promise<Resource[] | undefined> }>();
   private listedFor: ReadySession | undefined;
@@ -53,7 +53,7 @@ export class Names {
   ): Promise<{ names: { name: string; sources: NameSource[] }[]; checked: boolean }> {
     const index = new NameIndex();
     const params = catalog.latest(kind)?.parentPathParams ?? [];
-    for (const resource of this.localResources(catalog, editing)) {
+    for (const resource of await this.localResources(catalog, editing)) {
       const { name } = metadataOf(resource);
       if (resource.kind === kind && typeof name === 'string' && sameParents(parentsIn(resource, params), parents))
         index.add(kind, parents, name, 'repo');
@@ -70,20 +70,16 @@ export class Names {
       lookup: (kind, parents) => this.lookup(catalog, kind, parents),
       instances: async () => [
         ...(await this.consoleResources('ApplicationInstance', [])),
-        ...this.localResources(catalog).filter((resource) => resource.kind === 'ApplicationInstance'),
+        ...(await this.localResources(catalog)).filter((resource) => resource.kind === 'ApplicationInstance'),
       ],
     };
   }
 
-  /** Every resource the open files hold, of any kind, but the one being written. */
-  localResources(catalog: KindCatalog, editing?: Editing): Resource[] {
-    return this.host
-      .documents()
-      .flatMap((document) =>
-        parsedDocuments(document.getText(), catalog).flatMap(({ start, resource }) =>
-          resource && !(document.uri === editing?.uri && start === editing.start) ? [resource] : [],
-        ),
-      );
+  /** Every resource the workspace holds, of any kind, but the one being written. */
+  async localResources(catalog: KindCatalog, editing?: Editing): Promise<Resource[]> {
+    return (await this.host.located(catalog)).flatMap(({ document, start, resource }) =>
+      document.uri === editing?.uri && start === editing.start ? [] : [resource],
+    );
   }
 
   /**

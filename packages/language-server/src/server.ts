@@ -16,6 +16,7 @@ import {
   CodeLensRefreshRequest,
   CompletionTriggerKind,
   DiagnosticSeverity,
+  DidChangeWatchedFilesNotification,
   type Diagnostic,
   MessageType,
   ShowMessageNotification,
@@ -42,8 +43,9 @@ import { atValueStart, Names, referenceCompletions } from './references';
 import { COMMANDS, Resources } from './resources';
 import { createSchemaService } from './schemaService';
 import { isReady, openSession, type Session, type SessionOptions } from './session';
+import { WorkspaceIndex } from './workspaceIndex';
 
-// How long after a change the other open files have their references checked again.
+// How long after a change the open files have their references checked again.
 const REPUBLISH_DELAY_MS = 300;
 
 const SEVERITIES = {
@@ -72,6 +74,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   let folders: string[] = [];
   let lensRefresh = false;
   let pullsSettings = false;
+  let watchesFiles = false;
   let inZed = false;
   // The settings the session was opened with, and how many times they changed: a load that newer settings overtook is
   // dropped.
@@ -184,6 +187,8 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
 
   lsp.onInitialize((params: InitializeParams): InitializeResult => {
     folders = workspaceFolders(params);
+    index.scan();
+    watchesFiles = params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration === true;
     lensRefresh = params.capabilities.workspace?.codeLens?.refreshSupport === true;
     pullsSettings = params.capabilities.workspace?.configuration === true;
     inZed = /^Zed\b/.test(params.clientInfo?.name ?? '');
@@ -204,6 +209,11 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
 
   // Zed pushes the settings after initializing and whenever they change; other clients may only answer when asked.
   const initialized = async () => {
+    // Without the editor watching files, the index still reads a file again once it is closed.
+    if (watchesFiles)
+      void lsp.client
+        .register(DidChangeWatchedFilesNotification.type, { watchers: [{ globPattern: '**/*.{yaml,yml}' }] })
+        .catch(() => undefined);
     try {
       const snapshot = buildSpec(await options.snapshotText(), 'snapshot');
       if (!session) schema.useSpec(snapshot);
@@ -235,16 +245,26 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   documents.onDidClose(({ document }) => {
     resources.closed(document.uri);
     void lsp.sendDiagnostics({ uri: document.uri, diagnostics: [] });
-    republishOthers(document.uri);
+    // Its file, saved or not, counts again.
+    void index.changed(document.uri).then(() => republishOthers(document.uri));
+  });
+  lsp.onDidChangeWatchedFiles(
+    ({ changes }) => void Promise.all(changes.map(({ uri }) => index.changed(uri))).then(() => republishOthers()),
+  );
+
+  const index = new WorkspaceIndex({
+    folders: () => folders,
+    open: () => documents.all(),
+    log: (message) => lsp.console.info(message),
   });
 
   const names = new Names({
     session: ready,
     settled: () => Promise.race([sessionLoaded, new Promise<void>((resolve) => setTimeout(resolve, NAMES_WAIT_MS))]),
-    documents: () => documents.all(),
+    located: (catalog) => index.located(catalog),
   });
 
-  /** What is wrong with the references of a file's resources, against what the open files and the Console hold. */
+  /** What is wrong with the references of a file's resources, against what the workspace and the Console hold. */
   const referenceDiagnostics = async (document: TextDocument, catalog: KindCatalog): Promise<Diagnostic[]> => {
     const consoleName = session?.connection?.name ?? 'the Console';
     const lookup = names.lookupFor(catalog);
@@ -263,9 +283,9 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     return found;
   };
 
-  // A change in one file can resolve or break the references of the others.
+  // A change in one file can resolve or break the references of the open others.
   let othersTimer: ReturnType<typeof setTimeout> | undefined;
-  const republishOthers = (changed: string) => {
+  const republishOthers = (changed?: string) => {
     clearTimeout(othersTimer);
     othersTimer = setTimeout(() => {
       for (const other of documents.all()) if (other.uri !== changed) void publish(other);
@@ -306,13 +326,14 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     await schemaReady;
     const document = documents.get(textDocument.uri);
     const spec = schema.current();
-    return document && spec ? definitionAt(document, position, spec, documents.all()) : [];
+    return document && spec ? definitionAt(document, position, spec, await index.located(spec.catalog)) : [];
   });
   lsp.onReferences(async ({ textDocument, position, context }) => {
     await schemaReady;
     const document = documents.get(textDocument.uri);
     const spec = schema.current();
-    return document && spec ? referencesAt(document, position, spec, documents.all(), context.includeDeclaration) : [];
+    if (!document || !spec) return [];
+    return referencesAt(document, position, spec, await index.located(spec.catalog), context.includeDeclaration);
   });
   lsp.onCodeLens(async ({ textDocument }) => {
     await sessionLoaded;

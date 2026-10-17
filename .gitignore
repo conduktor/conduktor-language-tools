@@ -15,3 +15,4 @@ out/
 # The Zed registry check, when run by hand (see .github/workflows/zed-extension.yml)
 /.zed-registry/
 /zed-extension
+.claude/worktrees/

@@ -5,7 +5,6 @@ import {
   fieldHover,
   kindHover,
   markdownCode,
-  parsedDocuments,
   rangeOf,
   referenceAt,
   referencingKinds,
@@ -15,6 +14,7 @@ import {
 import { MarkupKind, type Hover, type Location, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { metadataOf, parentsIn, resourceAt, sameParents, type Names } from './references';
+import type { Located } from './workspaceIndex';
 
 /**
  * What a field is, from the Conduktor reference docs, and where a reference's target is; a kind's summary on `kind`.
@@ -60,19 +60,19 @@ export async function fieldHoverAt(
   return markdown(extra ? `${text}\n\n---\n\n${extra}` : text);
 }
 
-/** From a reference to the resource an open file defines. */
+/** From a reference to the resource the workspace defines. */
 export function definitionAt(
   document: TextDocument,
   position: Position,
   spec: LoadedSpec,
-  documents: readonly TextDocument[],
+  located: readonly Located[],
 ): Location[] {
   const here = resourceAt(document, position, spec.catalog);
   const reference = here?.value && referenceAt(here.resource, spec.catalog, here.value.path);
   if (!reference?.parents || reference.value === '' || reference.pattern || reference.wildcard) return [];
   const { kind, value, parents } = reference;
   const params = spec.catalog.latest(kind)?.parentPathParams ?? [];
-  return located(documents, spec).flatMap(({ document: defining, start, text, resource }) => {
+  return located.flatMap(({ document: defining, start, text, resource }) => {
     const matches =
       resource.kind === kind &&
       metadataOf(resource).name === value &&
@@ -83,14 +83,14 @@ export function definitionAt(
 }
 
 /**
- * From a resource's name to what refers to it in the open files: by name, by a pattern that matches it, or by `*`.
+ * From a resource's name to what refers to it in the workspace: by name, by a pattern that matches it, or by `*`.
  * With `includeDeclaration`, the resource's own name comes first.
  */
 export function referencesAt(
   document: TextDocument,
   position: Position,
   spec: LoadedSpec,
-  documents: readonly TextDocument[],
+  located: readonly Located[],
   includeDeclaration: boolean,
 ): Location[] {
   const here = resourceAt(document, position, spec.catalog);
@@ -100,7 +100,7 @@ export function referencesAt(
   const target = { kind: kind.kind, parents: parentsIn(here.resource, kind.parentPathParams), name };
   const declaration = includeDeclaration ? [locationOf(document, here.value.start, here.value.end)] : [];
   const referencing = new Set(referencingKinds(kind.kind));
-  const candidates = located(documents, spec).filter((d) => referencing.has(d.resource.kind));
+  const candidates = located.filter((d) => referencing.has(d.resource.kind));
   const referrers = referrersOf(
     target,
     candidates.map((d) => d.resource),
@@ -111,14 +111,6 @@ export function referencesAt(
     return range ? [locationOf(candidate.document, candidate.start + range[0], candidate.start + range[1])] : [];
   });
   return [...declaration, ...referrers];
-}
-
-function located(documents: readonly TextDocument[], spec: LoadedSpec) {
-  return documents.flatMap((document) =>
-    parsedDocuments(document.getText(), spec.catalog).flatMap(({ start, text, resource }) =>
-      resource ? [{ document, start, text, resource }] : [],
-    ),
-  );
 }
 
 function locationOf(document: TextDocument, start: number, end: number): Location {
