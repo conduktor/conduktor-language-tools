@@ -208,5 +208,5 @@ async function pickParent(
   }
   const title = `New ${kind.kind}: which ${param}?`;
   if (names.length === 0) return vscode.window.showInputBox({ title, ignoreFocusOut: true });
-  return vscode.window.showQuickPick(names.sort(), { title });
+  return vscode.window.showQuickPick(names.sort(), { title, ignoreFocusOut: true });
 }

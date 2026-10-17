@@ -66,7 +66,11 @@ async function addConnection(store: ConnectionStore, sessions: SessionManager): 
     ignoreFocusOut: true,
   });
   if (!name) return;
-  const mode = await vscode.window.showQuickPick(MODES, { title: 'What may this connection change?' });
+  // A step that follows others: run from the walkthrough, focus goes back to its page and would close the pick.
+  const mode = await vscode.window.showQuickPick(MODES, {
+    title: 'What may this connection change?',
+    ignoreFocusOut: true,
+  });
   if (!mode) return;
 
   await store.add({ id: randomUUID(), name, url: normaliseBaseUrl(url), mode: mode.mode }, token);
