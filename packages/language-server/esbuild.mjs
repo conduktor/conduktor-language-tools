@@ -15,7 +15,7 @@ await build({
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  target: 'node20',
+  target: 'node22',
   // jsonc-parser, vscode-json-languageservice and others ship UMD as main, whose requires esbuild cannot follow.
   mainFields: ['module', 'main'],
   outfile,

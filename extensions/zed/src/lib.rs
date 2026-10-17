@@ -1,7 +1,7 @@
 use std::{env, fs};
 use zed_extension_api::{
-    self as zed, serde_json::json, serde_json::Value, settings::LspSettings, LanguageServerId,
-    Result,
+    self as zed, LanguageServerId, Result, serde_json::Value, serde_json::json,
+    settings::LspSettings,
 };
 
 /// On the PATH: a build from the repository (`pnpm install-zed-dev`), or a global npm install.
@@ -45,10 +45,10 @@ impl ConduktorConsole {
                 id,
                 &zed::LanguageServerInstallationStatus::Downloading,
             );
-            if let Err(error) = zed::npm_install_package(PACKAGE_NAME, &version) {
-                if !Self::server_exists() {
-                    return Err(error);
-                }
+            if let Err(error) = zed::npm_install_package(PACKAGE_NAME, &version)
+                && !Self::server_exists()
+            {
+                return Err(error);
             }
             if !Self::server_exists() {
                 return Err(format!(

@@ -41,7 +41,7 @@ beforeAll(async () => {
     bundle: true,
     platform: 'node',
     format: 'cjs',
-    target: 'node20',
+    target: 'node22',
     outfile: join(directory, 'mcp-server.js'),
     define: { CONDUKTOR_VERSION: '"0.0.0-test"' },
     logLevel: 'silent',
