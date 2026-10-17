@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer } from 'node:http';
 import type { CodeLens, CompletionList, Hover } from 'vscode-languageserver';
@@ -156,4 +158,18 @@ describe('the bundled language server over stdio', () => {
     const diagnostics = await server.diagnostics('file:///work/second.yaml', (d) => d.length > 0);
     expect(diagnostics[0]?.range.start.line).toBe(4);
   }, 30_000);
+
+  it('stays up, and says why, when its bundled schema cannot be read', async () => {
+    const broken = buildServer();
+    rmSync(join(broken, 'dist', 'public-api-doc.yaml'));
+    const server = await startServer(broken, {});
+    running.push(server);
+    const message = await server.message((m) => m.type === 1);
+    expect(message.message).toContain('public-api-doc.yaml');
+    const hover: unknown = await server.connection.sendRequest('textDocument/hover', {
+      textDocument: { uri: 'file:///work/none.yaml' },
+      position: { line: 0, character: 0 },
+    });
+    expect(hover).toBeNull();
+  }, 60_000);
 });

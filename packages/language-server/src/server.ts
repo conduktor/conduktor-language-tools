@@ -205,6 +205,9 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     try {
       const snapshot = buildSpec(await options.snapshotText(), 'snapshot');
       if (!session) schema.useSpec(snapshot);
+    } catch (error) {
+      // Without the bundled schema, a Console's own still serves once it answers: the server stays up.
+      show(MessageType.Error, `Conduktor: could not read the bundled schema: ${describeError(error)}`);
     } finally {
       bundled();
     }
