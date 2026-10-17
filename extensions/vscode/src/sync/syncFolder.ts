@@ -42,7 +42,7 @@ import {
   type Resource,
   type SyncStatus,
 } from '@conduktor/core';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager, SessionState } from '../connections/session';
 import type { Output } from '../output';
 import { includePath, includeReaderFor } from '../editing/includes';
 import { ContentCache } from './contentCache';
@@ -50,8 +50,6 @@ import { fileExists, read, readAll, remove, write } from './files';
 import { singleFlight } from './singleFlight';
 import { variablesFor } from '../editing/variables';
 import { asWritten } from '../editing/written';
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export interface LocalEntry {
   uri: vscode.Uri;
@@ -189,10 +187,7 @@ export class SyncFolder implements vscode.Disposable {
 
   /** The environment a file under this folder's environments/ belongs to, when it is not the current connection's. */
   foreignEnvironment(uri: vscode.Uri): string | undefined {
-    const syncRoot = this.syncRoot();
-    const prefix = syncRoot && `${syncRoot.path.replace(/\/+$/, '')}/${ENVIRONMENTS_DIR}/`;
-    if (!syncRoot || !prefix || uri.scheme !== syncRoot.scheme || !uri.path.startsWith(prefix)) return undefined;
-    const env = uri.path.slice(prefix.length).split('/')[0];
+    const env = this.pathBelow(uri, ENVIRONMENTS_DIR)?.split('/')[0];
     return env && env !== this.environment() ? env : undefined;
   }
 
@@ -207,10 +202,6 @@ export class SyncFolder implements vscode.Disposable {
   /** YAML files in the environment that are not one resource each: several documents, or hand-written layouts. */
   others(): readonly vscode.Uri[] {
     return this.otherFiles;
-  }
-
-  changes(): LocalEntry[] {
-    return this.entries.filter((entry) => entry.status !== 'synced' || entry.drift);
   }
 
   entryAt(uri: vscode.Uri): LocalEntry | undefined {
@@ -644,7 +635,7 @@ export class SyncFolder implements vscode.Disposable {
     kind: KindVersion,
     parents: string[],
     live: Resource,
-    root: vscode.Uri = this.requireRoot(),
+    root: vscode.Uri,
   ): Promise<{ uri: vscode.Uri; written: boolean; kept?: boolean }> {
     const path = syncPath(kind, parents, live.metadata.name);
     const uri = vscode.Uri.joinPath(root, path);
@@ -712,9 +703,15 @@ export class SyncFolder implements vscode.Disposable {
   }
 
   isBaseCopy(uri: vscode.Uri): boolean {
+    return this.pathBelow(uri, `${STATE_DIR}/base`) !== undefined;
+  }
+
+  // The rest of the path of a file under <sync root>/<folder>/.
+  private pathBelow(uri: vscode.Uri, folder: string): string | undefined {
     const syncRoot = this.syncRoot();
-    const base = syncRoot && `${syncRoot.path.replace(/\/+$/, '')}/${STATE_DIR}/base/`;
-    return !!syncRoot && !!base && uri.scheme === syncRoot.scheme && uri.path.startsWith(base);
+    if (syncRoot?.scheme !== uri.scheme) return undefined;
+    const prefix = `${syncRoot.path.replace(/\/+$/, '')}/${folder}/`;
+    return uri.path.startsWith(prefix) ? uri.path.slice(prefix.length) : undefined;
   }
 
   // From the file's own path, never from the current connection: a request that finishes after a switch still writes
@@ -859,7 +856,7 @@ function entryKey(kind: string, parents: readonly string[], name: string): strin
   return JSON.stringify([kind, parents, name]);
 }
 
-function sameParents(a: readonly string[], b: readonly string[]): boolean {
+export function sameParents(a: readonly string[], b: readonly string[]): boolean {
   return a.join('/') === b.join('/');
 }
 

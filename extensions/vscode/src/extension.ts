@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { TopicPreset, UpsertItem } from '@conduktor/core';
+import type { TopicPreset } from '@conduktor/core';
 import { registerLanguageModelTools } from './agents/languageModelTools';
 import { registerClaudeCodeConfigCommand, registerConsoleMcpServer } from './agents/mcpServers';
 import { exposedApi } from './api';
@@ -30,12 +30,12 @@ import { registerSyncCommands } from './sync/commands';
 import { LocalChangesError, SyncFolder } from './sync/syncFolder';
 import { MatchLensProvider } from './intel/matchLenses';
 import { Names } from './intel/names';
-import { ReferenceDiagnostics } from './intel/referenceDiagnostics';
+import { referenceDiagnostics } from './intel/referenceDiagnostics';
 import { ReferenceCompletionProvider, ReferenceDefinitionProvider } from './intel/referenceProviders';
 import { ReferrersProvider } from './intel/referrers';
 import { SnippetCompletionProvider } from './intel/snippets';
 import { registerCliCommands } from './cli/commands';
-import { validateFolder, type FolderValidation } from './editing/validateFolder';
+import { validateFolder } from './editing/validateFolder';
 import { Validator } from './editing/validator';
 import { CliRunner } from './cli/runner';
 import { DocumentContexts } from './editing/documentContexts';
@@ -43,37 +43,12 @@ import { BASE_SCHEME, BaseContent, openChanges } from './editing/localChanges';
 import { TreeDecorations } from './explorer/decorations';
 import { Reveal } from './explorer/reveal';
 import { FieldDocsHover } from './intel/fieldDocs';
-import { APPLY_PRESET, applyTopicPreset, TopicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
+import { APPLY_PRESET, applyTopicPreset, topicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
 import { createStatusBar } from './statusBar';
 
-export interface ExtensionApi {
-  connections: ConnectionStore;
-  sessions: SessionManager;
-  explorer: ExplorerProvider;
-  liveUri: (node: ResourceNode) => vscode.Uri;
-  dryRun: (uri: vscode.Uri, index?: number) => Promise<UpsertItem[] | undefined>;
-  apply: (uri: vscode.Uri, index?: number) => Promise<UpsertItem[] | undefined>;
-  resources: ResourceController;
-  validator: Validator;
-  validateFolder: (
-    folder: vscode.Uri,
-    options?: { cancelled?: () => boolean },
-  ) => Promise<FolderValidation | undefined>;
-  newResource: (node?: ExplorerNode) => Promise<vscode.TextDocument | undefined>;
-  setConfirm: (confirm: Confirm) => void;
-  setVariantPicker: (picker: VariantPicker) => void;
-  setTemplatePicker: (picker: TemplatePicker) => void;
-  sync: SyncFolder;
-  clusters: ClusterSelection;
-  compare: Compare;
-  applyAllChanges: () => Promise<UpsertItem[] | undefined>;
-  names: Names;
-  treeDecorations: TreeDecorations;
-  explorerView: vscode.TreeView<ExplorerNode>;
-  cli: CliRunner;
-}
+export type ExtensionApi = NonNullable<ReturnType<typeof activate>>;
 
-export function activate(context: vscode.ExtensionContext): ExtensionApi | undefined {
+export function activate(context: vscode.ExtensionContext) {
   let confirmWith: Confirm = modalConfirm;
   const confirm: Confirm = (...args) => confirmWith(...args);
   let pickVariantWith: VariantPicker = quickPickVariant;
@@ -110,7 +85,15 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
   const treeDecorations = new TreeDecorations(sessions, sync, clusters);
   const cli = new CliRunner(sessions, connections, sync);
   const explorerView = vscode.window.createTreeView('conduktor.explorer', { treeDataProvider: explorer });
-  const activeUri = (uri?: vscode.Uri) => uri ?? vscode.window.activeTextEditor?.document.uri;
+  // A command on the document it is given; run from the palette, on the active editor's.
+  const documentCommand = (command: string, run: (uri: vscode.Uri, ...args: unknown[]) => unknown) =>
+    vscode.commands.registerCommand(command, (uri?: vscode.Uri, ...args: unknown[]) => {
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+      return target ? run(target, ...args) : undefined;
+    });
+  const draftResource = (node?: ExplorerNode) =>
+    newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate);
+  const applyChanges = () => applyAllChanges(sessions, sync, confirm, output, clusters.current());
   const reveal = new Reveal(explorerView, explorer, clusters, sessions, sync);
 
   context.subscriptions.push(
@@ -127,7 +110,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     names,
     matchLenses,
     referrers,
-    new ReferenceDiagnostics(sessions, names),
+    referenceDiagnostics(sessions, names),
     clusters,
     createStatusBar(sessions),
     ...registerSyncCommands(sync, confirm, sessions, connections, output, clusters),
@@ -154,18 +137,14 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       names.clear();
       explorer.refresh();
     }),
-    vscode.commands.registerCommand('conduktor.applyAllChanges', () =>
-      applyAllChanges(sessions, sync, confirm, output, clusters.current()),
-    ),
+    vscode.commands.registerCommand('conduktor.applyAllChanges', applyChanges),
     vscode.commands.registerCommand('conduktor.applyLocal', (node: ResourceNode) =>
       node.local ? resources.apply(vscode.Uri.parse(node.local.uri)) : undefined,
     ),
     vscode.commands.registerCommand('conduktor.showOnlyChanges', () => explorer.showOnlyChanges(true)),
     vscode.commands.registerCommand('conduktor.showAll', () => explorer.showOnlyChanges(false)),
     vscode.commands.registerCommand('conduktor.selectCluster', () => clusters.pick()),
-    vscode.commands.registerCommand('conduktor.newResource', (node?: ExplorerNode) =>
-      newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate),
-    ),
+    vscode.commands.registerCommand('conduktor.newResource', draftResource),
     vscode.languages.registerCodeLensProvider({ language: 'yaml' }, codeLenses),
     vscode.languages.registerCompletionItemProvider(
       { language: 'yaml' },
@@ -184,16 +163,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.window.registerFileDecorationProvider(treeDecorations),
     new DocumentContexts(sessions, sync),
     reveal,
-    vscode.commands.registerCommand('conduktor.revealInExplorer', (uri?: vscode.Uri) => {
-      const target = activeUri(uri);
-      return target ? reveal.reveal(target) : undefined;
-    }),
+    documentCommand('conduktor.revealInExplorer', (uri) => reveal.reveal(uri)),
     vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, new BaseContent(sync)),
-    vscode.commands.registerCommand('conduktor.openChanges', (uri?: vscode.Uri) => {
-      const target = activeUri(uri);
-      return target ? openChanges(sync, target) : undefined;
-    }),
-    new TopicConfigDiagnostics(sessions),
+    documentCommand('conduktor.openChanges', (uri) => openChanges(sync, uri)),
+    topicConfigDiagnostics(sessions),
     vscode.commands.registerCommand(APPLY_PRESET, (uri: vscode.Uri, start: number, preset: TopicPreset) =>
       applyTopicPreset(uri, start, preset, sessions),
     ),
@@ -221,22 +194,15 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     vscode.commands.registerCommand('conduktor.dryRunDocument', (uri: vscode.Uri, index: number) =>
       resources.dryRun(uri, index),
     ),
-    vscode.commands.registerCommand('conduktor.dryRunFile', (uri?: vscode.Uri) => {
-      const target = activeUri(uri);
-      return target ? resources.dryRun(target) : undefined;
-    }),
+    documentCommand('conduktor.dryRunFile', (uri) => resources.dryRun(uri)),
     vscode.commands.registerCommand('conduktor.applyDocument', (uri: vscode.Uri, index: number) =>
       resources.apply(uri, index),
     ),
-    vscode.commands.registerCommand('conduktor.applyFile', (uri?: vscode.Uri) => {
-      const target = activeUri(uri);
-      return target ? resources.apply(target) : undefined;
-    }),
+    documentCommand('conduktor.applyFile', (uri) => resources.apply(uri)),
     // The editor title's toolbar passes its own { groupId, editorIndex } where a CodeLens passes a document index.
-    vscode.commands.registerCommand('conduktor.diffWithLive', (uri?: vscode.Uri, index?: unknown) => {
-      const target = activeUri(uri);
-      return target ? compare.diffWithLive(target, typeof index === 'number' ? index : undefined) : undefined;
-    }),
+    documentCommand('conduktor.diffWithLive', (uri, index?: unknown) =>
+      compare.diffWithLive(uri, typeof index === 'number' ? index : undefined),
+    ),
     ...[false, true].map((editable) =>
       vscode.workspace.registerFileSystemProvider(
         editable ? LIVE_EDIT_SCHEME : LIVE_SCHEME,
@@ -291,14 +257,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     connections,
     sessions,
     explorer,
-    liveUri: (node: ResourceNode) => explorer.liveUri(node),
-    dryRun: (uri: vscode.Uri, index?: number) => resources.dryRun(uri, index),
     resources,
     validator,
     validateFolder: checkFolder,
-    apply: (uri: vscode.Uri, index?: number) => resources.apply(uri, index),
-    newResource: (node?: ExplorerNode) =>
-      newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate),
+    newResource: draftResource,
     setConfirm: (replacement: Confirm) => {
       confirmWith = replacement;
     },
@@ -309,7 +271,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
       pickTemplateWith = replacement;
     },
     sync,
-    applyAllChanges: () => applyAllChanges(sessions, sync, confirm, output, clusters.current()),
+    applyAllChanges: applyChanges,
     clusters,
     compare,
     names,

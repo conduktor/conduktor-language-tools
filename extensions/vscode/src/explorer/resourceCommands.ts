@@ -7,21 +7,14 @@ import {
   kebabCase,
   parentsOf,
   withSecretPlaceholders,
-  type KindCatalog,
   type KindVersion,
 } from '@conduktor/core';
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
-import type { ResourceNode } from './explorerModel';
+import type { ExplorerNode, ResourceNode } from './explorerModel';
 import type { ExplorerProvider } from './explorerProvider';
 import { asWritten } from '../editing/written';
-
-interface Target {
-  kind: KindVersion;
-  parents: string[];
-  name: string;
-}
 
 export function registerResourceCommands(
   sessions: SessionManager,
@@ -45,7 +38,7 @@ async function copyToWorkspace(sessions: SessionManager, target?: ResourceNode |
     void vscode.window.showWarningMessage('Connect to a Conduktor Console first.');
     return;
   }
-  const resolved = resolveTarget(state.spec.catalog, target);
+  const resolved = resourceTarget(sessions, target);
   if (!resolved) {
     void vscode.window.showWarningMessage('Pick a Console resource to copy.');
     return;
@@ -104,12 +97,15 @@ async function deleteResource(
   }
 }
 
-function resolveTarget(catalog: KindCatalog, target: ResourceNode | vscode.Uri | undefined): Target | undefined {
-  if (target && !(target instanceof vscode.Uri))
-    return { kind: target.kind, parents: target.parents, name: target.name };
+/** The Console resource a command is about: a resource in the tree, else a live document or the active editor's. */
+export function resourceTarget(
+  sessions: SessionManager,
+  target?: ExplorerNode | vscode.Uri,
+): { kind: KindVersion; parents: string[]; name: string } | undefined {
+  if (target && !(target instanceof vscode.Uri)) return target.type === 'resource' ? target : undefined;
   const uri = target ?? vscode.window.activeTextEditor?.document.uri;
-  if (!uri || !isLiveScheme(uri.scheme)) return undefined;
-  const ref = parseLiveUriParts(uri.authority, uri.path);
-  const kind = ref && catalog.resolve(`v${ref.version}`, ref.kind);
+  const ref = uri && isLiveScheme(uri.scheme) ? parseLiveUriParts(uri.authority, uri.path) : undefined;
+  const state = sessions.current();
+  const kind = ref && state.status === 'ready' ? state.spec.catalog.resolve(`v${ref.version}`, ref.kind) : undefined;
   return ref && kind ? { kind, parents: ref.parents, name: ref.name } : undefined;
 }

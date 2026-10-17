@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { stringify } from 'yaml';
 import { canChange, ConsoleError, describeError, itemPath, parentsOf } from '@conduktor/core';
-import type { SessionManager } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import { parseLiveUriParts, type LiveRef } from './uris';
 import { asWritten } from '../editing/written';
 
@@ -35,12 +35,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
   }
 
   async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-    const ref = parseLiveUriParts(uri.authority, uri.path);
-    if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
-    const state = this.sessions.current();
-    if (state.status !== 'ready' || state.connection.id !== ref.connectionId) {
-      throw vscode.FileSystemError.Unavailable('Switch to this connection to open its resources.');
-    }
+    const { ref, state } = this.connected(uri, 'open');
     const kind = state.spec.catalog.resolve(`v${ref.version}`, ref.kind);
     if (!kind) throw vscode.FileSystemError.FileNotFound(uri);
     try {
@@ -62,12 +57,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
   }
 
   async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
-    const ref = parseLiveUriParts(uri.authority, uri.path);
-    if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
-    const state = this.sessions.current();
-    if (state.status !== 'ready' || state.connection.id !== ref.connectionId) {
-      throw vscode.FileSystemError.Unavailable('Switch to this connection to save its resources.');
-    }
+    const { ref, state } = this.connected(uri, 'save');
     const text = new TextDecoder().decode(content);
     // Saving applies only in dev mode without a sync folder; otherwise the edit is staged as a local file and the
     // live document reloads what the Console holds.
@@ -94,5 +84,15 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
 
   rename(uri: vscode.Uri): void {
     throw vscode.FileSystemError.NoPermissions(uri);
+  }
+
+  // A live document belongs to its connection: no other one opens or saves it.
+  private connected(uri: vscode.Uri, to: 'open' | 'save'): { ref: LiveRef; state: Ready } {
+    const ref = parseLiveUriParts(uri.authority, uri.path);
+    if (!ref) throw vscode.FileSystemError.FileNotFound(uri);
+    const state = this.sessions.current();
+    if (state.status !== 'ready' || state.connection.id !== ref.connectionId)
+      throw vscode.FileSystemError.Unavailable(`Switch to this connection to ${to} its resources.`);
+    return { ref, state };
   }
 }

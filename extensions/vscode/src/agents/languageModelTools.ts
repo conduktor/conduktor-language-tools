@@ -1,16 +1,7 @@
 import { readFileSync } from 'node:fs';
 import * as vscode from 'vscode';
-import {
-  conduktorTools,
-  describeError,
-  isRecord,
-  workspaceFile,
-  type ToolContext,
-  type ToolDefinition,
-} from '@conduktor/core';
-import type { SessionManager, SessionState } from '../connections/session';
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
+import { conduktorTools, describeError, isRecord, workspaceFile, type ToolDefinition } from '@conduktor/core';
+import type { SessionManager } from '../connections/session';
 
 export function registerLanguageModelTools(sessions: SessionManager): vscode.Disposable[] {
   return conduktorTools.map((tool) =>
@@ -35,21 +26,17 @@ async function run(tool: ToolDefinition, input: unknown, sessions: SessionManage
     return 'Not connected to a Conduktor Console. Ask the user to add or switch a connection in the Conduktor view.';
   }
   try {
-    return await tool.run(isRecord(input) ? input : {}, toolContext(state));
+    return await tool.run(isRecord(input) ? input : {}, {
+      connectionName: state.connection.name,
+      catalog: state.spec.catalog,
+      schema: state.spec.schema,
+      client: state.client,
+      readFile: readWorkspaceFile,
+      readInclude: readWorkspaceFile,
+    });
   } catch (error) {
     return `Error: ${describeError(error)}`;
   }
-}
-
-function toolContext(state: Ready): ToolContext {
-  return {
-    connectionName: state.connection.name,
-    catalog: state.spec.catalog,
-    schema: state.spec.schema,
-    client: state.client,
-    readFile: readWorkspaceFile,
-    readInclude: readWorkspaceFile,
-  };
 }
 
 // An open document's unsaved text is what the agent and the person are looking at, so it wins over the disk.

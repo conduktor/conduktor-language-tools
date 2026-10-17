@@ -1,11 +1,10 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { catalogDocuments, planDocuments, type ReadInclude, type ResourceDocument } from '@conduktor/core';
+import { planDocuments } from '@conduktor/core';
 import type { SessionManager } from '../connections/session';
 import type { Output } from '../output';
-import { includeReaderFor } from './includes';
+import { fileDocuments, type Source } from './includes';
 import type { ResourceController } from './resourceController';
-import { variablesFor } from './variables';
 
 export interface FolderValidation {
   files: number;
@@ -16,12 +15,6 @@ export interface FolderValidation {
 }
 
 const LEFT_OUT = '**/{.git,node_modules,.conduktor}/**';
-
-interface Source {
-  uri: vscode.Uri;
-  text: string;
-  read: ((file: string) => string) | undefined;
-}
 
 /**
  * Dry-runs every Conduktor YAML under a folder as one plan, so a resource waiting for one created in another of its
@@ -41,20 +34,8 @@ export async function validateFolder(
     return undefined;
   }
   const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*.{yaml,yml}'), LEFT_OUT);
-  // One source per file, shared by its documents.
-  const origin = new Map<ResourceDocument, Source>();
-  for (const uri of uris.filter((u) => foreignEnvironment(u) === undefined)) {
-    const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-    const documents = catalogDocuments(text, state.spec.catalog, { env: variablesFor(uri) });
-    if (documents.length === 0) continue;
-    const source: Source = { uri, text, read: includeReaderFor(uri) };
-    documents.forEach((document) => origin.set(document, source));
-  }
-  const readInclude: ReadInclude = (file, document) => {
-    const source = origin.get(document);
-    if (!source?.read) throw new Error(`${source?.uri.fsPath ?? 'the file'} is not a local file`);
-    return source.read(file);
-  };
+  const files = uris.filter((uri) => foreignEnvironment(uri) === undefined).map((uri) => ({ uri }));
+  const { origin, readInclude } = await fileDocuments(files, state.spec.catalog, (file) => file.uri.fsPath);
 
   const items = await vscode.window.withProgress(
     {
@@ -81,7 +62,7 @@ export async function validateFolder(
     return undefined;
   }
 
-  const byFile = new Map<Source, typeof items>();
+  const byFile = new Map<Source<{ uri: vscode.Uri }>, typeof items>();
   // A cancelled run's unchecked resources keep whatever results their files had.
   for (const item of items.filter((i) => i.outcome.status !== 'skipped')) {
     const source = origin.get(item.document);
@@ -96,7 +77,7 @@ export async function validateFolder(
           : [],
       ),
     );
-  for (const [{ uri, text }, fileItems] of byFile) controller.recordFolderResults(uri, text, fileItems);
+  for (const [{ file, text }, fileItems] of byFile) controller.recordFolderResults(file.uri, text, fileItems);
 
   const result: FolderValidation = {
     files: byFile.size,
@@ -108,7 +89,7 @@ export async function validateFolder(
   for (const item of items) {
     const source = origin.get(item.document);
     if (item.outcome.status !== 'error' || !source) continue;
-    const file = path.relative(folder.fsPath, source.uri.fsPath);
+    const file = path.relative(folder.fsPath, source.file.uri.fsPath);
     output.warn(
       `${file}: ${item.document.kind} ${item.document.resource?.metadata.name ?? ''}: ${item.outcome.message}`,
     );
@@ -117,9 +98,6 @@ export async function validateFolder(
     `Validated ${result.resources} resources in ${result.files} files on ${state.connection.name}: ` +
     `${result.failed} failed, ${result.pending} pending${result.cancelled ? ', cancelled before the end' : ''}.`;
   output.info(summary);
-  const show = result.failed > 0 ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-  void show(summary, 'Show Output').then((choice) => {
-    if (choice) output.show();
-  });
+  output.offer(result.failed > 0 ? vscode.window.showWarningMessage : vscode.window.showInformationMessage, summary);
   return result;
 }

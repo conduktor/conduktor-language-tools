@@ -5,7 +5,6 @@ import {
   describeError,
   type BootstrapStage,
   type KindCatalog,
-  type KindVersion,
 } from '@conduktor/core';
 import type { Confirm } from '../confirm';
 import type { ExplorerNode } from '../explorer/explorerModel';
@@ -13,7 +12,7 @@ import type { ConnectionStore } from '../connections/connectionStore';
 import type { ClusterSelection } from '../explorer/clusterSelection';
 import type { SessionManager } from '../connections/session';
 import type { Output } from '../output';
-import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
+import { resourceTarget } from '../explorer/resourceCommands';
 import { inWorkspace } from './folders';
 import { chooseFolder, type SyncFolder } from './syncFolder';
 
@@ -53,16 +52,12 @@ export function registerSyncCommands(
           return;
         }
         if (node?.type !== 'kind' && node?.type !== 'parent') {
-          void vscode.window.showInformationMessage(
-            'Choose Sync Locally on a resource, a kind or a cluster in the tree.',
-          );
+          inform('Choose Sync Locally on a resource, a kind or a cluster in the tree.');
           return;
         }
         const { parents } = node;
         if (parents.length < node.kind.parentPathParams.length) {
-          void vscode.window.showInformationMessage(
-            `Open a ${node.kind.parentPathParams[parents.length]} under ${node.kind.kind} and sync from there.`,
-          );
+          inform(`Open a ${node.kind.parentPathParams[parents.length]} under ${node.kind.kind} and sync from there.`);
           return;
         }
         const count = await sync.syncAll(
@@ -76,8 +71,7 @@ export function registerSyncCommands(
               'Sync',
             )) === 'Sync',
         );
-        if (count !== undefined)
-          void vscode.window.showInformationMessage(`Synced ${count} ${node.kind.kind} resources.`);
+        if (count !== undefined) inform(`Synced ${count} ${node.kind.kind} resources.`);
       }),
     ),
     vscode.commands.registerCommand(
@@ -119,7 +113,7 @@ export function registerSyncCommands(
     vscode.commands.registerCommand(
       'conduktor.editLocally',
       guarded(async (target?: ExplorerNode | vscode.Uri) => {
-        const resource = resourceToEdit(sessions, target);
+        const resource = resourceTarget(sessions, target);
         if (!resource) throw new Error('Open a Console resource to edit it locally.');
         await vscode.window.showTextDocument(await sync.syncResource(resource.kind, resource.parents, resource.name));
       }),
@@ -151,7 +145,7 @@ export function registerSyncCommands(
           if (add)
             vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri: root });
         } else {
-          void vscode.window.showInformationMessage(`Sync folder set to ${vscode.workspace.asRelativePath(root)}.`);
+          inform(`Sync folder set to ${vscode.workspace.asRelativePath(root)}.`);
         }
       }),
     ),
@@ -190,7 +184,7 @@ export function registerSyncCommands(
       guarded(async () => {
         const variables = await sync.requiredVariables();
         if (variables.length === 0) {
-          void vscode.window.showInformationMessage('The sync folder needs no environment variables.');
+          inform('The sync folder needs no environment variables.');
           return;
         }
         const picked = await vscode.window.showQuickPick(
@@ -202,7 +196,7 @@ export function registerSyncCommands(
         );
         if (picked?.length) {
           await vscode.env.clipboard.writeText(picked.map((p) => `${p.label}=`).join('\n'));
-          void vscode.window.showInformationMessage(`Copied ${picked.length} lines for the .env, to fill in.`);
+          inform(`Copied ${picked.length} lines for the .env, to fill in.`);
         }
       }),
     ),
@@ -245,18 +239,6 @@ async function pickKinds(catalog: KindCatalog, selected: ReadonlySet<string>): P
     ignoreFocusOut: true,
   });
   return picked && picked.length > 0 ? picked.map((item) => item.label) : undefined;
-}
-
-function resourceToEdit(
-  sessions: SessionManager,
-  target?: ExplorerNode | vscode.Uri,
-): { kind: KindVersion; parents: string[]; name: string } | undefined {
-  if (target && !(target instanceof vscode.Uri)) return target.type === 'resource' ? target : undefined;
-  const uri = target ?? vscode.window.activeTextEditor?.document.uri;
-  const ref = uri && isLiveScheme(uri.scheme) ? parseLiveUriParts(uri.authority, uri.path) : undefined;
-  const state = sessions.current();
-  const kind = ref && state.status === 'ready' ? state.spec.catalog.resolve(`v${ref.version}`, ref.kind) : undefined;
-  return ref && kind ? { kind, parents: ref.parents, name: ref.name } : undefined;
 }
 
 /**

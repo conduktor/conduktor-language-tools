@@ -9,13 +9,11 @@ import {
   type Resource,
   type YamlPath,
 } from '@conduktor/core';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import type { ExplorerProvider } from '../explorer/explorerProvider';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { Names } from './names';
 import { referenceTarget } from './referenceProviders';
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
 
 /** What a field of a Console resource is: its docs, its schema, where a reference points, and a link to the docs. */
 export class FieldDocsHover implements vscode.HoverProvider {

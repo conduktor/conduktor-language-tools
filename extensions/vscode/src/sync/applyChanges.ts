@@ -1,22 +1,12 @@
 import * as vscode from 'vscode';
-import {
-  canChange,
-  catalogDocuments,
-  planDocuments,
-  summarise,
-  upsertDocuments,
-  type ReadInclude,
-  type ResourceDocument,
-  type UpsertItem,
-} from '@conduktor/core';
+import { canChange, planDocuments, summarise, upsertDocuments, type UpsertItem } from '@conduktor/core';
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
-import { includeReaderFor } from '../editing/includes';
+import { fileDocuments } from '../editing/includes';
 import { isInView } from '../explorer/explorerModel';
 import type { Output } from '../output';
 import { driftNotes, sharedIdentities } from './conflicts';
-import type { LocalEntry, SyncFolder } from './syncFolder';
-import { variablesFor } from '../editing/variables';
+import type { SyncFolder } from './syncFolder';
 
 export async function applyAllChanges(
   sessions: SessionManager,
@@ -47,41 +37,24 @@ export async function applyAllChanges(
     return undefined;
   }
 
-  const origin = new Map<
-    ResourceDocument,
-    { entry: LocalEntry; text: string; read: ((file: string) => string) | undefined }
-  >();
-  for (const entry of changed) {
-    const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
-    const source = { entry, text, read: includeReaderFor(entry.uri) };
-    for (const document of catalogDocuments(text, state.spec.catalog, { env: variablesFor(entry.uri) })) {
-      origin.set(document, source);
-    }
-  }
+  const { origin, readInclude } = await fileDocuments(changed, state.spec.catalog, (entry) => entry.path);
   const documents = [...origin.keys()];
-  const readInclude: ReadInclude = (file, document) => {
-    const source = origin.get(document);
-    if (!source?.read) throw new Error(`${source?.entry.path ?? 'the file'} is not a local file`);
-    return source.read(file);
-  };
   const name = state.connection.name;
-  const fileOf = (item: UpsertItem) => origin.get(item.document)?.entry.path ?? '?';
+  const fileOf = (item: UpsertItem) => origin.get(item.document)?.file.path ?? '?';
 
   const plan = await planDocuments(state.client, state.spec.catalog, documents, { readInclude });
   const preview = summarise(name, plan);
   output.info(preview.text);
   plan.forEach((item) => output.info(`  ${fileOf(item)}: ${describe(item)}`));
   if (preview.failed > 0) {
-    void vscode.window.showWarningMessage(`${preview.text}. Fix the failures first.`, 'Show Output').then((choice) => {
-      if (choice) output.show();
-    });
+    output.offer(vscode.window.showWarningMessage, `${preview.text}. Fix the failures first.`);
     return plan;
   }
 
   const overwrites = plan
     .filter((item) => item.outcome.status === 'ok' && item.outcome.result === 'Updated')
     .flatMap((item) => {
-      const entry = origin.get(item.document)?.entry;
+      const entry = origin.get(item.document)?.file;
       return entry?.status === 'new' ? [entry.path] : [];
     });
   const detail = [
@@ -107,17 +80,11 @@ export async function applyAllChanges(
   output.info(result.text);
   items.forEach((item) => output.info(`  ${fileOf(item)}: ${describe(item)}`));
 
-  for (const { entry, text } of new Set(origin.values())) {
-    const own = items.filter((item) => origin.get(item.document)?.entry === entry);
+  for (const { file: entry, text } of new Set(origin.values())) {
+    const own = items.filter((item) => origin.get(item.document)?.file === entry);
     if (own.every((item) => item.outcome.status === 'ok')) await sync.markApplied(entry.uri, text);
   }
-  if (result.failed > 0) {
-    void vscode.window.showWarningMessage(result.text, 'Show Output').then((choice) => {
-      if (choice) output.show();
-    });
-  } else {
-    void vscode.window.showInformationMessage(result.text);
-  }
+  output.report(result.text, result.failed > 0);
   return items;
 }
 

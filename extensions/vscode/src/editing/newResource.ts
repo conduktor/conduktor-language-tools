@@ -16,11 +16,9 @@ import {
   type KindCatalog,
   type KindVersion,
 } from '@conduktor/core';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { SyncFolder } from '../sync/syncFolder';
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
 
 /** `undefined` when the user dismissed the pick, `null` for leaving an optional variant out. */
 export type VariantPicker = (choice: Choice, kind: string) => Promise<string | null | undefined>;
@@ -58,9 +56,9 @@ export async function newResource(
   sessions: SessionManager,
   sync: SyncFolder,
   cluster: string | undefined,
-  node?: ExplorerNode,
-  pickVariant: VariantPicker = quickPickVariant,
-  pickTemplate: TemplatePicker = quickPickTemplate,
+  node: ExplorerNode | undefined,
+  pickVariant: VariantPicker,
+  pickTemplate: TemplatePicker,
 ): Promise<vscode.TextDocument | undefined> {
   const state = sessions.current();
   if (state.status !== 'ready') {

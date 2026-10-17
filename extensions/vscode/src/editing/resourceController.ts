@@ -12,9 +12,10 @@ import {
   type UpsertOutcome,
 } from '@conduktor/core';
 import type { Confirm } from '../confirm';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import type { Output } from '../output';
 import type { Compare } from './compare';
+import { conduktorDiagnostic } from '../intel/diagnostics';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import { appliedText } from './applied';
 import { includeReaderFor } from './includes';
@@ -27,8 +28,6 @@ export interface LastResult {
   outcome: UpsertOutcome;
   start: number;
 }
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export interface AppliedEvent {
   uri?: vscode.Uri;
@@ -191,7 +190,7 @@ export class ResourceController implements vscode.Disposable {
     this.shellHint(uri, apply);
 
     if (!apply || summary.failed > 0) {
-      this.notify(summary.text, summary.failed > 0);
+      this.output.report(summary.text, summary.failed > 0);
       return plan;
     }
     if (plan.every((item) => item.outcome.status === 'ok' && item.outcome.result === 'NotChanged')) {
@@ -214,7 +213,7 @@ export class ResourceController implements vscode.Disposable {
     this.record(uri, text, items, 'applied');
     const applied = summarise(name, items, 'Applied to');
     this.output.info(applied.text);
-    this.notify(applied.text, applied.failed > 0);
+    this.output.report(applied.text, applied.failed > 0);
     this.applied.fire({ uri, appliedText: appliedText(text, inFile.length, items), items });
     return items;
   }
@@ -240,16 +239,6 @@ export class ResourceController implements vscode.Disposable {
     this.output.info(`Same from a shell: conduktor apply -f ${file}${apply ? '' : ' --dry-run'}`);
   }
 
-  private notify(text: string, failed: boolean): void {
-    if (!failed) {
-      void vscode.window.showInformationMessage(text);
-      return;
-    }
-    void vscode.window.showWarningMessage(text, 'Show Output').then((choice) => {
-      if (choice) this.output.show();
-    });
-  }
-
   /** A folder's dry run, on one of its files: what is pending waits for resources elsewhere in the folder. */
   recordFolderResults(uri: vscode.Uri, text: string, items: readonly UpsertItem[]): void {
     this.record(uri, text, items, 'dry run', 'in this folder');
@@ -273,16 +262,11 @@ export class ResourceController implements vscode.Disposable {
       byIndex.set(item.document.index, { action, outcome: item.outcome, start: item.document.start });
     this.results.set(key, byIndex);
 
-    const diagnostics: vscode.Diagnostic[] = [];
-    for (const { outcome, start } of byIndex.values()) {
-      const add = (message: string, severity: vscode.DiagnosticSeverity) => {
-        const diagnostic = new vscode.Diagnostic(lineRange(text, start), message, severity);
-        diagnostic.source = 'Conduktor';
-        diagnostics.push(diagnostic);
-      };
-      for (const { message, severity } of outcomeProblems(outcome, where))
-        add(message, severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning);
-    }
+    const diagnostics = [...byIndex.values()].flatMap(({ outcome, start }) =>
+      outcomeProblems(outcome, where).map(({ message, severity }) =>
+        conduktorDiagnostic(lineRange(text, start), message, severity),
+      ),
+    );
     this.diagnostics.set(uri, diagnostics);
     this.paintAll(uri);
     this.resultsChanged.fire(uri);

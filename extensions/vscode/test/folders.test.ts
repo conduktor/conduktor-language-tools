@@ -2,16 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { inWorkspace } from '../src/sync/folders';
 
 describe('inWorkspace', () => {
-  it('is true for a workspace folder and anything under it', () => {
-    expect(inWorkspace('/a/foo', ['/b', '/a/foo'])).toBe(true);
-    expect(inWorkspace('/a/foo/conduktor', ['/a/foo'])).toBe(true);
-  });
-
-  it('does not take a sibling sharing a prefix for a subfolder', () => {
-    expect(inWorkspace('/a/foobar', ['/a/foo'])).toBe(false);
-  });
-
-  it('is false without workspace folders', () => {
-    expect(inWorkspace('/a/foo', undefined)).toBe(false);
+  it.each([
+    ['a workspace folder is in it', '/a/foo', ['/b', '/a/foo'], true],
+    ['a folder under one is in it', '/a/foo/conduktor', ['/a/foo'], true],
+    ['a sibling sharing its prefix is not', '/a/foobar', ['/a/foo'], false],
+    ['nothing is without workspace folders', '/a/foo', undefined, false],
+  ])('%s', (_case, target, folders, expected) => {
+    expect(inWorkspace(target, folders)).toBe(expected);
   });
 });

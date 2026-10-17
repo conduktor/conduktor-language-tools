@@ -1,11 +1,9 @@
 import * as vscode from 'vscode';
 import { describeSources, referenceAt, valueAt, type Reference, documentAt } from '@conduktor/core';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import type { ExplorerProvider } from '../explorer/explorerProvider';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { Names } from './names';
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
 
 function referenceUnder(
   sessions: SessionManager,

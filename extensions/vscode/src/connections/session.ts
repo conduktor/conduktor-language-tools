@@ -26,6 +26,8 @@ export type SessionState =
     }
   | { status: 'error'; connection: Connection; message: string; spec?: LoadedSpec };
 
+export type Ready = Extract<SessionState, { status: 'ready' }>;
+
 export class SessionManager implements vscode.Disposable {
   private state: SessionState = { status: 'none' };
   private generation = 0;

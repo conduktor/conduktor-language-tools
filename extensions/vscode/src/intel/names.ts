@@ -3,7 +3,7 @@ import { catalogDocuments, listPath, NameIndex, parentsOf, type NameSource, type
 import type { SessionManager } from '../connections/session';
 import { ContentCache } from '../sync/contentCache';
 import { readAll } from '../sync/files';
-import type { SyncFolder } from '../sync/syncFolder';
+import { sameParents, type SyncFolder } from '../sync/syncFolder';
 
 /** A Console document in the repository: its file, its text and where it starts in the file. */
 export interface RepoDocument {
@@ -61,8 +61,8 @@ export class Names implements vscode.Disposable {
     for (const entry of this.sync.list())
       if (entry.kind === kind && sameParents(entry.parents, parents)) index.add(kind, parents, entry.name, 'repo');
     const params = this.parentParams(kind);
-    const unindexed = [...this.openResources(kind), ...(await this.otherDocuments(kind)).map((d) => d.resource)];
-    for (const resource of unindexed)
+    const unindexed = [...this.openRepoDocuments(kind), ...(await this.otherDocuments(kind))];
+    for (const { resource } of unindexed)
       if (sameParents(parentsIn(resource, params), parents)) index.add(kind, parents, resource.metadata.name, 'repo');
     const live = await this.resources(kind, parents);
     for (const resource of live ?? []) index.add(kind, parents, resource.metadata.name, 'console');
@@ -85,10 +85,6 @@ export class Names implements vscode.Disposable {
     );
     this.lists.set(path, list);
     return list;
-  }
-
-  async repoResources(kind: string): Promise<Resource[]> {
-    return (await this.repoDocuments(kind)).map((document) => document.resource);
   }
 
   /** The repository's documents of a kind: open documents win over their files, which are read once per change. */
@@ -151,10 +147,6 @@ export class Names implements vscode.Disposable {
     );
   }
 
-  private openResources(kind: string): Resource[] {
-    return this.openRepoDocuments(kind).map((document) => document.resource);
-  }
-
   private openRepoDocuments(kind: string): RepoDocument[] {
     return this.openDocuments().flatMap((document) => {
       const key = document.uri.toString();
@@ -183,8 +175,4 @@ function parentsIn(resource: Resource, params: readonly string[]): string[] {
     const value = resource.metadata[param];
     return typeof value === 'string' ? value : '';
   });
-}
-
-function sameParents(a: readonly string[], b: readonly string[]): boolean {
-  return a.join('/') === b.join('/');
 }

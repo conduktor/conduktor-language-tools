@@ -24,6 +24,19 @@ export class Output implements vscode.Disposable {
     this.channel.show(true);
   }
 
+  /** A notification with a Show Output button that opens this log. */
+  offer(notify: (message: string, ...items: string[]) => Thenable<string | undefined>, message: string): void {
+    void notify(message, 'Show Output').then((choice) => {
+      if (choice) this.show();
+    });
+  }
+
+  /** A failure offers to open this log; a success is only said. */
+  report(message: string, failed: boolean): void {
+    if (failed) this.offer(vscode.window.showWarningMessage, message);
+    else void vscode.window.showInformationMessage(message);
+  }
+
   dispose(): void {
     this.channel.dispose();
   }

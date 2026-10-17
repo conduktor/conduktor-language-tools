@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { describeError } from '@conduktor/core';
 import type { ConnectionStore } from '../connections/connectionStore';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import { claudeCodeConfig } from './claudeCodeConfig';
 import { installMcpServer } from './mcpInstall';
 
@@ -32,7 +32,7 @@ export function registerConsoleMcpServer(sessions: SessionManager, connections: 
   );
 }
 
-function mcpUri(state: Extract<SessionState, { status: 'ready' }>): vscode.Uri {
+function mcpUri(state: Ready): vscode.Uri {
   return vscode.Uri.parse(`${state.client.baseUrl}/api/mcp`);
 }
 
@@ -63,11 +63,7 @@ export function registerClaudeCodeConfigCommand(
       void vscode.window.showErrorMessage(`Could not set up the MCP server for Claude Code: ${describeError(error)}`);
       return;
     }
-    const config = claudeCodeConfig({
-      url: state.client.baseUrl,
-      name: state.connection.name,
-      serverPath,
-    });
+    const config = claudeCodeConfig({ url: state.client.baseUrl, name: state.connection.name, serverPath });
     await vscode.env.clipboard.writeText(JSON.stringify(config, null, 2));
     void vscode.window.showInformationMessage(
       `Copied the MCP config for ${state.connection.name}. Paste it into .mcp.json, then export CONDUKTOR_TOKEN (a personal access token) before starting Claude Code.`,

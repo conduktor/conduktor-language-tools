@@ -1,9 +1,7 @@
 import * as vscode from 'vscode';
 import { describeError, listPath } from '@conduktor/core';
-import type { SessionManager, SessionState } from '../connections/session';
+import type { Ready, SessionManager } from '../connections/session';
 import { settleCluster } from './settleCluster';
-
-type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export class ClusterSelection implements vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<string | undefined>();
