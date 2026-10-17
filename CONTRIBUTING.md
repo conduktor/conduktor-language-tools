@@ -23,6 +23,7 @@ pnpm build                                   # bundles extensions/vscode/dist/ex
 pnpm typecheck && pnpm lint && pnpm format:check
 pnpm test                                    # unit tests: core, mcp and extension (Vitest)
 pnpm test:vscode                             # the extension inside a downloaded VS Code
+pnpm test:ui                                 # the walkthrough, driven in a VS Code window (Playwright)
 ```
 
 Press **F5** in this folder to start an Extension Development Host.
@@ -46,6 +47,16 @@ run `ctl` in Docker, or from `conduktor` on the `PATH` when Docker is missing.
 
 The variables are separate from `CDK_*` because VS Code re-reads the login shell's environment on macOS, where
 `CDK_*` usually point at whichever Console the CLI is using.
+
+### The UI tests
+
+`pnpm test:ui` opens a VS Code window and clicks through it as a new user would, against a small fake Console: the
+walkthrough's pages, then each step's button, from Add Connection to a first Apply. It sees what the extension host
+cannot: the walkthrough page, its checkmarks, and a prompt that closes by itself. When a test fails, a screenshot of
+the window lands in `extensions/vscode/test/ui/screenshots/`, and CI keeps it as an artifact.
+
+The harness pauses on each prompt for a moment before answering it, as a person reading it would. That pause is what
+catches a prompt that loses focus, so it is not a delay to remove.
 
 ## Releases
 

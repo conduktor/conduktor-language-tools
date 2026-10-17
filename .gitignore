@@ -16,3 +16,4 @@ out/
 /.zed-registry/
 /zed-extension
 .claude/worktrees/
+extensions/vscode/test/ui/screenshots/

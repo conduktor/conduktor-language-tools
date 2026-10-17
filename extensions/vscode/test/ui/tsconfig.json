@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.json",
+  // What page.evaluate runs, it runs in the VS Code window: the DOM's types, here only.
+  "compilerOptions": { "lib": ["ES2023", "DOM", "DOM.Iterable"], "types": ["node"] },
+  "include": ["."],
+  // Not the parent's, which leaves this folder out.
+  "exclude": []
+}

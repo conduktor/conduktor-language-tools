@@ -1,6 +1,7 @@
 # What CONTRIBUTING.md asks before every commit, on every pull request and on main: lint, formatting, types, tests,
-# the builds and the .vsix, on the lowest Node we support and the current LTS; and the Zed extension's formatting and
-# lints. The live suite needs a Console, so it stays a local run (CONTRIBUTING.md, "The live suite").
+# the builds and the .vsix, on the lowest Node we support and the current LTS; the UI tests in a VS Code window; and the
+# Zed extension's formatting and lints. The live suite needs a Console, so it stays a local run (CONTRIBUTING.md, "The
+# live suite").
 name: CI
 
 on:
@@ -44,6 +45,29 @@ jobs:
         run: |
           pnpm --filter @conduktor/console-language-server build
           pnpm package
+
+  ui:
+    name: VS Code UI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Drive the walkthrough in VS Code, on a virtual display
+        run: xvfb-run -a --server-args="-screen 0 1440x900x24" pnpm test:ui
+
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-screenshots
+          path: extensions/vscode/test/ui/screenshots/
 
   rust:
     name: Zed extension (Rust)

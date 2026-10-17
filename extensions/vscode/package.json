@@ -166,7 +166,7 @@
       },
       {
         "command": "conduktor.newResource",
-        "title": "New Resource\u2026",
+        "title": "New Resource…",
         "category": "Conduktor",
         "icon": "$(add)"
       },
@@ -200,7 +200,7 @@
       },
       {
         "command": "conduktor.copyToWorkspace",
-        "title": "Copy to Workspace\u2026",
+        "title": "Copy to Workspace…",
         "category": "Conduktor",
         "icon": "$(save-as)"
       },
@@ -307,7 +307,7 @@
       },
       {
         "command": "conduktor.setSyncFolder",
-        "title": "Set Sync Folder\u2026",
+        "title": "Set Sync Folder…",
         "category": "Conduktor",
         "icon": "$(folder-opened)"
       }
@@ -814,9 +814,10 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test/ui",
     "test": "vitest run --dir test",
     "test:vscode": "node esbuild.mjs --tests && vscode-test",
+    "test:ui": "node esbuild.mjs && vitest run --config test/ui/vitest.config.mts",
     "package": "node esbuild.mjs && vsce package --no-dependencies --skip-license --out dist/conduktor-console.vsix",
     "sync-tools": "node scripts/sync-tool-manifest.mjs"
   },
@@ -833,6 +834,7 @@
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.0",
+    "playwright-core": "^1.64.1",
     "vitest": "^5.0.5"
   }
 }

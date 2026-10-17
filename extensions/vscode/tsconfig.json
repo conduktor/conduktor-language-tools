@@ -1,5 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "types": ["node", "mocha"] },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "exclude": ["test/ui"]
 }

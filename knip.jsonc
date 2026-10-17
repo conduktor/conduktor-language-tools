@@ -7,10 +7,16 @@
       "ignoreBinaries": ["vsce"],
     },
     "extensions/vscode": {
-      "entry": ["src/test/**/*.test.ts", ".vscode-test.mjs", "scripts/*.mjs"],
+      "entry": [
+        "test/**/*.test.ts",
+        "src/test/**/*.test.ts",
+        "test/ui/**/*.ui.ts",
+        ".vscode-test.mjs",
+        "test/ui/vitest.config.mts",
+        "scripts/*.mjs",
+      ],
       // @conduktor/mcp: esbuild bundles the MCP server from its source path, so nothing imports the package by name.
-      // @vscode/test-electron: what @vscode/test-cli drives to download and launch VS Code.
-      "ignoreDependencies": ["@conduktor/mcp", "@vscode/test-electron"],
+      "ignoreDependencies": ["@conduktor/mcp"],
       // The conduktor CLI the VS Code suite runs from the PATH when Docker is missing.
       "ignoreBinaries": ["conduktor"],
     },
