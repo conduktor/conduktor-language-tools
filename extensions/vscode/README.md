@@ -45,6 +45,9 @@ Console accepts. They never change the Console and never see a secret.
 2. **Select Cluster** on the Conduktor view's title bar, then open a topic.
 3. **New Resource…** on a kind, fill it in, save: it is dry-run for you. **Diff with Live** shows what would change.
 
+**Welcome: Open Walkthrough…** → **Get Started with Conduktor Console** takes you through these steps, up to a first
+apply in dev.
+
 ## Modes
 
 | Mode   | What it can do                                                                      |

@@ -129,6 +129,9 @@ They never change the Console, and never see a secret.
 5. **Change.** On a non-production Console, **Conduktor: Change Mode** → **Dev**, and **Apply** appears above every
    resource.
 
+The same steps are also a walkthrough inside VS Code: **Welcome: Open Walkthrough…** → **Get Started with Conduktor
+Console**.
+
 > **Try it with an agent:** _"Using the Conduktor tools, write topics.yaml with an `orders` topic on local-kafka: 6
 > partitions, 7 days retention. Validate and dry-run it."_
 
