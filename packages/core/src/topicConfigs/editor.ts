@@ -1,9 +1,10 @@
+import { closest, type Fix } from '../fixes';
 import { rangeOf } from '../resources/yamlPaths';
 import { snippetText } from '../templates/snippet';
 import { isRecord } from '../util';
 import { checkTopicConfig, configChoices } from './check';
 import type { TopicConfigDoc } from './kafkaDocs';
-import { configValueYaml } from './lookup';
+import { configValueYaml, TOPIC_CONFIGS } from './lookup';
 
 /** A config's docs, as Markdown: what it does, its type, default, valid values and importance, and a link. */
 export function configMarkdown(config: TopicConfigDoc): string {
@@ -38,9 +39,15 @@ export interface TopicConfigRangeProblem {
   end: number;
   message: string;
   severity: 'error' | 'warning';
+  fixes: Fix[];
 }
 
-/** What is wrong with a Topic's configs: unknown keys (warnings) and values Kafka would refuse (errors). */
+const KEYS = TOPIC_CONFIGS.map((config) => config.key);
+
+/**
+ * What is wrong with a Topic's configs: unknown keys (warnings), with the closest known ones, and values Kafka would
+ * refuse (errors), with the values it takes or the quotes Console needs.
+ */
 export function topicConfigProblems(text: string, resource: unknown): TopicConfigRangeProblem[] {
   const spec = isRecord(resource) && isRecord(resource.spec) ? resource.spec : {};
   const configs = isRecord(spec.configs) ? spec.configs : {};
@@ -52,6 +59,14 @@ export function topicConfigProblems(text: string, resource: unknown): TopicConfi
     const line = text.slice(lineStart);
     const keyStart = lineStart + line.length - line.trimStart().length;
     const [start, end] = problem.severity === 'warning' ? [keyStart, keyStart + key.length] : range;
-    return [{ start, end, message: problem.message, severity: problem.severity }];
+    const fix = (title: string, newText: string): Fix => ({ title, edit: { start, end, newText } });
+    const fixes =
+      problem.severity === 'warning'
+        ? closest(key, KEYS).map((near) => fix(`Change to '${near}'`, near))
+        : (problem.replacements ?? []).map((replacement) => {
+            const yaml = configValueYaml(key, replacement);
+            return fix(replacement === String(value) ? `Quote it: ${yaml}` : `Change to '${replacement}'`, yaml);
+          });
+    return [{ start, end, message: problem.message, severity: problem.severity, fixes }];
   });
 }

@@ -1,5 +1,6 @@
-import { parse, parseAllDocuments } from 'yaml';
+import { isMap, isScalar, parse, parseAllDocuments } from 'yaml';
 import { describeError } from '../client/errors';
+import type { Fix } from '../fixes';
 import type { KindCatalog } from '../openapi/kindCatalog';
 import { isRecord } from '../util';
 import { expandEnvVars } from './envVars';
@@ -64,6 +65,29 @@ export function claimsForEditing(text: string, catalog: KindCatalog): boolean {
       (apiVersion === undefined || (typeof apiVersion === 'string' && CONSOLE_API_VERSION.test(apiVersion))) &&
       document.getIn(['metadata', 'namespace']) === undefined
     );
+  });
+}
+
+/** Each document that names a Console kind without an apiVersion, with the fix that adds the kind's latest one. */
+export function apiVersionFixes(text: string, catalog: KindCatalog): { start: number; end: number; fix: Fix }[] {
+  const kinds = catalog.kindNames();
+  return parseAllDocuments(text).flatMap((document) => {
+    if (!('get' in document) || !isMap(document.contents)) return [];
+    const kind = document.get('kind');
+    const version = typeof kind === 'string' && kinds.has(kind) ? catalog.latest(kind)?.version : undefined;
+    const key = document.contents.items.find((pair) => isScalar(pair.key) && pair.key.value === 'kind')?.key;
+    const at = isScalar(key) ? key.range[0] : undefined;
+    if (version === undefined || at === undefined || document.has('apiVersion')) return [];
+    if (document.getIn(['metadata', 'namespace']) !== undefined) return [];
+    const line = text.lastIndexOf('\n', at - 1) + 1;
+    const newText = `apiVersion: v${version}\n`;
+    return [
+      {
+        start: document.range[0],
+        end: document.range[2],
+        fix: { title: `Add ${newText.trim()}`, edit: { start: line, end: line, newText } },
+      },
+    ];
   });
 }
 

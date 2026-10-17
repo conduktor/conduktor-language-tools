@@ -4,6 +4,8 @@ import { topicConfig } from './lookup';
 export interface TopicConfigProblem {
   message: string;
   severity: 'error' | 'warning';
+  /** Values that would do instead, as text. */
+  replacements?: string[];
 }
 
 /** A config value checked against Kafka's docs: its type and the valid-value forms the docs use. */
@@ -11,10 +13,14 @@ export function checkTopicConfig(key: string, value: unknown): TopicConfigProble
   const config = topicConfig(key);
   if (!config)
     return { message: `${key} is not a Kafka topic config (a broker may still accept it).`, severity: 'warning' };
-  const error = (message: string): TopicConfigProblem => ({ message, severity: 'error' });
+  const error = (message: string, replacements?: string[]): TopicConfigProblem => ({
+    message,
+    severity: 'error',
+    ...(replacements && { replacements }),
+  });
   // Console sends a config as a JSON long or a string; YAML booleans, decimals and numbers past 2^53 are neither.
   if (typeof value === 'boolean' || (typeof value === 'number' && !Number.isSafeInteger(value)))
-    return error(`${key} must be a whole number or a string; quote it: "${String(value)}".`);
+    return error(`${key} must be a whole number or a string; quote it: "${String(value)}".`, [String(value)]);
   const text = String(value).trim();
   switch (config.type) {
     case 'int':
@@ -29,7 +35,7 @@ export function checkTopicConfig(key: string, value: unknown): TopicConfigProble
       if (text === '' || !Number.isFinite(Number(text))) return error(`${key} is a number.`);
       break;
     case 'boolean':
-      if (text !== 'true' && text !== 'false') return error(`${key} is true or false.`);
+      if (text !== 'true' && text !== 'false') return error(`${key} is true or false.`, ['true', 'false']);
       break;
   }
   const items =
@@ -41,7 +47,15 @@ export function checkTopicConfig(key: string, value: unknown): TopicConfigProble
       : [text];
   for (const item of items) {
     const problem = outsideValid(key, item, config);
-    if (problem) return error(problem);
+    // In a list, the item alone changes.
+    const replacements = configChoices(config)?.map((choice) => [
+      ...new Set(items.map((other) => (other === item ? choice : other))),
+    ]);
+    if (problem)
+      return error(
+        problem,
+        replacements?.map((replacement) => replacement.join(',')),
+      );
   }
   return undefined;
 }

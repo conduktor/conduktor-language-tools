@@ -24,13 +24,17 @@ describe('checkTopicConfig', () => {
     expect(checkTopicConfig('cleanup.policy', 'compact,archive')).toEqual({
       message: 'cleanup.policy takes compact, delete; archive is not one of them.',
       severity: 'error',
+      replacements: ['compact', 'compact,delete'],
     });
     expect(checkTopicConfig('min.cleanable.dirty.ratio', 2)).toEqual({
       message: 'min.cleanable.dirty.ratio is at most 1.',
       severity: 'error',
     });
     expect(checkTopicConfig('compression.gzip.level', 10)?.severity).toBe('error');
-    expect(checkTopicConfig('unclean.leader.election.enable', 'yes')?.message).toMatch(/true or false/);
+    expect(checkTopicConfig('unclean.leader.election.enable', 'yes')).toMatchObject({
+      message: expect.stringMatching(/true or false/) as unknown,
+      replacements: ['true', 'false'],
+    });
   });
 
   it('warns about a key Kafka does not have', () => {

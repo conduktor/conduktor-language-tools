@@ -31,6 +31,7 @@ export {
 } from './client/tokenInfo';
 export { ConsoleClient, normaliseBaseUrl, type ConsoleClientOptions, type RequestEvent } from './client/consoleClient';
 export {
+  apiVersionFixes,
   catalogDocuments,
   claimsForEditing,
   parseResourceDocuments,
@@ -157,3 +158,6 @@ export {
   type TopicConfigRangeProblem,
 } from './topicConfigs/editor';
 export { setFields, type FieldValue } from './resources/setFields';
+export { closest, editBetween, scalarYaml, type Fix, type TextEdit } from './fixes';
+export { resourceSymbol, resourceSymbols, type ResourceSymbol } from './resources/symbols';
+export { renameEdits } from './references/rename';

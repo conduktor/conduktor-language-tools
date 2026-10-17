@@ -1,8 +1,10 @@
+import { closest, editBetween, scalarYaml, type Fix } from '../fixes';
 import type { KindCatalog } from '../openapi/kindCatalog';
+import { setFields } from '../resources/setFields';
 import { rangeOf } from '../resources/yamlPaths';
 import type { Resource } from '../resources/types';
 import { isRecord } from '../util';
-import { findReferences, patternMatcher } from './extract';
+import { findReferences, patternMatcher, type Reference } from './extract';
 import type { NameSource } from './nameIndex';
 import { overlapsOf, patternTraps, patternTypeOf, type Instance } from './patterns';
 
@@ -23,6 +25,7 @@ export interface ReferenceProblem {
   end: number;
   message: string;
   severity: 'error' | 'warning' | 'information';
+  fixes: Fix[];
 }
 
 /**
@@ -41,12 +44,12 @@ export async function referenceProblems(
   for (const reference of findReferences(resource, catalog)) {
     const range = rangeOf(text, reference.path);
     if (!range) continue;
-    const problem = (message: string, severity: ReferenceProblem['severity']) =>
-      found.push({ start: range[0], end: range[1], message, severity });
+    const problem = (message: string, severity: ReferenceProblem['severity'], fixes: Fix[] = []) =>
+      found.push({ start: range[0], end: range[1], message, severity, fixes });
     const { pattern } = reference;
     if (pattern)
       for (const trap of patternTraps(pattern.reading, pattern.type, reference.value))
-        problem(trap.message, trap.error ? 'error' : 'warning');
+        problem(trap.message, trap.error ? 'error' : 'warning', [prefixedFix(text, reference)]);
     if (reference.wildcard || !reference.parents) continue;
     const { names: known, checked } = await names.lookup(reference.kind, reference.parents);
     if (!checked) continue;
@@ -54,7 +57,22 @@ export async function referenceProblems(
     if (matches) {
       if (!known.some((n) => matches(n.name))) problem(`Matches no ${reference.kind} yet.`, 'information');
     } else if (!known.some((n) => n.name === reference.value)) {
-      problem(`${reference.kind} '${reference.value}' is not in the repository or on ${consoleName}.`, 'warning');
+      // A trailing * is a pattern trap, whose own fix is the one to offer.
+      const near = reference.value.endsWith('*')
+        ? []
+        : closest(
+            reference.value,
+            known.map((n) => n.name),
+          );
+      const written = text.slice(range[0], range[1]);
+      problem(
+        `${reference.kind} '${reference.value}' is not in the repository or on ${consoleName}.`,
+        'warning',
+        near.map((name) => ({
+          title: `Change to '${name}'`,
+          edit: { start: range[0], end: range[1], newText: scalarYaml(name, written) },
+        })),
+      );
     }
   }
   if (resource.kind === 'ApplicationInstance') found.push(...(await overlaps(text, resource, names)));
@@ -73,8 +91,21 @@ async function overlaps(text: string, resource: Resource, names: NameLookup): Pr
     const range = rangeOf(text, ['spec', 'resources', index, 'name']);
     const owner = instance === subject.name ? 'this instance' : instance;
     const message = `Overlaps ${owned.type} ${owned.name} (${owned.patternType}) owned by ${owner}.`;
-    return range ? [{ start: range[0], end: range[1], message, severity: 'warning' as const }] : [];
+    return range ? [{ start: range[0], end: range[1], message, severity: 'warning' as const, fixes: [] }] : [];
   });
+}
+
+// `foo*` as Console means it: `foo` with patternType PREFIXED.
+function prefixedFix(text: string, reference: Reference): Fix {
+  const base = reference.value.slice(0, -1);
+  const field = String(reference.path.at(-1));
+  const after = setFields(
+    text,
+    reference.path.slice(0, -1).map(String),
+    { [field]: base, patternType: 'PREFIXED' },
+    field,
+  );
+  return { title: `Use '${base}' with patternType PREFIXED`, edit: editBetween(text, after) };
 }
 
 /** An ApplicationInstance's cluster and owned resources, or `undefined` while it has neither. */
