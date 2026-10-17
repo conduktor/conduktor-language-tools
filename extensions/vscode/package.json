@@ -764,6 +764,31 @@
         }
       },
       {
+        "name": "conduktor_diff_with_live",
+        "displayName": "Diff Conduktor YAML with the Console's version",
+        "modelDescription": "Compare Conduktor Console resource YAML with the connected Console's version of each resource: a unified diff from the Console's version (-) to the YAML (+), or whether it is new or the same. Pass the YAML text or a workspace file path. Use it to tell the user, field by field, what applying would change. Fields the Console fills in itself show on its side only: conduktor_dry_run says whether applying changes anything. Secret values from the Console are redacted.",
+        "userDescription": "Diff Conduktor YAML with the Console's version",
+        "toolReferenceName": "conduktorDiffWithLive",
+        "canBeReferencedInPrompt": true,
+        "tags": [
+          "conduktor",
+          "kafka"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "yaml": {
+              "type": "string",
+              "description": "Conduktor resource YAML; several resources may be separated by ---."
+            },
+            "path": {
+              "type": "string",
+              "description": "A YAML file in the workspace, relative to its root. Use instead of yaml."
+            }
+          }
+        }
+      },
+      {
         "name": "conduktor_get_resources",
         "displayName": "Get Conduktor resources",
         "modelDescription": "Read resources that already exist on the connected Console, as YAML: all of one kind, or one by name. Kinds that live in a Kafka cluster need cluster, and connectors also connectCluster. Use it to copy the shape of an existing resource or to check what is there before changing it.",

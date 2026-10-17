@@ -50,6 +50,7 @@ describe('conduktor tools', () => {
       'conduktor_get_kind_schema',
       'conduktor_validate',
       'conduktor_dry_run',
+      'conduktor_diff_with_live',
       'conduktor_get_resources',
     ]);
     for (const t of conduktorTools) {
@@ -216,6 +217,50 @@ describe('conduktor_get_resources', () => {
     await expect(run('conduktor_get_resources', { kind: 'Topic' })).rejects.toThrow(
       'Topic needs cluster. conduktor_get_resources with kind KafkaCluster lists the clusters.',
     );
+  });
+});
+
+describe('conduktor_diff_with_live', () => {
+  const live = (spec: Record<string, unknown>): Resource => ({
+    apiVersion: 'v2',
+    kind: 'Topic',
+    metadata: { name: 'orders', cluster: 'local' },
+    spec,
+  });
+
+  it("shows what applying would change, as a diff from the Console's version", async () => {
+    const { ctx, client } = context();
+    client.get.mockResolvedValueOnce(live({ partitions: 3, replicationFactor: 3 }));
+    const text = await run('conduktor_diff_with_live', { yaml: topic('{ partitions: 6, replicationFactor: 3 }') }, ctx);
+    expect(client.get).toHaveBeenCalledWith('/public/kafka/v2/cluster/local/topic/orders');
+    expect(text).toMatch(/^## Topic orders: changes/m);
+    expect(text).toContain('-  partitions: 3\n+  partitions: 6');
+    expect(text).not.toMatch(/^[-+] {2}replicationFactor/m);
+  });
+
+  it('says when a resource is not on the Console yet, or would not change', async () => {
+    const { ctx, client } = context();
+    client.get.mockRejectedValueOnce(new ConsoleError(404, 'Not found'));
+    client.get.mockResolvedValueOnce(live({ partitions: 6, replicationFactor: 3 }));
+    const yaml = `${topic('{ partitions: 1 }', '{ name: fresh, cluster: local }')}---\n${topic('{ partitions: 6, replicationFactor: 3 }')}`;
+    const text = await run('conduktor_diff_with_live', { yaml }, ctx);
+    expect(text).toMatch(/^## Topic fresh: not on local yet/m);
+    expect(text).toMatch(/^## Topic orders: the same as on local/m);
+  });
+
+  it("never shows a secret from the Console's version", async () => {
+    const { ctx, client } = context();
+    client.get.mockResolvedValueOnce({
+      apiVersion: 'v2',
+      kind: 'KafkaCluster',
+      metadata: { name: 'prod' },
+      spec: { bootstrapServers: 'kafka:9092', kafkaFlavor: { type: 'Gateway', url: 'u', user: 'a', password: 'p4ss' } },
+    });
+    const yaml =
+      'apiVersion: v2\nkind: KafkaCluster\nmetadata: { name: prod }\nspec: { bootstrapServers: other:9092 }\n';
+    const text = await run('conduktor_diff_with_live', { yaml }, ctx);
+    expect(text).toContain('+  bootstrapServers: other:9092');
+    expect(text).not.toContain('p4ss');
   });
 });
 
