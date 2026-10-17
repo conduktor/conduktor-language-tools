@@ -1,0 +1,59 @@
+# Checks extensions/zed the way Zed's extension registry does before it accepts an extension: the registry's
+# zed-extension CLI builds the wasm and writes the manifest, and the registry's own code validates the id, the
+# version, the manifest and the license. Both are pinned to the commits the registry's CI runs: bump them together.
+name: Zed extension
+
+on:
+  pull_request:
+    paths: ['extensions/zed/**', 'scripts/check-zed-extension.mjs', '.github/workflows/zed-extension.yml']
+  push:
+    branches: [main]
+    paths: ['extensions/zed/**', 'scripts/check-zed-extension.mjs', '.github/workflows/zed-extension.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # zed-industries/extensions: .github/workflows/ci.yml's ZED_EXTENSION_CLI_SHA, and the commit it was read at.
+  ZED_EXTENSION_CLI_SHA: 9ee3c503a4bbbc6b4a0f8a789acca4871d773223
+  ZED_REGISTRY_SHA: ef2f477100b1e7d95dc981ac6c71ee261c824ae9
+
+jobs:
+  registry-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/checkout@v7
+        with:
+          repository: zed-industries/extensions
+          ref: ${{ env.ZED_REGISTRY_SHA }}
+          path: .zed-registry
+          sparse-checkout: |
+            src
+            package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install the registry's validation code
+        working-directory: .zed-registry
+        run: npm install --omit=dev --no-audit --no-fund
+
+      # The toolchain and target the registry builds extensions with.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: '1.90'
+          target: wasm32-wasip2
+
+      - name: Download the zed-extension CLI
+        run: |
+          wget --quiet "https://zed-extension-cli.nyc3.digitaloceanspaces.com/$ZED_EXTENSION_CLI_SHA/x86_64-unknown-linux-gnu/zed-extension"
+          chmod +x zed-extension
+
+      - name: Check the extension as the registry would
+        run: node scripts/check-zed-extension.mjs
+        env:
+          RUSTUP_TOOLCHAIN: '1.90'

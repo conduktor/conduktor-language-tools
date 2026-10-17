@@ -11,3 +11,7 @@ out/
 # Zed builds a dev extension in place
 /extensions/zed/target/
 /extensions/zed/extension.wasm
+
+# The Zed registry check, when run by hand (see .github/workflows/zed-extension.yml)
+/.zed-registry/
+/zed-extension
