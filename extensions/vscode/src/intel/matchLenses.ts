@@ -43,7 +43,7 @@ export class MatchLensProvider implements vscode.CodeLensProvider, vscode.Dispos
   }
 
   dispose(): void {
-    this.listeners.forEach((l) => l.dispose());
+    for (const l of this.listeners) l.dispose();
     this.changed.dispose();
   }
 }

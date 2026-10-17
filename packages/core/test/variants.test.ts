@@ -2,18 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import { kindSchema } from '../src/openapi/kindSchema';
 import { nextChoice } from '../src/templates';
-import type { JsonSchema } from '../src/openapi/types';
 import { snapshotCatalog, snapshotDoc } from './fixtures';
 
 const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never) as JsonSchema;
+const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
 const choices = (kind: string, answers: Record<string, string | null> = {}) => {
   const asked: { path: string; options: string[]; optional: boolean }[] = [];
   const given: Record<string, string | null> = {};
   for (let c = nextChoice(rootOf(kind), given); c; c = nextChoice(rootOf(kind), given)) {
     const key = c.path.join('.');
     asked.push({ path: key, options: c.options, optional: c.optional });
-    given[key] = key in answers ? answers[key]! : c.options[0]!;
+    given[key] = key in answers ? answers[key]! : c.options[0];
   }
   return asked;
 };

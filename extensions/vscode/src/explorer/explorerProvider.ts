@@ -86,7 +86,8 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     const id = idOf(node);
     if (id) treeItem.id = id;
     // Decorations colour labels by this URI, and roll a resource's state up its path to the kind and cluster.
-    treeItem.resourceUri = treeUriOf(node);
+    const resourceUri = treeUriOf(node);
+    if (resourceUri) treeItem.resourceUri = resourceUri;
     // Without one, a tree item with a resourceUri hovers with that URI's path.
     treeItem.tooltip ??= [treeItem.label, treeItem.description].filter((part) => typeof part === 'string').join(' ');
     return treeItem;
@@ -123,7 +124,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
         return treeItem;
       }
       case 'parent':
-        return item(node.parents.at(-1)!, Collapsed, 'server', 'parent');
+        return item(node.parents.at(-1) ?? '', Collapsed, 'server', 'parent');
       case 'resource': {
         const look = node.local && LOCAL_LOOKS[node.local.drift ?? node.local.status];
         const icon = !node.local ? 'cloud' : node.local.status === 'new' ? 'file-code' : 'check';
@@ -149,7 +150,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.changed.dispose();
   }
 }

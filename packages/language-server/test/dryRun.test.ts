@@ -4,20 +4,28 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CodeAction, CodeLens } from 'vscode-languageserver';
-import { buildServer, fakeConsole, startServer, type FakeConsole, type StartOptions, type Started } from './harness';
+import {
+  buildServer,
+  fakeConsole,
+  matching,
+  startServer,
+  type FakeConsole,
+  type StartOptions,
+  type Started,
+} from './harness';
 
 let directory: string;
 let fake: FakeConsole;
 const running: Started[] = [];
 
 beforeAll(async () => {
-  fake = await fakeConsole();
   directory = buildServer();
+  fake = await fakeConsole();
+  return () => fake.close();
 }, 60_000);
 
 afterAll(() => {
   running.forEach((server) => server.stop());
-  fake?.close();
 });
 
 async function start(mode: 'dev' | 'prod', options: Omit<StartOptions, 'settings'> = {}): Promise<Started> {
@@ -64,8 +72,10 @@ describe('dry runs against the Console', () => {
     const uri = 'file:///work/opened.yaml';
     server.open(uri, topics('c-open'));
 
-    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => /partitions must be <= 12/.test(x.message)));
-    const refused = diagnostics.find((d) => /partitions must be <= 12/.test(d.message))!;
+    const diagnostics = await server.diagnostics(uri, (d) =>
+      d.some((x) => x.message.includes('partitions must be <= 12')),
+    );
+    const refused = diagnostics.find((d) => d.message.includes('partitions must be <= 12'))!;
     expect(refused).toMatchObject({ source: 'Conduktor', severity: 1, range: { start: { line: 5 } } });
     expect(requestsTo('c-open').map((r) => [r.method, r.url.split('?')[1], r.authorization])).toEqual([
       ['PUT', 'dryMode=true', 'Bearer secret'],
@@ -86,7 +96,7 @@ describe('dry runs against the Console', () => {
       'Switch fake to dev mode, to apply (until Zed restarts)',
     ]);
     const [dryRun] = await actions(server, uri, 1);
-    await server.command(dryRun!.command!.command, ...dryRun!.command!.arguments!);
+    await server.run(dryRun!.command!);
     expect(await server.message((m) => m.message.startsWith('Dry run on fake'))).toEqual({
       type: 3,
       message: 'Dry run on fake: 1 Updated',
@@ -138,7 +148,7 @@ describe('dry runs against the Console', () => {
     expect((await actions(server, uri, 1)).map((a) => a.title).filter((t) => t.startsWith('Apply'))).toEqual([]);
     expect((await lenses(server, uri)).filter((t) => t.startsWith('Apply'))).toEqual([]);
     await server.command('conduktor.apply', uri, 0);
-    expect(server.messages).toContainEqual({ type: 2, message: expect.stringMatching(/fake is in prod mode/) });
+    expect(server.messages).toContainEqual({ type: 2, message: matching(/fake is in prod mode/) });
     expect(applied('c-prod')).toEqual([]);
   }, 30_000);
 
@@ -146,7 +156,7 @@ describe('dry runs against the Console', () => {
     const server = await start('prod');
     const uri = 'file:///work/token.yaml';
     server.open(uri, 'apiVersion: v2\nkind: Topic\nmetadata: { name: "${CONDUKTOR_TOKEN}", cluster: c-token }\n');
-    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => /Missing environment/.test(x.message)));
+    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('Missing environment')));
     expect(diagnostics.map((d) => d.message)).toContain('Missing environment variables: CONDUKTOR_TOKEN');
     expect(fake.requests.some((r) => r.body.includes('secret'))).toBe(false);
   }, 30_000);
@@ -167,7 +177,7 @@ describe('dry runs against the Console', () => {
     running.push(server);
     const uri = 'file:///work/cli.yaml';
     server.open(uri, topics('c-cli'));
-    await server.diagnostics(uri, (d) => d.some((x) => /partitions must be <= 12/.test(x.message)));
+    await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('partitions must be <= 12')));
     expect(requestsTo('c-cli').every((r) => r.authorization === 'Bearer secret')).toBe(true);
     expect(server.messages).toEqual([]);
   }, 30_000);
@@ -177,7 +187,7 @@ describe('dry runs against the Console', () => {
     running.push(server);
     const uri = 'file:///work/cli-key.yaml';
     server.open(uri, 'apiVersion: v2\nkind: Topic\nmetadata: { name: "${CDK_API_KEY}", cluster: c-cli-key }\n');
-    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => /Missing environment/.test(x.message)));
+    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('Missing environment')));
     expect(diagnostics.map((d) => d.message)).toContain('Missing environment variables: CDK_API_KEY');
   }, 30_000);
 
@@ -188,7 +198,7 @@ describe('dry runs against the Console', () => {
 
     const toDev = (await actions(server, uri, 1)).find((a) => a.title.startsWith('Switch fake to dev mode'))!;
     expect(toDev).toBeDefined();
-    await server.command(toDev.command!.command, ...toDev.command!.arguments!);
+    await server.run(toDev.command!);
     expect(server.prompts.map((p) => p.message)).toEqual([expect.stringMatching(/^Switch fake to dev mode/)]);
 
     const titles = (await actions(server, uri, 1)).map((a) => a.title);

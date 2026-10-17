@@ -138,6 +138,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     registerClaudeCodeConfigCommand(sessions, context),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.validateFolder', async (folder?: vscode.Uri) => {
+      const workspace = vscode.workspace.workspaceFolders?.[0]?.uri;
       const [target] = folder
         ? [folder]
         : ((await vscode.window.showOpenDialog({
@@ -145,7 +146,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
             openLabel: 'Validate',
             canSelectFolders: true,
             canSelectFiles: false,
-            defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
+            ...(workspace && { defaultUri: workspace }),
           })) ?? []);
       return target ? checkFolder(target) : undefined;
     }),
@@ -273,7 +274,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
         explorerView.description = [state.connection.name, cluster].filter(Boolean).join(' · ');
     }),
     sessions.onDidChange((state) => {
-      explorerView.description = state.status === 'none' ? undefined : state.connection.name;
+      // An empty description removes it, as undefined would.
+      explorerView.description = state.status === 'none' ? '' : state.connection.name;
       void vscode.commands.executeCommand(
         'setContext',
         'conduktor.mode',
@@ -316,5 +318,3 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi | undef
     cli,
   });
 }
-
-export function deactivate(): void {}

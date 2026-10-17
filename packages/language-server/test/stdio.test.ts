@@ -1,20 +1,29 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer } from 'node:http';
 import type { CodeLens, CompletionList, Hover } from 'vscode-languageserver';
-import { buildServer, fakeConsole, startServer, until, type FakeConsole, type Started } from './harness';
+import {
+  anything,
+  buildServer,
+  fakeConsole,
+  matching,
+  startServer,
+  until,
+  type FakeConsole,
+  type Started,
+} from './harness';
 
 let directory: string;
 let fake: FakeConsole;
 const running: Started[] = [];
 
 beforeAll(async () => {
-  fake = await fakeConsole();
   directory = buildServer();
+  fake = await fakeConsole();
+  return () => fake.close();
 }, 60_000);
 
 afterAll(() => {
   running.forEach((server) => server.stop());
-  fake?.close();
 });
 
 async function start(settings: unknown, options: { zedSettings?: boolean; answer?: string } = {}): Promise<Started> {
@@ -40,7 +49,7 @@ describe('the bundled language server over stdio', () => {
     server.open('file:///work/config.yaml', CONFIG_MAP);
 
     const diagnostics = await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
-    expect(diagnostics).toContainEqual(expect.objectContaining({ source: 'Conduktor', range: expect.anything() }));
+    expect(diagnostics).toContainEqual(expect.objectContaining({ source: 'Conduktor', range: anything() }));
     expect(diagnostics.every((d) => d.range.start.line === 4)).toBe(true);
     expect(fake.requests).toContainEqual(
       expect.objectContaining({ url: '/api/public/docs/docs.yaml', authorization: undefined }),
@@ -77,7 +86,7 @@ describe('the bundled language server over stdio', () => {
     const server = await start({ url: 'http://127.0.0.1:9', name: 'down' });
     server.open('file:///work/topic.yaml', BAD_TOPIC);
     await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
-    expect(server.messages).toContainEqual({ type: 2, message: expect.stringMatching(/^down: using the snapshot/) });
+    expect(server.messages).toContainEqual({ type: 2, message: matching(/^down: using the snapshot/) });
   }, 30_000);
 
   it('says what is wrong with the settings, and keeps checking with the bundled schema', async () => {
@@ -86,7 +95,7 @@ describe('the bundled language server over stdio', () => {
     await server.diagnostics('file:///work/topic.yaml', (d) => d.length > 0);
     expect(server.messages).toContainEqual({
       type: 1,
-      message: expect.stringMatching(/^lsp\.conduktor-console\.settings: "mode"/),
+      message: matching(/^lsp\.conduktor-console\.settings: "mode"/),
     });
   }, 30_000);
 
@@ -109,7 +118,7 @@ describe('the bundled language server over stdio', () => {
 
     server.configure({ url: fake.url, name: 'later', mode: 'dev' });
     const titles = async () =>
-      ((await server.connection.sendRequest('textDocument/codeLens', { textDocument: { uri } })) as CodeLens[]).map(
+      (await server.connection.sendRequest<CodeLens[]>('textDocument/codeLens', { textDocument: { uri } })).map(
         (lens) => lens.command!.title,
       );
     await until(async () => (await titles()).includes('Apply'));
@@ -124,10 +133,10 @@ describe('the bundled language server over stdio', () => {
       const uri = 'file:///work/slow.yaml';
       server.open(uri, 'apiVersion: v2\nkind: Topic\nspec:\n  p');
       const completion = await Promise.race([
-        server.connection.sendRequest('textDocument/completion', {
+        server.connection.sendRequest<CompletionList | null>('textDocument/completion', {
           textDocument: { uri },
           position: { line: 3, character: 3 },
-        }) as Promise<CompletionList | null>,
+        }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('completion waited on the Console')), 5_000),
         ),

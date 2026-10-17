@@ -20,7 +20,7 @@ export interface SessionOptions {
   snapshotText: () => Promise<string>;
 }
 
-export interface Alert {
+interface Alert {
   level: 'error' | 'warning';
   message: string;
 }

@@ -30,14 +30,14 @@ export function schemaAt(root: JsonSchema, value: unknown, path: YamlPath): Fiel
       return { type: `one of ${values.join(', ')}`, required: true, values };
     }
     const parts = variantParts(root, node, current);
-    const fields = parts.flatMap((part) =>
-      isRecord(part.properties) && segment in part.properties
-        ? [(part.properties as Record<string, JsonSchema>)[segment]!]
-        : [],
-    );
-    if (fields.length === 0) return undefined;
+    const fields = parts.flatMap((part) => {
+      const field = isRecord(part.properties) ? part.properties[segment] : undefined;
+      return isRecord(field) ? [field] : [];
+    });
+    const [first, ...others] = fields;
+    if (!first) return undefined;
     required = parts.some((part) => Array.isArray(part.required) && part.required.includes(segment));
-    node = fields.length === 1 ? fields[0]! : { allOf: fields };
+    node = others.length === 0 ? first : { allOf: fields };
     current = isRecord(current) ? current[segment] : undefined;
   }
   return { ...describe(root, node), required };
@@ -93,12 +93,14 @@ function describe(root: JsonSchema, node: JsonSchema): Omit<FieldSchema, 'requir
   const fallback = 'default' in resolved ? { default: resolved.default } : {};
   const values = [
     ...new Set(
-      parts.flatMap((part) => (Array.isArray(part.enum) ? part.enum : 'const' in part ? [part.const] : [])).map(String),
+      parts
+        .flatMap((part): unknown[] => (Array.isArray(part.enum) ? part.enum : 'const' in part ? [part.const] : []))
+        .map(String),
     ),
   ];
   if (values.length > 0) return { type: `one of ${values.join(', ')}`, values, ...fallback };
   if (typed.type === 'array' && isRecord(typed.items))
-    return { type: `list of ${describe(root, typed.items as JsonSchema).type}`, ...fallback };
+    return { type: `list of ${describe(root, typed.items).type}`, ...fallback };
   if (Array.isArray(typed.type)) return { type: typed.type.join(' or '), ...fallback };
   if (typeof typed.type === 'string') return { type: typed.type, ...fallback };
   const options = Array.isArray(resolved.oneOf) ? resolved.oneOf : Array.isArray(resolved.anyOf) ? resolved.anyOf : [];

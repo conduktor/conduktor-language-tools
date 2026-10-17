@@ -24,7 +24,7 @@ export function expandIncludes(resource: Resource, readInclude?: (path: string) 
       metadata: {
         ...metadata,
         ...(Object.keys(rest).length > 0 && { labels: rest }),
-        description: read(descriptionFile as string, readInclude),
+        description: read(descriptionFile, readInclude),
       },
     };
   }

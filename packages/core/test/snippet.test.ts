@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import { kindSchema } from '../src/openapi/kindSchema';
-import type { JsonSchema } from '../src/openapi/types';
 import { skeletonYaml, snippetOf, snippetVariants } from '../src/templates';
 import { parse } from 'yaml';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { at, snapshotCatalog, snapshotDoc } from './fixtures';
 
 const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never) as JsonSchema;
+const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
 
 describe('snippetOf', () => {
   it('puts tab stops on the name, a choice of clusters and the empty placeholders', () => {
@@ -32,7 +31,7 @@ describe('snippetOf', () => {
 function accepted(snippet: string): string {
   const unescape = (text: string) => text.replace(/\\([$}\\,|])/g, '$1');
   return snippet
-    .replace(/\$\{\d+\|((?:\\.|[^,|\\])*)(?:,(?:\\.|[^|\\])*)*\|\}/g, (_m, first: string) => unescape(first))
+    .replace(/\$\{\d+\|((?:\\.|[^,|\\])*)(?:,(?:\\.|[^|\\])*)?\|\}/g, (_m, first: string) => unescape(first))
     .replace(/\$\{\d+:((?:\\.|[^}\\])*)\}/g, (_m, value: string) => unescape(value))
     .replace(/\$\{\d+\}/g, '')
     .replace(/\\([$}\\])/g, '$1');
@@ -42,8 +41,8 @@ describe('snippets once accepted', () => {
   it('keep names YAML would read as something else strings', () => {
     for (const cluster of ['true', '1', 'null', '1e3']) {
       const text = skeletonYaml(rootOf('Topic'), snapshotCatalog.latest('Topic')!, { cluster }, '2024', {});
-      const value = parse(accepted(snippetOf(text, { 'metadata.cluster': [cluster, 'other'] })));
-      expect(value.metadata).toEqual({ name: '2024', cluster });
+      const value: unknown = parse(accepted(snippetOf(text, { 'metadata.cluster': [cluster, 'other'] })));
+      expect(at(value, 'metadata')).toEqual({ name: '2024', cluster });
     }
   });
 
@@ -56,7 +55,7 @@ describe('snippetVariants', () => {
   it('never offers the same document twice', () => {
     for (const name of ['ServiceAccount', 'KafkaCluster', 'Alert', 'DataQualityRule']) {
       const answers = snippetVariants(rootOf(name)).map((v) => JSON.stringify(v.answers));
-      expect(new Set(answers).size, name).toBe(answers.length);
+      expect({ name, answers }).toEqual({ name, answers: [...new Set(answers)] });
     }
   });
 

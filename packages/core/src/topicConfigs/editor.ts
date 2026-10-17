@@ -6,9 +6,10 @@ import { configValueYaml } from './lookup';
 
 /** The values a config takes when Kafka lists them (`[compact, delete]`), not a range or an open list. */
 export function configChoices(config: TopicConfigDoc | undefined): string[] | undefined {
-  const match = config?.validValues && /^\[([^\]]*)\]$/.exec(config.validValues.split(/\s+or\s+/)[0]!.trim());
-  if (!match || match[1]!.includes('...')) return undefined;
-  return match[1]!.split(',').map((value) => value.trim());
+  const [range = ''] = config?.validValues?.split(/\s+or\s+/) ?? [];
+  const [, choices] = /^\[([^\]]*)\]$/.exec(range.trim()) ?? [];
+  if (choices === undefined || choices.includes('...')) return undefined;
+  return choices.split(',').map((value) => value.trim());
 }
 
 /** A config's docs, as Markdown: what it does, its type, default, valid values and importance, and a link. */
@@ -55,7 +56,8 @@ export function topicConfigProblems(text: string, resource: unknown): TopicConfi
     const range = rangeOf(text, ['spec', 'configs', key]);
     if (!problem || !range) return [];
     const lineStart = text.lastIndexOf('\n', range[0]) + 1;
-    const keyStart = lineStart + /^\s*/.exec(text.slice(lineStart))![0].length;
+    const line = text.slice(lineStart);
+    const keyStart = lineStart + line.length - line.trimStart().length;
     const [start, end] = problem.severity === 'warning' ? [keyStart, keyStart + key.length] : range;
     return [{ start, end, message: problem.message, severity: problem.severity }];
   });

@@ -47,7 +47,10 @@ export async function applyAllChanges(
     return undefined;
   }
 
-  const origin = new Map<ResourceDocument, { entry: LocalEntry; text: string; read?: (file: string) => string }>();
+  const origin = new Map<
+    ResourceDocument,
+    { entry: LocalEntry; text: string; read: ((file: string) => string) | undefined }
+  >();
   for (const entry of changed) {
     const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(entry.uri));
     const source = { entry, text, read: includeReaderFor(entry.uri) };
@@ -77,9 +80,10 @@ export async function applyAllChanges(
 
   const overwrites = plan
     .filter((item) => item.outcome.status === 'ok' && item.outcome.result === 'Updated')
-    .map((item) => origin.get(item.document)?.entry)
-    .filter((entry) => entry?.status === 'new')
-    .map((entry) => entry!.path);
+    .flatMap((item) => {
+      const entry = origin.get(item.document)?.entry;
+      return entry?.status === 'new' ? [entry.path] : [];
+    });
   const detail = [
     preview.text,
     plan.some((item) => item.outcome.status === 'pending') &&

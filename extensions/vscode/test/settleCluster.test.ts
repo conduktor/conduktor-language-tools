@@ -11,11 +11,13 @@ function memory(initial: Record<string, string | undefined>, current: { state: S
   const store: ClusterMemory<State> = {
     isCurrent: (state) => current.state === state,
     remembered: (state) => stored[state.id],
-    remember: async (state, cluster) => {
+    remember: (state, cluster) => {
       stored[state.id] = cluster;
+      return Promise.resolve();
     },
-    show: async (cluster) => {
+    show: (cluster) => {
       shown.push(cluster);
+      return Promise.resolve();
     },
   };
   return { store, stored, shown };
@@ -27,18 +29,18 @@ describe('settleCluster', () => {
 
   it('keeps a remembered cluster that still exists', async () => {
     const { store, stored, shown } = memory({ a: 'prod' }, { state: a });
-    await settleCluster(a, async () => ['dev', 'prod'], store);
+    await settleCluster(a, () => Promise.resolve(['dev', 'prod']), store);
     expect(stored).toEqual({ a: 'prod' });
     expect(shown).toEqual(['prod']);
   });
 
   it('picks the only cluster, and forgets one that is gone', async () => {
     const only = memory({ a: 'old' }, { state: a });
-    await settleCluster(a, async () => ['dev'], only.store);
+    await settleCluster(a, () => Promise.resolve(['dev']), only.store);
     expect(only.stored).toEqual({ a: 'dev' });
 
     const many = memory({ a: 'old' }, { state: a });
-    await settleCluster(a, async () => ['dev', 'prod'], many.store);
+    await settleCluster(a, () => Promise.resolve(['dev', 'prod']), many.store);
     expect(many.stored).toEqual({ a: undefined });
     expect(many.shown).toEqual([undefined]);
   });
@@ -48,9 +50,9 @@ describe('settleCluster', () => {
     const { store, stored, shown } = memory({ a: 'old', b: 'staging' }, current);
     await settleCluster(
       a,
-      async () => {
+      () => {
         current.state = b;
-        return ['dev'];
+        return Promise.resolve(['dev']);
       },
       store,
     );
@@ -66,7 +68,7 @@ describe('settleCluster', () => {
       await remember(state, cluster);
       current.state = b;
     };
-    await settleCluster(a, async () => ['dev'], store);
+    await settleCluster(a, () => Promise.resolve(['dev']), store);
     expect(shown).toEqual([]);
   });
 });

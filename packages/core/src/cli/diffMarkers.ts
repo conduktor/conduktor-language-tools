@@ -1,7 +1,7 @@
 const ESC = '\x1b';
 // What follows an ESC: a colour code, or the start of one cut off at the end of a chunk.
 const CODE = /^\[([0-9;]*)m/;
-const PARTIAL = /^(\[[0-9;]*)?$/;
+const PARTIAL = /^(?:\[[0-9;]*)?$/;
 
 /**
  * ctl colours its --print-diff output, a character-level diff: red what goes, green what comes. An output panel shows
@@ -25,10 +25,10 @@ export class DiffMarkers {
       }
       out += this.text(text.slice(at, escape));
       const rest = text.slice(escape + 1);
-      const code = CODE.exec(rest);
-      if (code) {
-        out += this.colour(code[1]!);
-        at = escape + 1 + code[0].length;
+      const [sequence, code] = CODE.exec(rest) ?? [];
+      if (sequence !== undefined && code !== undefined) {
+        out += this.colour(code);
+        at = escape + 1 + sequence.length;
       } else if (PARTIAL.test(rest)) {
         this.pending = text.slice(escape);
         break;

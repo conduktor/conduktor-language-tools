@@ -12,11 +12,10 @@ import {
   referrersOf,
   valueAt,
   type LoadedSpec,
-  type Resource,
 } from '@conduktor/core';
 import { MarkupKind, type Hover, type Location, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { parentsIn, sameParents, type Names } from './references';
+import { metadataOf, parentsIn, sameParents, type Names } from './references';
 
 /**
  * What a field is, from the Conduktor reference docs, and where a reference's target is; a kind's summary on `kind`.
@@ -74,12 +73,13 @@ export function definitionAt(
   const at = parsed && valueAt(parsed.text, offset - parsed.start);
   const reference = parsed?.resource && at && referenceAt(parsed.resource, spec.catalog, at.path);
   if (!reference?.parents || reference.value === '' || reference.pattern || reference.wildcard) return [];
-  const params = spec.catalog.latest(reference.kind)?.parentPathParams ?? [];
+  const { kind, value, parents } = reference;
+  const params = spec.catalog.latest(kind)?.parentPathParams ?? [];
   return located(documents, spec).flatMap(({ document: defining, start, text, resource }) => {
     const matches =
-      resource.kind === reference.kind &&
-      resource.metadata?.name === reference.value &&
-      sameParents(parentsIn(resource, params), reference.parents!);
+      resource.kind === kind &&
+      metadataOf(resource).name === value &&
+      sameParents(parentsIn(resource, params), parents);
     const range = matches ? rangeOf(text, ['metadata', 'name']) : undefined;
     return range ? [locationOf(defining, start + range[0], start + range[1])] : [];
   });
@@ -101,8 +101,9 @@ export function referencesAt(
   const at = parsed && valueAt(parsed.text, offset - parsed.start);
   const resource = parsed?.resource;
   const kind = resource && spec.catalog.latest(resource.kind);
-  if (!kind || at?.path.join('.') !== 'metadata.name' || typeof resource?.metadata?.name !== 'string') return [];
-  const target = { kind: kind.kind, parents: parentsIn(resource, kind.parentPathParams), name: resource.metadata.name };
+  const name = resource && metadataOf(resource).name;
+  if (!kind || at?.path.join('.') !== 'metadata.name' || typeof name !== 'string') return [];
+  const target = { kind: kind.kind, parents: parentsIn(resource, kind.parentPathParams), name };
   const declaration = includeDeclaration ? [locationOf(document, parsed.start + at.start, parsed.start + at.end)] : [];
   const referencing = new Set(referencingKinds(kind.kind));
   const candidates = located(documents, spec).filter((d) => referencing.has(d.resource.kind));
@@ -111,8 +112,8 @@ export function referencesAt(
     candidates.map((d) => d.resource),
     spec.catalog,
   ).flatMap(({ index, reference }) => {
-    const candidate = candidates[index]!;
-    const range = rangeOf(candidate.text, reference.path);
+    const candidate = candidates[index];
+    const range = candidate && rangeOf(candidate.text, reference.path);
     return range ? [locationOf(candidate.document, candidate.start + range[0], candidate.start + range[1])] : [];
   });
   return [...declaration, ...referrers];
@@ -121,7 +122,7 @@ export function referencesAt(
 function located(documents: readonly TextDocument[], spec: LoadedSpec) {
   return documents.flatMap((document) =>
     parsedDocuments(document.getText(), spec.catalog).flatMap(({ start, text, resource }) =>
-      resource ? [{ document, start, text, resource: resource as Resource }] : [],
+      resource ? [{ document, start, text, resource }] : [],
     ),
   );
 }

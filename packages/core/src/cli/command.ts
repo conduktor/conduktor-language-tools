@@ -1,7 +1,8 @@
 import { environmentDir } from '../sync/layout';
 
 export type CliRunnerChoice =
-  { kind: 'docker'; image: string; platform: string; uid?: number; gid?: number } | { kind: 'path'; binary: string };
+  | { kind: 'docker'; image: string; platform: string; uid?: number; gid?: number | undefined }
+  | { kind: 'path'; binary: string };
 
 export interface CliCommand {
   command: string;
@@ -12,7 +13,7 @@ export interface CliCommand {
 }
 
 const MOUNT = '/repo';
-const LOOPBACK = /^(https?:\/\/)(localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i;
+const LOOPBACK = /^(https?:\/\/)(?:localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i;
 
 export const CTL_VERSION = 'v0.9.3';
 export const DEFAULT_CTL_IMAGE = `conduktor/conduktor-ctl:${CTL_VERSION}`;

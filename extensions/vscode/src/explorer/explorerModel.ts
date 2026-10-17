@@ -11,13 +11,13 @@ import {
   type SyncStatus,
 } from '@conduktor/core';
 
-export interface LocalMark {
+interface LocalMark {
   status: SyncStatus;
-  drift?: Drift;
+  drift?: Drift | undefined;
   uri: string;
 }
 
-export interface LocalResource {
+interface LocalResource {
   kind: string;
   parents: string[];
   name: string;
@@ -39,7 +39,7 @@ export type ResourceNode = Extract<ExplorerNode, { type: 'resource' }>;
 export interface ExplorerSource {
   catalog: KindCatalog;
   client: Pick<ConsoleClient, 'list'>;
-  cluster?: string;
+  cluster?: string | undefined;
   local?: readonly LocalResource[];
   onlyChanges?: boolean;
 }
@@ -56,16 +56,17 @@ export async function childrenOf(source: ExplorerSource, node?: ExplorerNode): P
   }
   switch (node.type) {
     case 'scope':
-      if (node.scope === 'cluster' && !source.cluster) {
-        return [{ type: 'message', text: 'Select a cluster…', selectCluster: true }];
-      }
+      if (node.scope === 'cluster' && !source.cluster) return [selectCluster()];
       return [...new Set(visibleKinds(source, node.scope).map((k) => k.group))]
         .sort()
         .map((group) => ({ type: 'group', group, scope: node.scope }));
-    case 'group':
+    case 'group': {
+      const parents = node.scope === 'global' ? [] : source.cluster && [source.cluster];
+      if (!parents) return [selectCluster()];
       return visibleKinds(source, node.scope)
         .filter((kind) => kind.group === node.group)
-        .map((kind) => ({ type: 'kind', kind, parents: node.scope === 'cluster' ? [source.cluster!] : [] }));
+        .map((kind) => ({ type: 'kind', kind, parents }));
+    }
     case 'kind':
     case 'parent':
       return nextLevel(source, node.kind, node.parents);
@@ -146,8 +147,9 @@ export function resourceAtTreePath(
   const kind = kindName ? catalog.latest(kindName) : undefined;
   if (!kind || kind.group !== group || scopeOf(kind) !== scope) return undefined;
   const levels = kind.parentPathParams.length - (scope === 'cluster' ? 1 : 0);
-  if (rest.length !== levels + 1) return undefined;
-  return { kind, parents: rest.slice(0, -1), name: rest.at(-1)! };
+  const name = rest.at(-1);
+  if (rest.length !== levels + 1 || name === undefined) return undefined;
+  return { kind, parents: rest.slice(0, -1), name };
 }
 
 export function scopeOf(kind: KindVersion): Scope {
@@ -157,7 +159,7 @@ export function scopeOf(kind: KindVersion): Scope {
 function visibleKinds(source: ExplorerSource, scope: Scope): KindVersion[] {
   const changed = source.onlyChanges ? new Set(relevantChanges(source).map((r) => r.kind)) : undefined;
   return [...source.catalog.kindNames()]
-    .map((name) => source.catalog.latest(name)!)
+    .flatMap((name) => source.catalog.latest(name) ?? [])
     .filter((kind) => scopeOf(kind) === scope && (!changed || changed.has(kind.kind)))
     .sort((a, b) => a.order - b.order || a.kind.localeCompare(b.kind));
 }
@@ -171,7 +173,7 @@ async function nextLevel(source: ExplorerSource, kind: KindVersion, parents: str
     const parentKindName = PARENT_KINDS[param];
     const parentKind = parentKindName ? source.catalog.latest(parentKindName) : undefined;
     if (!parentKind) return [{ type: 'message', text: `Browsing by ${param} is not supported` }];
-    const localNames = locals.map((r) => r.parents[parents.length]!).filter(Boolean);
+    const localNames = locals.flatMap((r) => r.parents[parents.length] ?? []).filter(Boolean);
     return withLive(source, listPath(parentKind, parentsOf(kind, parents)), localNames, (name) => ({
       type: 'parent',
       kind,
@@ -183,6 +185,11 @@ async function nextLevel(source: ExplorerSource, kind: KindVersion, parents: str
     const mark = marks.get(name);
     return { type: 'resource', kind, parents, name, ...(mark && { local: mark }) };
   });
+}
+
+// A fresh node each time: the tree view tells its nodes apart by identity.
+function selectCluster(): ExplorerNode {
+  return { type: 'message', text: 'Select a cluster…', selectCluster: true };
 }
 
 const PROBLEM_TEXT: Record<ListProblem['kind'], string> = {

@@ -5,7 +5,7 @@ import type { ClusterSelection } from './clusterSelection';
 import { resourceAtTreePath, scopeOf, treePathOf, type ExplorerNode } from './explorerModel';
 
 /** Only tree items use this scheme, so decorating it never reaches an editor tab. */
-export const TREE_SCHEME = 'conduktor-tree';
+const TREE_SCHEME = 'conduktor-tree';
 
 export function treeUriOf(node: ExplorerNode): vscode.Uri | undefined {
   const path = treePathOf(node);
@@ -74,9 +74,12 @@ export class TreeDecorations implements vscode.FileDecorationProvider, vscode.Di
     if (uri.scheme !== TREE_SCHEME || state.status !== 'ready') return undefined;
     const at = resourceAtTreePath(uri.path, state.spec.catalog);
     if (!at) return undefined;
-    const cluster = this.clusters.current();
-    if (scopeOf(at.kind) === 'cluster' && !cluster) return undefined;
-    const parents = scopeOf(at.kind) === 'cluster' ? [cluster!, ...at.parents] : at.parents;
+    let parents = at.parents;
+    if (scopeOf(at.kind) === 'cluster') {
+      const cluster = this.clusters.current();
+      if (!cluster) return undefined;
+      parents = [cluster, ...at.parents];
+    }
     const entry = this.sync.entryFor(at.kind.kind, parents, at.name);
     if (!entry) return DIMMED;
     const look = LOCAL_LOOKS[entry.drift ?? entry.status];
@@ -87,7 +90,7 @@ export class TreeDecorations implements vscode.FileDecorationProvider, vscode.Di
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.changed.dispose();
   }
 }

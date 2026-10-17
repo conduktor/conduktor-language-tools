@@ -1,7 +1,10 @@
 import { describeSources, type NameSource, type Reference } from '@conduktor/core';
 
 type Lensable = Pick<Reference, 'value' | 'wildcard' | 'pattern'>;
-type Match = { name: string; sources: NameSource[] };
+interface Match {
+  name: string;
+  sources: NameSource[];
+}
 
 export function lensTitle(kind: string, reference: Lensable, matched: readonly Match[]): string {
   if (reference.wildcard) return `$(search) all ${matched.length} ${kind} resources`;

@@ -48,19 +48,19 @@ export function checkTopicConfig(key: string, value: unknown): TopicConfigProble
 // The forms Kafka's ConfigDef prints: [min,...], [min,...,max], [a, b, c], each optionally "or <value>".
 function outsideValid(key: string, value: string, valid: string | undefined): string | undefined {
   if (!valid) return undefined;
-  const [range, extra] = valid.split(/\s+or\s+/).map((part) => part.trim());
+  const [range = '', extra] = valid.split(/\s+or\s+/).map((part) => part.trim());
   if (extra !== undefined && value === extra) return undefined;
   const orExtra = extra === undefined ? '' : ` (or ${extra})`;
-  const bounds = /^\[(-?[\d.]+),\.\.\.(?:,(-?[\d.]+))?\]$/.exec(range!);
-  if (bounds) {
+  const [, min, max] = /^\[(-?[\d.]+),\.\.\.(?:,(-?[\d.]+))?\]$/.exec(range) ?? [];
+  if (min !== undefined) {
     const number = Number(value);
-    if (number < Number(bounds[1])) return `${key} is at least ${bounds[1]}${orExtra}.`;
-    if (bounds[2] !== undefined && number > Number(bounds[2])) return `${key} is at most ${bounds[2]}${orExtra}.`;
+    if (number < Number(min)) return `${key} is at least ${min}${orExtra}.`;
+    if (max !== undefined && number > Number(max)) return `${key} is at most ${max}${orExtra}.`;
     return undefined;
   }
-  const choices = /^\[([^\]]*)\]$/.exec(range!);
-  if (choices && !choices[1]!.includes('...')) {
-    const options = choices[1]!.split(',').map((option) => option.trim());
+  const [, choices] = /^\[([^\]]*)\]$/.exec(range) ?? [];
+  if (choices !== undefined && !choices.includes('...')) {
+    const options = choices.split(',').map((option) => option.trim());
     if (!options.includes(value)) return `${key} takes ${options.join(', ')}; ${value} is not one of them.`;
   }
   return undefined;

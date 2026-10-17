@@ -170,7 +170,7 @@ export class TopicConfigDiagnostics implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listeners.forEach((l) => l.dispose());
+    for (const l of this.listeners) l.dispose();
     this.timers.forEach((t) => clearTimeout(t));
     this.collection.dispose();
   }

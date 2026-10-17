@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ConsoleClient, loadSpec, workspaceFile, type ToolContext } from '@conduktor/core';
@@ -6,7 +7,7 @@ import { createConduktorServer } from './server';
 
 declare const CONDUKTOR_VERSION: string;
 
-const noCache = { read: async () => undefined, write: async () => undefined };
+const noCache = { read: () => Promise.resolve(undefined), write: () => Promise.resolve() };
 
 async function main(): Promise<void> {
   const url = process.env.CONDUKTOR_URL;
@@ -16,7 +17,8 @@ async function main(): Promise<void> {
     token: process.env.CONDUKTOR_TOKEN,
     userAgent: `ConduktorMCP/${CONDUKTOR_VERSION}`,
   });
-  const connectionName = process.env.CONDUKTOR_NAME || new URL(client.baseUrl).host;
+  const name = process.env.CONDUKTOR_NAME;
+  const connectionName = name === undefined || name === '' ? new URL(client.baseUrl).host : name;
   const readRelative = (file: string) => readFileSync(workspaceFile(process.cwd(), file), 'utf8');
 
   let context: Promise<ToolContext> | undefined;
@@ -25,7 +27,7 @@ async function main(): Promise<void> {
       cacheKey: client.baseUrl,
       fetchText: () => client.fetchOpenApiText(),
       cache: noCache,
-      snapshotText: async () => readFileSync(join(__dirname, 'public-api-doc.yaml'), 'utf8'),
+      snapshotText: () => readFile(join(__dirname, 'public-api-doc.yaml'), 'utf8'),
     }).then((spec) => {
       if (spec.liveError) console.error(`Using the ${spec.source} OpenAPI for ${connectionName}: ${spec.liveError}`);
       return {

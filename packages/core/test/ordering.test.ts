@@ -9,7 +9,7 @@ const r = (kind: string): { resource: Resource } => ({
 
 describe('sortForApply', () => {
   it('orders by the catalog, keeps file order within a kind, and puts unparsed documents first', () => {
-    const items = [r('Topic'), r('Application'), { resource: undefined }, r('KafkaCluster'), r('Topic')];
+    const items: { resource?: Resource }[] = [r('Topic'), r('Application'), {}, r('KafkaCluster'), r('Topic')];
     const sorted = sortForApply(items, snapshotCatalog);
     expect(sorted.map((i) => i.resource?.kind)).toEqual([undefined, 'KafkaCluster', 'Application', 'Topic', 'Topic']);
     expect(sorted[3]).toBe(items[0]);

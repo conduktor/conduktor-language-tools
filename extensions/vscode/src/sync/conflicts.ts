@@ -13,12 +13,13 @@ export function sharedIdentities(entries: readonly Described[]): string[] {
     const key = [entry.kind, ...entry.parents, entry.name].join('\0');
     byIdentity.set(key, [...(byIdentity.get(key) ?? []), entry]);
   }
-  return [...byIdentity.values()]
-    .filter((group) => group.length > 1)
-    .map((group) => `${group[0]!.kind} ${group[0]!.name}: ${group.map((e) => e.path).join(', ')}`);
+  return [...byIdentity.values()].flatMap((group) => {
+    const [first] = group;
+    return first && group.length > 1 ? [`${first.kind} ${first.name}: ${group.map((e) => e.path).join(', ')}`] : [];
+  });
 }
 
-export function driftNotes(entries: readonly { path: string; drift?: Drift }[]): string[] {
+export function driftNotes(entries: readonly { path: string; drift?: Drift | undefined }[]): string[] {
   const paths = (drift: Drift) =>
     entries
       .filter((entry) => entry.drift === drift)

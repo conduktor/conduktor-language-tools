@@ -1,13 +1,20 @@
 import { readFileSync } from 'node:fs';
 import * as vscode from 'vscode';
-import { conduktorTools, describeError, workspaceFile, type ToolContext, type ToolDefinition } from '@conduktor/core';
+import {
+  conduktorTools,
+  describeError,
+  isRecord,
+  workspaceFile,
+  type ToolContext,
+  type ToolDefinition,
+} from '@conduktor/core';
 import type { SessionManager, SessionState } from '../connections/session';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export function registerLanguageModelTools(sessions: SessionManager): vscode.Disposable[] {
   return conduktorTools.map((tool) =>
-    vscode.lm.registerTool<Record<string, unknown>>(tool.name, {
+    vscode.lm.registerTool<unknown>(tool.name, {
       prepareInvocation: () => {
         const state = sessions.current();
         return {
@@ -22,19 +29,19 @@ export function registerLanguageModelTools(sessions: SessionManager): vscode.Dis
   );
 }
 
-async function run(tool: ToolDefinition, input: Record<string, unknown>, sessions: SessionManager): Promise<string> {
+async function run(tool: ToolDefinition, input: unknown, sessions: SessionManager): Promise<string> {
   const state = sessions.current();
   if (state.status !== 'ready') {
     return 'Not connected to a Conduktor Console. Ask the user to add or switch a connection in the Conduktor view.';
   }
   try {
-    return await tool.run(input ?? {}, toolContext(state));
+    return await tool.run(isRecord(input) ? input : {}, toolContext(state));
   } catch (error) {
     return `Error: ${describeError(error)}`;
   }
 }
 
-export function toolContext(state: Ready): ToolContext {
+function toolContext(state: Ready): ToolContext {
   return {
     connectionName: state.connection.name,
     catalog: state.spec.catalog,

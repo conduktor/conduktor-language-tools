@@ -173,7 +173,7 @@ export class Names implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.changed.dispose();
   }
 }

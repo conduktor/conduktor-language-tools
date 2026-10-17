@@ -213,7 +213,7 @@ export function registerSyncCommands(
 async function pickScope(
   current: string | undefined,
   saved: readonly string[] | undefined,
-): Promise<{ clusters?: string[] } | undefined> {
+): Promise<{ clusters: string[] | undefined } | undefined> {
   const scoped = (clusters: string[], description: string) => ({
     label: `${clusters.join(', ')} and global`,
     description,
@@ -235,7 +235,7 @@ async function pickScope(
 
 async function pickKinds(catalog: KindCatalog, selected: ReadonlySet<string>): Promise<string[] | undefined> {
   const items = [...catalog.kindNames()]
-    .map((name) => catalog.latest(name)!)
+    .flatMap((name) => catalog.latest(name) ?? [])
     .sort((a, b) => a.order - b.order || a.kind.localeCompare(b.kind))
     .map((kind) => ({ label: kind.kind, description: kind.group, picked: selected.has(kind.kind) }));
   const picked = await vscode.window.showQuickPick(items, {

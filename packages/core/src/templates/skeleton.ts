@@ -1,4 +1,4 @@
-import { Document, YAMLMap, type Pair } from 'yaml';
+import { Document, isScalar, YAMLMap } from 'yaml';
 import type { KindVersion } from '../openapi/kindCatalog';
 import type { JsonSchema } from '../openapi/types';
 import { isRecord } from '../util';
@@ -47,15 +47,13 @@ function render(
   if (union) {
     const key = path.join('.');
     // Unions inside list items are not asked for; they take their first variant.
-    const chosen = key in answers ? answers[key] : union.options[0]!.value;
+    const chosen = key in answers ? answers[key] : union.options[0].value;
     const option = union.options.find((o) => o.value === chosen);
     if (!option) return undefined;
     const sameVariant = isRecord(example) && example[union.field] === chosen;
     const map = renderObject(root, option.schema, path, sameVariant ? example : undefined, answers, document, depth);
-    map.items = map.items.filter(
-      (pair) => String((pair.key as { value?: unknown })?.value ?? pair.key) !== union.field,
-    );
-    map.items.unshift(document.createPair(union.field, chosen) as Pair);
+    map.items = map.items.filter((pair) => String(isScalar(pair.key) ? pair.key.value : pair.key) !== union.field);
+    map.items.unshift(document.createPair(union.field, chosen));
     return map;
   }
   const resolved = resolveNode(root, node);
@@ -89,7 +87,7 @@ function renderObject(
       }
       const childExample = isRecord(example) ? example[key] : undefined;
       const value = render(root, child, [...path, key], childExample, answers, document, depth + 1);
-      if (value !== undefined) map.items.push(document.createPair(key, value) as Pair);
+      if (value !== undefined) map.items.push(document.createPair(key, value));
     }
   }
   // An empty object stays `key: {}` with its optional fields on the same line: a field uncommented under a bare
@@ -125,7 +123,7 @@ function placeholder(
       return false;
     case 'array': {
       const items = isRecord(node.items) ? (node.items as JsonSchema) : {};
-      const first = Array.isArray(example) ? example[0] : undefined;
+      const first: unknown = Array.isArray(example) ? example[0] : undefined;
       const item = render(root, items, [...path, '0'], first, answers, document, depth + 1);
       return item === undefined ? [] : [item];
     }
@@ -135,7 +133,7 @@ function placeholder(
 }
 
 function shapeName(root: JsonSchema, node: JsonSchema): string {
-  const reference = typeof node.$ref === 'string' ? node.$ref.split('/').pop()! : undefined;
+  const reference = typeof node.$ref === 'string' ? node.$ref.split('/').pop() : undefined;
   const resolved = resolveNode(root, node);
   return typeof resolved.title === 'string' ? resolved.title : (reference ?? typeName(root, node));
 }
@@ -169,10 +167,8 @@ function typeName(root: JsonSchema, node: JsonSchema): string {
   if (Array.isArray(shapes))
     return `one of ${(shapes as JsonSchema[]).map((option) => shapeName(root, option)).join(', ')}`;
   if (Array.isArray(resolved.enum)) return resolved.enum.join(' | ');
-  if (resolved.type === 'array')
-    return `list of ${typeName(root, isRecord(resolved.items) ? (resolved.items as JsonSchema) : {})}`;
-  if (isRecord(resolved.additionalProperties))
-    return `map of ${typeName(root, resolved.additionalProperties as JsonSchema)}`;
+  if (resolved.type === 'array') return `list of ${typeName(root, isRecord(resolved.items) ? resolved.items : {})}`;
+  if (isRecord(resolved.additionalProperties)) return `map of ${typeName(root, resolved.additionalProperties)}`;
   if (typeof resolved.type === 'string') return resolved.type;
   return typeof resolved.title === 'string' ? resolved.title : 'object';
 }

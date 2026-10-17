@@ -24,7 +24,7 @@ export type ReadInclude = (path: string, document: ResourceDocument) => string;
 export interface UpsertOptions {
   dryRun: boolean;
   stopOnError?: boolean;
-  readInclude?: ReadInclude;
+  readInclude?: ReadInclude | undefined;
   /** Called after each resource, in apply order. */
   onItem?: (done: number, total: number) => void;
   /** Checked before each resource; the rest are skipped once it says so. */

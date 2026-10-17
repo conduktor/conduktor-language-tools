@@ -1,6 +1,7 @@
 import {
   describeSources,
   documentAt,
+  isRecord,
   listPath,
   NameIndex,
   parentsOf,
@@ -54,7 +55,7 @@ export class Names {
     const index = new NameIndex();
     const params = catalog.latest(kind)?.parentPathParams ?? [];
     for (const resource of this.localResources(catalog, editing)) {
-      const name = resource.metadata?.name;
+      const { name } = metadataOf(resource);
       if (resource.kind === kind && typeof name === 'string' && sameParents(parentsIn(resource, params), parents))
         index.add(kind, parents, name, 'repo');
     }
@@ -185,10 +186,17 @@ export function ownScope(resource: Resource, catalog: KindCatalog): { kind: stri
 }
 
 export function parentsIn(resource: Resource, params: readonly string[]): string[] {
+  const metadata = metadataOf(resource);
   return params.map((param) => {
-    const value = resource.metadata?.[param];
+    const value = metadata[param];
     return typeof value === 'string' ? value : '';
   });
+}
+
+/** A resource's metadata as written: a file being typed may have none yet, whatever its type says. */
+export function metadataOf(resource: Resource): Record<string, unknown> {
+  const metadata: unknown = resource.metadata;
+  return isRecord(metadata) ? metadata : {};
 }
 
 export function sameParents(a: readonly string[], b: readonly string[]): boolean {

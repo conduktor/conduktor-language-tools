@@ -17,6 +17,12 @@ export interface FolderValidation {
 
 const LEFT_OUT = '**/{.git,node_modules,.conduktor}/**';
 
+interface Source {
+  uri: vscode.Uri;
+  text: string;
+  read: ((file: string) => string) | undefined;
+}
+
 /**
  * Dry-runs every Conduktor YAML under a folder as one plan, so a resource waiting for one created in another of its
  * files reads as pending, and puts the results on each file.
@@ -35,15 +41,14 @@ export async function validateFolder(
     return undefined;
   }
   const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*.{yaml,yml}'), LEFT_OUT);
-  const origin = new Map<ResourceDocument, { uri: vscode.Uri; read?: (file: string) => string }>();
-  const texts = new Map<string, { uri: vscode.Uri; text: string }>();
+  // One source per file, shared by its documents.
+  const origin = new Map<ResourceDocument, Source>();
   for (const uri of uris.filter((u) => foreignEnvironment(u) === undefined)) {
     const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
     const documents = catalogDocuments(text, state.spec.catalog, { env: variablesFor(uri) });
     if (documents.length === 0) continue;
-    texts.set(uri.toString(), { uri, text });
-    const read = includeReaderFor(uri);
-    documents.forEach((document) => origin.set(document, { uri, read }));
+    const source: Source = { uri, text, read: includeReaderFor(uri) };
+    documents.forEach((document) => origin.set(document, source));
   }
   const readInclude: ReadInclude = (file, document) => {
     const source = origin.get(document);
@@ -76,25 +81,22 @@ export async function validateFolder(
     return undefined;
   }
 
-  const byFile = new Map<string, typeof items>();
+  const byFile = new Map<Source, typeof items>();
   // A cancelled run's unchecked resources keep whatever results their files had.
   for (const item of items.filter((i) => i.outcome.status !== 'skipped')) {
-    const key = origin.get(item.document)!.uri.toString();
-    byFile.set(key, [...(byFile.get(key) ?? []), item]);
+    const source = origin.get(item.document);
+    if (source) byFile.set(source, [...(byFile.get(source) ?? []), item]);
   }
   if (!items.some((i) => i.outcome.status === 'skipped'))
     controller.rememberFolder(
       folder,
-      items.flatMap((i) =>
-        (i.outcome.status === 'ok' && i.outcome.result === 'Created') || i.outcome.status === 'pending'
-          ? [i.document.resource!.metadata.name]
+      items.flatMap(({ document: { resource }, outcome }) =>
+        resource && ((outcome.status === 'ok' && outcome.result === 'Created') || outcome.status === 'pending')
+          ? [resource.metadata.name]
           : [],
       ),
     );
-  for (const [key, fileItems] of byFile) {
-    const { uri, text } = texts.get(key)!;
-    controller.recordFolderResults(uri, text, fileItems);
-  }
+  for (const [{ uri, text }, fileItems] of byFile) controller.recordFolderResults(uri, text, fileItems);
 
   const result: FolderValidation = {
     files: byFile.size,
@@ -104,8 +106,9 @@ export async function validateFolder(
     cancelled: items.some((i) => i.outcome.status === 'skipped'),
   };
   for (const item of items) {
-    if (item.outcome.status !== 'error') continue;
-    const file = path.relative(folder.fsPath, origin.get(item.document)!.uri.fsPath);
+    const source = origin.get(item.document);
+    if (item.outcome.status !== 'error' || !source) continue;
+    const file = path.relative(folder.fsPath, source.uri.fsPath);
     output.warn(
       `${file}: ${item.document.kind} ${item.document.resource?.metadata.name ?? ''}: ${item.outcome.message}`,
     );

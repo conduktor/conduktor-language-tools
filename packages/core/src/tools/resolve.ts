@@ -8,11 +8,12 @@ export type BodyKind = KindVersion & { bodySchema: string };
 
 export function resolveKind(context: ToolContext, kind: unknown, apiVersion?: unknown): KindVersion {
   if (typeof kind !== 'string' || kind === '') throw new ToolError('kind is required, for example Topic.');
-  const versions = context.catalog.versions(kind);
-  if (versions.length === 0) throw unknownKind(context, kind);
-  if (apiVersion === undefined) return versions.at(-1)!;
-  const resolved = typeof apiVersion === 'string' ? context.catalog.resolve(apiVersion, kind) : undefined;
-  if (!resolved) throw new ToolError(noSuchVersion(context, kind, String(apiVersion)));
+  const latest = context.catalog.latest(kind);
+  if (!latest) throw unknownKind(context, kind);
+  if (apiVersion === undefined) return latest;
+  if (typeof apiVersion !== 'string') throw new ToolError(noSuchVersion(context, kind, JSON.stringify(apiVersion)));
+  const resolved = context.catalog.resolve(apiVersion, kind);
+  if (!resolved) throw new ToolError(noSuchVersion(context, kind, apiVersion));
   return resolved;
 }
 

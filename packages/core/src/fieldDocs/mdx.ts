@@ -16,14 +16,33 @@ export interface FieldDoc {
 }
 
 const SITE = 'https://docs.conduktor.io';
-const FIELD_PATH = /^[a-z][A-Za-z0-9]*(\[\])?(\.[A-Za-z0-9]+(\[\])?)*$/;
+const FIELD_PATH = /^[a-z][A-Za-z0-9]*(?:\[\])?(?:\.[A-Za-z0-9]+(?:\[\])?)*$/;
 const FACT = /^- (\*\*(?:API key\(s\)|Managed with|Labels support):\*\*.*)$/;
+const HEADING = /^#{2,4}(?=\s)/;
+// Backticked field paths, each with the comma or "and" before the next.
+const LEADING_PATHS = /^(?:`[^`]+`(?:\s*(?:,|and)\s*)?)+/;
+// One line as `.*$` reads it: no stray \r, U+2028 or U+2029 inside.
+const ONE_LINE = /^.*$/;
+
+type FieldPaths = [string, ...string[]];
 
 // A bullet that starts with one or more backticked field paths, and the text after them.
-function fieldBullet(content: string | undefined): { paths: string[]; rest: string } | undefined {
-  const match = content === undefined ? null : /^((?:`[^`]+`(?:\s*(?:,|and)\s*)?)+)(.*)$/.exec(content);
-  const paths = match ? [...match[1]!.matchAll(/`([^`]+)`/g)].map((found) => found[1]!) : [];
-  return match && paths.every((path) => FIELD_PATH.test(path)) ? { paths, rest: match[2]! } : undefined;
+function fieldBullet(content: string | undefined): { paths: FieldPaths; rest: string } | undefined {
+  if (content === undefined) return undefined;
+  const lead = LEADING_PATHS.exec(content)?.[0] ?? '';
+  const rest = content.slice(lead.length);
+  const [first, ...others] = (lead.match(/`[^`]+`/g) ?? []).map((quoted) => quoted.slice(1, -1));
+  if (first === undefined || !ONE_LINE.test(rest)) return undefined;
+  const paths: FieldPaths = [first, ...others];
+  return paths.every((path) => FIELD_PATH.test(path)) ? { paths, rest } : undefined;
+}
+
+// A `##` to `####` heading: its level and its one-line text.
+function headingOf(line: string): { level: number; title: string } | undefined {
+  const hashes = HEADING.exec(line)?.[0];
+  if (hashes === undefined) return undefined;
+  const title = line.slice(hashes.length).trim();
+  return ONE_LINE.test(title) ? { level: hashes.length, title } : undefined;
 }
 
 /** The anchor the docs site gives a heading. */
@@ -59,8 +78,10 @@ export function parseReferencePage(
   let section = '';
   let fence = false;
   let summary: 'waiting' | 'open' | 'done' = 'done';
-  let bullet: FieldDoc[] | undefined;
-  // The field bullets enclosing the current line, and the value of one of them that the following bullets apply to.
+  // The top-level field bullet: its docs, and the first path its sub-bullets belong to.
+  let bullet: { docs: FieldDoc[]; path: string } | undefined;
+  // The nested field bullets enclosing the current line, and the value of one of them that the following bullets
+  // apply to.
   let nested: { indent: number; path: string }[] = [];
   let condition: { indent: number; of: string; value: string } | undefined;
 
@@ -73,11 +94,11 @@ export function parseReferencePage(
     }
     if (fence) continue;
 
-    const heading = /^(#{2,4})\s+(.*?)\s*$/.exec(line);
+    const heading = headingOf(line);
     if (heading) {
-      const [, hashes, title] = heading as unknown as [string, string, string];
+      const { level, title } = heading;
       const name = headings[title];
-      if (name || hashes.length === 2) {
+      if (name || level === 2) {
         kind = name ? { kind: name, url: `${pageUrl}#${headingSlug(title)}`, summary: '', facts: [] } : undefined;
         if (kind) kinds.push(kind);
         summary = 'waiting';
@@ -103,47 +124,49 @@ export function parseReferencePage(
       continue;
     }
 
-    const fact = FACT.exec(line);
-    if (fact) {
-      kind.facts.push(fact[1]!.trimEnd());
+    const [, fact] = FACT.exec(line) ?? [];
+    if (fact !== undefined) {
+      kind.facts.push(fact.trimEnd());
       continue;
     }
     const top = fieldBullet(line.startsWith('- ') ? line.slice(2) : undefined);
     if (top) {
+      const { kind: name } = kind;
       const text = clean(top.rest);
-      bullet = top.paths.map((path) => ({ kind: kind!.kind, path, text, url: anchor, section }));
-      fields.push(...bullet);
-      nested = [{ indent: 0, path: top.paths[0]! }];
+      const docs = top.paths.map((path) => ({ kind: name, path, text, url: anchor, section }));
+      bullet = { docs, path: top.paths[0] };
+      fields.push(...docs);
+      nested = [];
       condition = undefined;
       continue;
     }
     if (bullet && /^\s/.test(line) && !blank) {
-      const indent = /^\s*/.exec(line)![0].length;
-      const item = /^\s+- (.*)$/.exec(line);
-      while (nested.length > 1 && nested.at(-1)!.indent >= indent) nested.pop();
+      const indent = line.length - line.trimStart().length;
+      const [, content] = /^\s+- (.*)$/.exec(line) ?? [];
+      // Nested bullets are pushed deeper and deeper, so the ones that still enclose this line are a prefix.
+      nested = nested.filter((enclosing) => enclosing.indent < indent);
       if (condition && condition.indent >= indent) condition = undefined;
-      const parent = nested.at(-1)!.path;
-      if (!item) {
+      const parent = nested.at(-1)?.path ?? bullet.path;
+      if (content === undefined) {
         // "When set to `X`:" introduces the bullets that follow it at its own indentation.
-        const when = /^When set to `([^`]+)`:?$/.exec(line.trim());
-        if (when) condition = { indent: indent - 1, of: parent, value: when[1]! };
-        for (const doc of bullet) doc.text += `\n\n${clean(line)}`;
+        const [, value] = /^When set to `([^`]+)`:?$/.exec(line.trim()) ?? [];
+        if (value !== undefined) condition = { indent: indent - 1, of: parent, value };
+        for (const doc of bullet.docs) doc.text += `\n\n${clean(line)}`;
         continue;
       }
-      const content = item[1]!;
-      for (const doc of bullet) doc.text += `\n${'  '.repeat(Math.max(0, indent / 2 - 1))}- ${clean(content)}`;
+      for (const doc of bullet.docs) doc.text += `\n${'  '.repeat(Math.max(0, indent / 2 - 1))}- ${clean(content)}`;
       const child = fieldBullet(content);
       if (child) {
         const prefix = condition ? `When \`${condition.of}\` is \`${condition.value}\`: ` : '';
         for (const path of child.paths) {
-          const full = /^(spec|metadata)\./.test(path) ? path : `${parent}.${path}`;
+          const full = /^(?:spec|metadata)\./.test(path) ? path : `${parent}.${path}`;
           fields.push({ kind: kind.kind, path: full, text: prefix + clean(child.rest), url: anchor, section });
         }
-        nested.push({ indent, path: child.paths[0]! });
+        nested.push({ indent, path: child.paths[0] });
         continue;
       }
-      const value = /^`([^`]+)`:/.exec(content);
-      if (value) condition = { indent, of: parent, value: value[1]! };
+      const [, value] = /^`([^`]+)`:/.exec(content) ?? [];
+      if (value !== undefined) condition = { indent, of: parent, value };
       continue;
     }
     if (!blank && !/^\s/.test(line)) bullet = undefined;

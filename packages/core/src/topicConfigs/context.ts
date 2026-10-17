@@ -20,24 +20,24 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
   const index = lines.findIndex((line) => offset >= line.start && offset <= line.start + line.text.length);
   const line = lines[index];
   if (!line) return undefined;
-  const specAt = lines.findIndex((l) => /^spec:\s*(#.*)?$/.test(l.text));
+  const specAt = lines.findIndex((l) => /^spec:\s*(?:#.*)?$/.test(l.text));
   if (specAt === -1 || index <= specAt) return undefined;
   const specEnd = blockEnd(lines, specAt, 0);
   if (index >= specEnd) return undefined;
   const column = offset - line.start;
   const before = line.text.slice(0, column);
   const childIndent = lines.slice(specAt + 1, specEnd).find((l) => !l.blank && !comment(l))?.indent ?? 2;
-  const indentation = /^\s*/.exec(before)![0].length;
+  const indentation = leadingSpace(before);
 
   const configsAt = lines.findIndex(
-    (l, i) => i > specAt && i < specEnd && l.indent === childIndent && /^\s*configs:\s*(#.*)?$/.test(l.text),
+    (l, i) => i > specAt && i < specEnd && l.indent === childIndent && /^\s*configs:\s*(?:#.*)?$/.test(l.text),
   );
   const inConfigs = configsAt !== -1 && index > configsAt && index < blockEnd(lines, configsAt, childIndent);
   // A blank line inside the configs block belongs to spec when the cursor sits at spec's indentation.
   if (inConfigs && indentation > childIndent) {
     const colon = line.text.indexOf(':');
     if (colon !== -1 && column > colon) {
-      const valueStart = line.start + colon + 1 + /^\s*/.exec(line.text.slice(colon + 1))![0].length;
+      const valueStart = line.start + colon + 1 + leadingSpace(line.text.slice(colon + 1));
       return {
         where: 'configValue',
         key: line.text.slice(0, colon).trim(),
@@ -54,7 +54,7 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
         end: line.start + colon,
       };
     }
-    const word = /[^\s]*$/.exec(before)![0];
+    const word = /\S*$/.exec(before)?.[0] ?? '';
     return {
       where: 'configKey',
       start: offset - word.length,
@@ -63,9 +63,9 @@ export function topicConfigContext(text: string, offset: number): TopicConfigCon
     };
   }
 
-  if (!before.includes(':') && /^\s*[A-Za-z]*$/.test(before) && /^\s*$/.test(line.text.slice(column))) {
+  if (!before.includes(':') && /^\s*[a-z]*$/i.test(before) && /^\s*$/.test(line.text.slice(column))) {
     if (indentation === childIndent) {
-      const word = /[A-Za-z]*$/.exec(before)![0];
+      const word = /[a-z]*$/i.exec(before)?.[0] ?? '';
       return { where: 'specKey', start: offset - word.length, end: offset };
     }
   }
@@ -76,7 +76,7 @@ function splitLines(text: string): Line[] {
   let start = 0;
   return text.split('\n').map((raw) => {
     const value = raw.replace(/\r$/, '');
-    const line = { start, text: value, indent: /^\s*/.exec(value)![0].length, blank: value.trim() === '' };
+    const line = { start, text: value, indent: leadingSpace(value), blank: value.trim() === '' };
     start += raw.length + 1;
     return line;
   });
@@ -84,11 +84,12 @@ function splitLines(text: string): Line[] {
 
 // The first line after `at` indented at or above `indent` (ignoring blank and comment lines).
 function blockEnd(lines: Line[], at: number, indent: number): number {
-  for (let i = at + 1; i < lines.length; i++) {
-    const line = lines[i]!;
-    if (!line.blank && !comment(line) && line.indent <= indent) return i;
-  }
-  return lines.length;
+  const end = lines.findIndex((line, i) => i > at && !line.blank && !comment(line) && line.indent <= indent);
+  return end === -1 ? lines.length : end;
+}
+
+function leadingSpace(text: string): number {
+  return text.length - text.trimStart().length;
 }
 
 function comment(line: Line): boolean {

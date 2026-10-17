@@ -15,7 +15,11 @@ describe('DiffMarkers', () => {
   it('keeps an escape split across chunks together, and leaves plain lines alone', () => {
     const markers = new DiffMarkers();
     const text = `Applying resources\n${green('kind: Topic\nmetadata:')}\nTopic/a: Created\n`;
-    const out = [...text].map((char) => markers.push(char)).join('') + markers.end();
+    const out =
+      text
+        .split('')
+        .map((unit) => markers.push(unit))
+        .join('') + markers.end();
     expect(out).toBe('Applying resources\n{+kind: Topic\nmetadata:+}\nTopic/a: Created\n');
   });
 

@@ -2,7 +2,7 @@ import { documentAt, isRecord, valueAt, type KindCatalog, type Resource } from '
 import { CompletionItemKind, type CompletionItem, type CompletionList, type Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { stringify } from 'yaml';
-import { ownScope, type Names } from './references';
+import { metadataOf, ownScope, type Names } from './references';
 
 // Set by the Console for self-service ownership: not labels to write by hand.
 const MANAGED = new Set(['conduktor.io/application', 'conduktor.io/application-instance']);
@@ -33,7 +33,7 @@ export async function labelCompletions(
   };
 
   const at = valueAt(parsed.text, offset - parsed.start);
-  if (at && at.path.length === 3 && at.path[0] === 'metadata' && at.path[1] === 'labels') {
+  if (at?.path.length === 3 && at.path[0] === 'metadata' && at.path[1] === 'labels') {
     const key = String(at.path[2]);
     const values = tally((await inUse()).map((labels) => labels[key]));
     const start = parsed.start + at.start;
@@ -79,12 +79,12 @@ function labelKeyAt(text: string, offset: number): number | undefined {
   const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
   const lineEnd = text.indexOf('\n', offset);
   if (text.slice(offset, lineEnd === -1 ? text.length : lineEnd).trim() !== '') return undefined;
-  const typed = /^( +)(?:[^\s:#][^:#]*)?$/.exec(text.slice(lineStart, offset));
-  if (!typed) return undefined;
-  const labels = parentLine(text, lineStart, typed[1]!.length);
+  const indent = /^( +)(?:[^\s:#][^:#]*)?$/.exec(text.slice(lineStart, offset))?.[1]?.length;
+  if (indent === undefined) return undefined;
+  const labels = parentLine(text, lineStart, indent);
   if (labels?.text.trim() !== 'labels:') return undefined;
   const metadata = parentLine(text, labels.start, labels.indent);
-  return metadata?.text === 'metadata:' && metadata.indent === 0 ? lineStart + typed[1]!.length : undefined;
+  return metadata?.text === 'metadata:' && metadata.indent === 0 ? lineStart + indent : undefined;
 }
 
 /** The nearest line above `before` indented less than `indent`: the key a line belongs to. */
@@ -102,7 +102,7 @@ function parentLine(text: string, before: number, indent: number) {
 }
 
 function labelsOf(resource: Resource): Record<string, string> {
-  const labels = resource.metadata?.labels;
+  const { labels } = metadataOf(resource);
   if (!isRecord(labels)) return {};
   return Object.fromEntries(
     Object.entries(labels).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),

@@ -30,7 +30,7 @@ export class ConduktorFileSystem implements vscode.FileSystemProvider {
       ctime: 0,
       mtime: this.revisions.get(uri.toString()) ?? 1,
       size: 0,
-      permissions: writable ? undefined : vscode.FilePermission.Readonly,
+      ...(!writable && { permissions: vscode.FilePermission.Readonly }),
     };
   }
 

@@ -1,5 +1,5 @@
 const INLINE_FLAGS = /^\(\?([a-z]+)\)/;
-const UNICODE_SAFE_ESCAPE = /[A-Za-z0-9^$\\.*+?()[\]{}|/-]/;
+const UNICODE_SAFE_ESCAPE = /[a-z0-9^$\\.*+?()[\]{}|/-]/i;
 
 // Console schemas carry Java regexes; JSON Schema validators compile `pattern` as a JavaScript unicode regex.
 export function toJsPattern(pattern: string): string | undefined {
@@ -13,7 +13,7 @@ function translate(pattern: string, dotAll: boolean): string {
   let out = '';
   let inClass = false;
   for (let i = 0; i < pattern.length; i++) {
-    const char = pattern[i]!;
+    const char = pattern.charAt(i);
     if (char === '\\') {
       const next = pattern[i + 1] ?? '';
       out += UNICODE_SAFE_ESCAPE.test(next) ? `\\${next}` : next;

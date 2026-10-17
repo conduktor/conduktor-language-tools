@@ -41,7 +41,7 @@ export async function remove(uri: vscode.Uri): Promise<void> {
 
 /** Each file's text in order, `undefined` where there is no file or it cannot be read, a few reads at a time. */
 export async function readAll(uris: readonly (vscode.Uri | undefined)[], limit = 32): Promise<(string | undefined)[]> {
-  const texts: (string | undefined)[] = new Array(uris.length).fill(undefined);
+  const texts: (string | undefined)[] = uris.map(() => undefined);
   await eachLimit([...uris.keys()], limit, async (i) => {
     const uri = uris[i];
     if (uri) texts[i] = await read(uri);

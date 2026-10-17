@@ -123,10 +123,10 @@ export class Resources {
       command: { title, command, arguments: index === undefined ? [document.uri] : [document.uri, index] },
     });
     const lenses: CodeLens[] = [];
-    if (documents.length > 1) {
-      const first = documents[0]!.start;
-      lenses.push(lens(first, `Dry run all (${documents.length})`, COMMANDS.dryRun));
-      if (canApply) lenses.push(lens(first, `Apply all (${documents.length})`, COMMANDS.apply));
+    const [first] = documents;
+    if (first && documents.length > 1) {
+      lenses.push(lens(first.start, `Dry run all (${documents.length})`, COMMANDS.dryRun));
+      if (canApply) lenses.push(lens(first.start, `Apply all (${documents.length})`, COMMANDS.apply));
     }
     for (const { index, start } of documents) {
       const last = this.results.get(document.uri)?.get(index);
@@ -169,8 +169,9 @@ export class Resources {
   }
 
   private pump(): void {
-    while (this.running < AT_ONCE && this.queue.length > 0) {
-      const uri = this.queue.shift()!;
+    while (this.running < AT_ONCE) {
+      const uri = this.queue.shift();
+      if (uri === undefined) return;
       this.running++;
       void this.validate(uri)
         .catch((error: unknown) => this.host.log(`Dry run of ${uri} failed: ${String(error)}`))

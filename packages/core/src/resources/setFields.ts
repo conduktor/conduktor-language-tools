@@ -109,7 +109,7 @@ function insertion(
   anchorKey: string | undefined,
 ): Edit | undefined {
   if (map.flow) {
-    const close = text.lastIndexOf('}', map.range![1]);
+    const close = text.lastIndexOf('}', map.range?.[1]);
     const head = text.slice(0, close).trimEnd();
     const pairs = fields.map(
       ([key, value]) => `${key}: ${typeof value === 'object' ? flow(value) : scalar(value, true)}`,
@@ -120,8 +120,9 @@ function insertion(
   // land inside it. With no one-line field they go before the first one.
   const oneLine = (item: Pair) => isScalar(item.key) && isScalar(item.value);
   const anchor =
-    (anchorKey && map.items.find((item) => oneLine(item) && (item.key as { value: unknown }).value === anchorKey)) ||
-    [...map.items].reverse().find(oneLine);
+    (anchorKey
+      ? map.items.find((item) => oneLine(item) && (item.key as { value: unknown }).value === anchorKey)
+      : undefined) ?? [...map.items].reverse().find(oneLine);
   if (anchor && isScalar(anchor.key) && anchor.key.range && isScalar(anchor.value) && anchor.value.range) {
     const keyStart = anchor.key.range[0];
     const indent = keyStart - (text.lastIndexOf('\n', keyStart - 1) + 1);

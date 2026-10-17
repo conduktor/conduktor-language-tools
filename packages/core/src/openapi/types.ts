@@ -1,25 +1,25 @@
-export type JsonSchema = { [keyword: string]: unknown };
+export type JsonSchema = Record<string, unknown>;
 
-export interface Parameter {
+interface Parameter {
   name: string;
   in: 'path' | 'query' | 'header' | 'cookie';
   required?: boolean;
   schema?: JsonSchema;
 }
 
-export interface MediaType {
+interface MediaType {
   schema?: JsonSchema;
   example?: unknown;
 }
 
-export interface Operation {
+interface Operation {
   tags?: string[];
   description?: string;
   parameters?: Parameter[];
   requestBody?: { content?: Record<string, MediaType> };
 }
 
-export interface PathItem {
+interface PathItem {
   get?: Operation;
   put?: Operation;
   post?: Operation;

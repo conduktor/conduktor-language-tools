@@ -53,7 +53,7 @@ export async function referenceProblems(
     // A permission's LITERAL foo* is a prefix too; any other LITERAL names one resource.
     const isPattern = pattern?.type === 'PREFIXED' || (pattern?.reading === 'rbac' && reference.value.endsWith('*'));
     if (isPattern) {
-      const matches = matcher(pattern!.reading, pattern!.type, reference.value);
+      const matches = matcher(pattern.reading, pattern.type, reference.value);
       if (!known.some((n) => matches(n.name))) problem(`Matches no ${reference.kind} yet.`, 'information');
     } else if (!known.some((n) => n.name === reference.value)) {
       problem(`${reference.kind} '${reference.value}' is not in the repository or on ${consoleName}.`, 'warning');
@@ -88,9 +88,14 @@ export function instanceOf(resource: Resource): Instance | undefined {
     cluster: spec.cluster,
     resources: spec.resources.filter(isRecord).map((r) => ({
       type: String(r.type),
-      name: String(r.name ?? ''),
+      name: scalarText(r.name),
       patternType: patternTypeOf(r.patternType),
       ...(typeof r.connectCluster === 'string' && { connectCluster: r.connectCluster }),
     })),
   };
+}
+
+// A name YAML read as a number or a boolean, as written; anything but a scalar is no name.
+function scalarText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : '';
 }

@@ -89,10 +89,11 @@ export function defaultKinds(catalog: KindCatalog): string[] {
 
 function load(text: string): Document {
   const document = parseDocument(text);
-  if (document.errors.length > 0) throw new Error(`${REPO_CONFIG}: ${document.errors[0]!.message}`);
+  const [error] = document.errors;
+  if (error) throw new Error(`${REPO_CONFIG}: ${error.message}`);
   return document;
 }
 
 function sameConsole(a: string | undefined, b: string): boolean {
-  return a !== undefined && a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
+  return a?.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 }

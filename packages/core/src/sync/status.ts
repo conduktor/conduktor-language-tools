@@ -74,15 +74,20 @@ function resourceOf(text: string): Resource | undefined {
 }
 
 function comparable(resource: Resource, written: Resource): string {
-  const copy = structuredClone(redactSecrets(resource).value) as Resource;
-  for (const path of SERVER_MANAGED[copy.kind] ?? []) remove(copy, path);
-  for (const path of DEFAULTED[copy.kind] ?? []) if (valueAt(written, path) === undefined) remove(copy, path);
+  const leftOut = [
+    ...(SERVER_MANAGED[resource.kind] ?? []),
+    ...(DEFAULTED[resource.kind] ?? []).filter((path) => valueAt(written, path) === undefined),
+  ];
+  const kept = leftOut.reduce((node, path) => without(node, path.split('.')), redactSecrets(resource).value);
+  const copy = structuredClone(kept) as Resource;
   const labels = copy.metadata.labels;
   if (isRecord(labels)) {
-    if (OWNED_KINDS.has(copy.kind))
-      for (const key of Object.keys(labels)) if (key.startsWith(OWNERSHIP_LABEL)) delete labels[key];
+    const userLabels = OWNED_KINDS.has(copy.kind)
+      ? Object.fromEntries(Object.entries(labels).filter(([key]) => !key.startsWith(OWNERSHIP_LABEL)))
+      : labels;
     // The Console leaves out labels it holds none of.
-    if (Object.keys(labels).length === 0) delete copy.metadata.labels;
+    if (Object.keys(userLabels).length === 0) delete copy.metadata.labels;
+    else copy.metadata.labels = userLabels;
   }
   // Topic configs come back as strings, whatever the file wrote.
   const spec = copy.spec;
@@ -95,8 +100,12 @@ function valueAt(resource: Resource, path: string): unknown {
   return path.split('.').reduce<unknown>((node, key) => (isRecord(node) ? node[key] : undefined), resource);
 }
 
-function remove(resource: Resource, path: string): void {
-  const segments = path.split('.');
-  const parent = valueAt(resource, segments.slice(0, -1).join('.'));
-  if (isRecord(parent)) delete parent[segments.at(-1)!];
+// The node without the field at the end of `path`: the objects on the way are copies, everything else is shared.
+function without(node: unknown, [key, ...rest]: readonly string[]): unknown {
+  if (key === undefined || !isRecord(node)) return node;
+  return Object.fromEntries(
+    Object.entries(node).flatMap(([name, value]) =>
+      name !== key ? [[name, value]] : rest.length > 0 ? [[name, without(value, rest)]] : [],
+    ),
+  );
 }

@@ -5,10 +5,11 @@ import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import { kindSchema } from '../src/openapi/kindSchema';
 import { fixedNames, nextChoice, skeletonYaml } from '../src/templates';
 import type { JsonSchema } from '../src/openapi/types';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { isRecord } from '../src/util';
+import { at, snapshotCatalog, snapshotDoc } from './fixtures';
 
 const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never) as JsonSchema;
+const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
 const firstAnswers = (kind: string) => {
   const answers: Record<string, string | null> = {};
   for (let c = nextChoice(rootOf(kind), answers); c; c = nextChoice(rootOf(kind), answers))
@@ -32,7 +33,7 @@ function allAnswers(root: JsonSchema): Record<string, string | null>[] {
 // A discriminated oneOf read as "the option whose tag matches", so a placeholder in the chosen variant is not also
 // reported against every other variant.
 function discriminated(root: JsonSchema): JsonSchema {
-  const copy = structuredClone(root) as JsonSchema;
+  const copy = structuredClone(root);
   const visit = (node: unknown) => {
     if (!node || typeof node !== 'object') return;
     const record = node as Record<string, unknown>;
@@ -44,7 +45,8 @@ function discriminated(root: JsonSchema): JsonSchema {
       });
       if (tagged.every(Boolean)) {
         delete record.oneOf;
-        record.allOf = [...(Array.isArray(record.allOf) ? record.allOf : []), ...tagged];
+        const allOf: unknown[] = Array.isArray(record.allOf) ? record.allOf : [];
+        record.allOf = [...allOf, ...tagged];
       }
     }
     Object.values(record).forEach(visit);
@@ -56,18 +58,21 @@ function discriminated(root: JsonSchema): JsonSchema {
 describe('skeletonYaml', () => {
   it('fills required fields, names the chosen variant and comments the optional ones', () => {
     const text = render('KafkaCluster', { 'spec.schemaRegistry': null, 'spec.kafkaFlavor': 'Gateway' });
-    const value = parse(text);
+    const value: unknown = parse(text);
     expect(value).toMatchObject({ apiVersion: 'v2', kind: 'KafkaCluster', metadata: { name: 'my-kafkacluster' } });
-    expect(Object.keys(value.spec)).toEqual(expect.arrayContaining(['displayName', 'bootstrapServers', 'kafkaFlavor']));
-    expect(value.spec.kafkaFlavor.type).toBe('Gateway');
-    expect(value.spec).not.toHaveProperty('schemaRegistry');
+    const spec = at(value, 'spec');
+    expect(Object.keys(isRecord(spec) ? spec : {})).toEqual(
+      expect.arrayContaining(['displayName', 'bootstrapServers', 'kafkaFlavor']),
+    );
+    expect(at(spec, 'kafkaFlavor', 'type')).toBe('Gateway');
+    expect(spec).not.toHaveProperty('schemaRegistry');
     expect(text).toMatch(/# color: string/);
   });
 
   it('fills parents and the name', () => {
-    const value = parse(render('Topic', {}, { cluster: 'local' }));
-    expect(value.metadata).toEqual({ name: 'my-topic', cluster: 'local' });
-    expect(value.spec.partitions).toEqual(expect.any(Number));
+    const value: unknown = parse(render('Topic', {}, { cluster: 'local' }));
+    expect(at(value, 'metadata')).toEqual({ name: 'my-topic', cluster: 'local' });
+    expect(at(value, 'spec', 'partitions')).toEqual(expect.any(Number));
   });
 
   it('gives a kind with an empty spec a minimal document', () => {
@@ -87,7 +92,7 @@ describe('skeletonYaml', () => {
       const parents = Object.fromEntries(kind.parentPathParams.map((p) => [p, 'local']));
       for (const answers of allAnswers(root)) {
         rendered++;
-        const value = parse(skeletonYaml(root, kind, parents, 'my-name', answers));
+        const value: unknown = parse(skeletonYaml(root, kind, parents, 'my-name', answers));
         if (check(value)) continue;
         const real = (check.errors ?? []).filter((e) => !placeholderOnly.has(e.keyword));
         if (real.length > 0)
@@ -106,8 +111,8 @@ describe('skeletonYaml', () => {
     expect(user).toMatch(/^spec: \{\} # optional: \w+ \(/m);
     const cluster = render('KafkaCluster', { 'spec.schemaRegistry': null, 'spec.kafkaFlavor': null });
     const line = cluster.split('\n').find((l) => /^\s+# color: /.test(l))!;
-    const uncommented = parse(cluster.replace(line, line.replace('# color: string', 'color: red')));
-    expect(uncommented.spec.color).toBe('red');
+    const uncommented: unknown = parse(cluster.replace(line, line.replace('# color: string', 'color: red')));
+    expect(at(uncommented, 'spec', 'color')).toBe('red');
   });
 
   it('names a field that is one of several shapes by their names', () => {
@@ -121,7 +126,7 @@ describe('skeletonYaml', () => {
       allOf: [{ $ref: '#/definitions/R' }],
       definitions: { R: { type: 'object', properties: { spec: node } } },
     };
-    expect(parse(skeletonYaml(root, snapshotCatalog.latest('Topic')!, {}, 'n', {})).spec.n).toBe(1);
+    expect(at(parse(skeletonYaml(root, snapshotCatalog.latest('Topic')!, {}, 'n', {})), 'spec', 'n')).toBe(1);
   });
 
   it('stops on a schema that refers to itself', () => {
@@ -139,7 +144,7 @@ describe('skeletonYaml', () => {
 
   it('uses a given name that is one of the allowed names', () => {
     const kind = snapshotCatalog.latest('Integration')!;
-    expect(parse(skeletonYaml(rootOf('Integration'), kind, {}, 'Email', {})).metadata.name).toBe('Email');
+    expect(at(parse(skeletonYaml(rootOf('Integration'), kind, {}, 'Email', {})), 'metadata', 'name')).toBe('Email');
   });
 
   it('knows the names a kind is limited to', () => {

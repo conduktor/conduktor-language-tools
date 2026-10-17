@@ -44,7 +44,7 @@ export class CliRunner implements vscode.Disposable {
     const state = this.sessions.current();
     const env = this.sync.environment();
     const syncRoot = this.sync.syncRoot();
-    if (state.status !== 'ready' || !env || !syncRoot || syncRoot.scheme !== 'file')
+    if (state.status !== 'ready' || !env || syncRoot?.scheme !== 'file')
       throw new Error('Connect to a Console and choose a local sync folder first.');
     const token = await this.connections.token(state.connection.id);
     if (!token) throw new Error(`No token is stored for ${state.connection.name}.`);
@@ -117,7 +117,7 @@ export class CliRunner implements vscode.Disposable {
     const choice = settings.get<'auto' | 'docker' | 'path'>('runner', 'auto');
     const path: CliRunnerChoice = { kind: 'path', binary: settings.get<string>('path', 'conduktor') };
     if (choice === 'path' || (choice === 'auto' && !(await this.hasDocker()))) return path;
-    const image = settings.get<string>('image') || DEFAULT_CTL_IMAGE;
+    const image = settings.get<string>('image', '') || DEFAULT_CTL_IMAGE;
     if (!(await this.hasImage(image))) {
       if (choice === 'auto') {
         this.channel.appendLine(`${image} is not available; running ${path.binary} instead.`);
@@ -149,7 +149,7 @@ export class CliRunner implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.channel.dispose();
   }
 }

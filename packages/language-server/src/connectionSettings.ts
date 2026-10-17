@@ -37,7 +37,7 @@ export function connectionFrom(settings: unknown, env: NodeJS.ProcessEnv): Conne
     const url = env.CDK_BASE_URL;
     if (!url) return undefined;
     if (!isHttpUrl(url)) throw fail('CDK_BASE_URL', `${url} is not an http(s) address`);
-    return { name: new URL(url).host, url, mode: 'prod', token: env.CDK_API_KEY || undefined, from: 'cli' };
+    return { name: new URL(url).host, url, mode: 'prod', token: envValue(env, 'CDK_API_KEY'), from: 'cli' };
   }
   if (!isRecord(settings)) throw fail(SETTINGS_PATH, 'expected an object with a "url"');
 
@@ -56,9 +56,15 @@ export function connectionFrom(settings: unknown, env: NodeJS.ProcessEnv): Conne
     name: name ?? new URL(url).host,
     url,
     mode: mode ?? 'prod',
-    token: token ?? (env.CONDUKTOR_TOKEN || undefined),
+    token: token ?? envValue(env, 'CONDUKTOR_TOKEN'),
     from: 'settings',
   };
+}
+
+/** An environment variable, unset when set to nothing. */
+export function envValue(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const value = env[name];
+  return value === '' ? undefined : value;
 }
 
 function isHttpUrl(url: string): boolean {

@@ -29,10 +29,11 @@ export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode
       new vscode.CodeLens(lineOf(offset), { title, command, arguments: [document.uri, ...args] });
 
     const lenses: vscode.CodeLens[] = [];
-    if (documents.length > 1) {
-      const first = documents[0]!.start;
-      lenses.push(lens(first, `$(beaker) Dry run all (${documents.length})`, 'conduktor.dryRunFile'));
-      if (canApply) lenses.push(lens(first, `$(cloud-upload) Apply all (${documents.length})`, 'conduktor.applyFile'));
+    const first = documents[0];
+    if (first && documents.length > 1) {
+      lenses.push(lens(first.start, `$(beaker) Dry run all (${documents.length})`, 'conduktor.dryRunFile'));
+      if (canApply)
+        lenses.push(lens(first.start, `$(cloud-upload) Apply all (${documents.length})`, 'conduktor.applyFile'));
     }
     for (const { index, start } of documents) {
       const last = this.controller.lastResult(document.uri, index);
@@ -46,7 +47,7 @@ export class ResourceCodeLensProvider implements vscode.CodeLensProvider, vscode
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.changed.dispose();
   }
 }

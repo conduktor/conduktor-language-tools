@@ -25,8 +25,8 @@ export function resourceSnippets(
 ): ResourceSnippet[] {
   const snippets: ResourceSnippet[] = [];
   for (const name of catalog.kindNames()) {
-    const kind = catalog.latest(name)!;
-    if (!kind.bodySchema) continue;
+    const kind = catalog.latest(name);
+    if (!kind?.bodySchema) continue;
     const root = kindSchema(schema, kind as KindVersion & { bodySchema: string });
     const parents = Object.fromEntries(
       kind.parentPathParams.map((param) => [param, param === 'cluster' ? (clusters[0] ?? '') : '']),

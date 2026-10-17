@@ -4,8 +4,8 @@ import type { Resource } from '../src/resources/types';
 import { snapshotCatalog } from './fixtures';
 
 const lookup = (names: string[], checked = true, instances: Resource[] = []): NameLookup => ({
-  lookup: async () => ({ names: names.map((name) => ({ name, sources: ['console'] })), checked }),
-  instances: async () => instances,
+  lookup: () => Promise.resolve({ names: names.map((name) => ({ name, sources: ['console'] })), checked }),
+  instances: () => Promise.resolve(instances),
 });
 
 const application = (owner: string): Resource => ({

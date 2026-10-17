@@ -6,9 +6,7 @@ import { snapshotCatalog, snapshotDoc } from './fixtures';
 
 const SCHEMA_URI = 'conduktor-schema://schema/test';
 const service = getLanguageService({
-  schemaRequestService: async (uri: string) => {
-    throw new Error(`unexpected schema request ${uri}`);
-  },
+  schemaRequestService: (uri: string) => Promise.reject(new Error(`unexpected schema request ${uri}`)),
   workspaceContext: { resolveRelativePath: (relative: string, resource: string) => new URL(relative, resource).href },
 });
 service.configure({

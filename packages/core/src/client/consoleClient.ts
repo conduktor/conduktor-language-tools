@@ -12,14 +12,14 @@ export interface RequestEvent {
 
 export interface ConsoleClientOptions {
   baseUrl: string;
-  token?: string;
+  token?: string | undefined;
   userAgent: string;
   fetch?: typeof fetch;
-  onRequest?: (event: RequestEvent) => void;
+  onRequest?: ((event: RequestEvent) => void) | undefined;
 }
 
 interface SendOptions {
-  query?: Readonly<Record<string, string>>;
+  query?: Readonly<Record<string, string>> | undefined;
   body?: unknown;
   authenticated?: boolean;
 }
@@ -66,7 +66,8 @@ export class ConsoleClient {
   private async json<T>(response: Response): Promise<T> {
     const contentType = response.headers.get('content-type') ?? 'no content type';
     if (!contentType.includes('json')) {
-      const got = contentType.split(';')[0]!.trim();
+      const [mediaType = ''] = contentType.split(';');
+      const got = mediaType.trim();
       throw new UnexpectedResponseError(
         response.status,
         `${this.baseUrl} did not answer like a Conduktor Console (got ${got}). Check the URL.`,
@@ -89,7 +90,7 @@ export class ConsoleClient {
       response = await this.fetchImpl(url, {
         method,
         headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        ...(options.body !== undefined && { body: JSON.stringify(options.body) }),
       });
     } catch (error) {
       this.options.onRequest?.({ ...logged, status: 'network-error', durationMs: Date.now() - started });

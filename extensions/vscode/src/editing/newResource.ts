@@ -27,7 +27,7 @@ export type VariantPicker = (choice: Choice, kind: string) => Promise<string | n
 
 export const quickPickVariant: VariantPicker = async (choice, kind) => {
   const items = [
-    ...choice.options.map((option) => ({ label: option, value: option as string | null })),
+    ...choice.options.map((option) => ({ label: option, value: option })),
     ...(choice.optional ? [{ label: '(none)', description: 'leave it out', value: null }] : []),
   ];
   const picked = await vscode.window.showQuickPick(items, {
@@ -75,8 +75,8 @@ export async function newResource(
       : kind.parentPathParams[0] === 'cluster' && cluster
         ? [cluster]
         : [];
-  while (parents.length < kind.parentPathParams.length) {
-    const value = await pickParent(state, kind, parents);
+  for (const param of kind.parentPathParams.slice(parents.length)) {
+    const value = await pickParent(state, kind, parents, param);
     if (!value) return undefined;
     parents = [...parents, value];
   }
@@ -89,11 +89,12 @@ export async function newResource(
   const local = await sync.ensureChosen();
   const name = await nameFor(sync, local, kind, parents, template);
   if (!name) {
-    const own = template.baseName && template.fixedNames?.includes(template.baseName);
+    const fixed = template.fixedNames ?? [];
+    const own = template.baseName && fixed.includes(template.baseName);
     void vscode.window.showWarningMessage(
       own
         ? `${kind.kind} ${template.baseName} already has a local file.`
-        : `Every ${kind.kind} name (${template.fixedNames!.join(', ')}) already has a local file.`,
+        : `Every ${kind.kind} name (${fixed.join(', ')}) already has a local file.`,
     );
     return undefined;
   }
@@ -107,7 +108,7 @@ export async function newResource(
 
 interface Template {
   render: (parents: Record<string, string>, name: string) => string;
-  fixedNames?: string[];
+  fixedNames?: string[] | undefined;
   baseName?: string;
 }
 
@@ -143,7 +144,7 @@ async function fileTemplate(state: Ready, uri: vscode.Uri, kind: KindVersion): P
   return {
     render: (parents, name) => fromTemplate(document.text, parents, name),
     fixedNames: root ? fixedNames(root) : undefined,
-    baseName: document.name || undefined,
+    ...(document.name !== '' && { baseName: document.name }),
   };
 }
 
@@ -184,15 +185,19 @@ async function nameFor(
 
 async function pickKind(catalog: KindCatalog): Promise<KindVersion | undefined> {
   const items = [...catalog.kindNames()]
-    .map((name) => catalog.latest(name)!)
+    .flatMap((name) => catalog.latest(name) ?? [])
     .sort((a, b) => a.kind.localeCompare(b.kind))
     .map((kind) => ({ label: kind.kind, description: `${kind.group} · v${kind.version}`, kindVersion: kind }));
   return (await vscode.window.showQuickPick(items, { title: 'New Conduktor resource', matchOnDescription: true }))
     ?.kindVersion;
 }
 
-async function pickParent(state: Ready, kind: KindVersion, parents: string[]): Promise<string | undefined> {
-  const param = kind.parentPathParams[parents.length]!;
+async function pickParent(
+  state: Ready,
+  kind: KindVersion,
+  parents: string[],
+  param: string,
+): Promise<string | undefined> {
   const parentKindName = PARENT_KINDS[param];
   const parentKind = parentKindName ? state.spec.catalog.latest(parentKindName) : undefined;
   let names: string[] = [];

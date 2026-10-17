@@ -7,6 +7,8 @@ import { snapshotCatalog, snapshotDoc } from './fixtures';
 
 const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
 const validate = new Ajv({ strict: false, validateFormats: false, allErrors: true }).compile(schema);
+// The schema errors, so a failure shows them; none for a valid value.
+const errorsOf = (value: unknown) => (validate(value) ? [] : validate.errors);
 
 const topic = {
   apiVersion: 'v2',
@@ -28,7 +30,7 @@ describe('buildResourceSchema', () => {
   it.each(examples.filter(([name]) => !KNOWN_INVALID_EXAMPLES.has(name)))(
     'accepts the published %s example',
     (_, example) => {
-      expect(validate(example), JSON.stringify(validate.errors)).toBe(true);
+      expect(errorsOf(example)).toEqual([]);
     },
   );
 
@@ -40,7 +42,7 @@ describe('buildResourceSchema', () => {
   );
 
   it('accepts a minimal topic', () => {
-    expect(validate(topic), JSON.stringify(validate.errors)).toBe(true);
+    expect(errorsOf(topic)).toEqual([]);
   });
 
   it('rejects a wrong field type inside the kind body', () => {
@@ -81,7 +83,7 @@ describe('buildResourceSchema', () => {
       metadata: { name: 'p' },
       spec: { policies: { 'metadata.labels.team': spec } },
     });
-    expect(validate(policy({ constraint: 'NoneOf', values: ['x'] })), JSON.stringify(validate.errors)).toBe(true);
+    expect(errorsOf(policy({ constraint: 'NoneOf', values: ['x'] }))).toEqual([]);
     expect(validate(policy({ constraint: 'Bogus', values: ['x'] }))).toBe(false);
     expect(validate(policy({ constraint: 'Range', values: ['x'] }))).toBe(false);
   });

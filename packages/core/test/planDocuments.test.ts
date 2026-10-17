@@ -28,18 +28,20 @@ spec: { partitions: 1 }
 `;
 
 const consoleWith = (exists: string[] = []) =>
-  vi.fn(async (_target: unknown, resource: Resource, _options: { dryRun: boolean }) => {
+  vi.fn((_target: unknown, resource: Resource, _options: { dryRun: boolean }) => {
     const name = resource.metadata.name;
     if (resource.kind === 'Application' && !exists.includes('team-a'))
-      throw new ConsoleError(404, 'Group not found', `Group with id 'team-a' not found`);
+      return Promise.reject(new ConsoleError(404, 'Group not found', `Group with id 'team-a' not found`));
     if (resource.kind === 'ApplicationInstance' && !exists.includes('shop'))
-      throw new ConsoleError(
-        403,
-        'Forbidden',
-        'Missing GovernanceApplicationsEdit (associated roles: admin) on app shop',
+      return Promise.reject(
+        new ConsoleError(403, 'Forbidden', 'Missing GovernanceApplicationsEdit (associated roles: admin) on app shop'),
       );
-    if (resource.kind === 'Topic') throw new ConsoleError(422, 'Policy violation', '- partitions must be at least 3');
-    return { resource, upsertResult: exists.includes(name) ? ('NotChanged' as const) : ('Created' as const) };
+    if (resource.kind === 'Topic')
+      return Promise.reject(new ConsoleError(422, 'Policy violation', '- partitions must be at least 3'));
+    return Promise.resolve({
+      resource,
+      upsertResult: exists.includes(name) ? ('NotChanged' as const) : ('Created' as const),
+    });
   });
 
 const documents = () => parseResourceDocuments(chain, { env: {} });
@@ -90,11 +92,11 @@ describe('planDocuments', () => {
   });
 
   it('keeps a failure a failure when what it names already exists', async () => {
-    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
-      if (resource.kind === 'Application')
-        throw new ConsoleError(404, 'Group not found', `Group with id 'team-a' not found`);
-      return { resource, upsertResult: 'NotChanged' as const };
-    });
+    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
+      resource.kind === 'Application'
+        ? Promise.reject(new ConsoleError(404, 'Group not found', `Group with id 'team-a' not found`))
+        : Promise.resolve({ resource, upsertResult: 'NotChanged' as const }),
+    );
     const items = await planDocuments(
       { upsert },
       snapshotCatalog,
@@ -104,10 +106,11 @@ describe('planDocuments', () => {
   });
 
   it('does not take a short name inside a longer word for a dependency', async () => {
-    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
-      if (resource.kind === 'Application') throw new ConsoleError(400, 'Bad request', 'team-ab is not a valid owner');
-      return { resource, upsertResult: 'Created' as const };
-    });
+    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
+      resource.kind === 'Application'
+        ? Promise.reject(new ConsoleError(400, 'Bad request', 'team-ab is not a valid owner'))
+        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
+    );
     const items = await planDocuments(
       { upsert },
       snapshotCatalog,
@@ -127,10 +130,11 @@ kind: Topic
 metadata: { name: payments, cluster: local }
 spec: { partitions: 1 }
 `;
-    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
-      if (resource.kind === 'Topic') throw new ConsoleError(403, 'Forbidden', 'Topic payments violates policy p1');
-      return { resource, upsertResult: 'Created' as const };
-    });
+    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
+      resource.kind === 'Topic'
+        ? Promise.reject(new ConsoleError(403, 'Forbidden', 'Topic payments violates policy p1'))
+        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
+    );
     const items = await planDocuments({ upsert }, snapshotCatalog, parseResourceDocuments(yaml));
     expect(items.map((i) => [i.document.kind, i.outcome.status])).toEqual([
       ['Application', 'ok'],
@@ -139,11 +143,11 @@ spec: { partitions: 1 }
   });
 
   it('only waits on a not-found or no-permission error, not a rejected value that names a resource', async () => {
-    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
-      if (resource.kind === 'Application')
-        throw new ConsoleError(422, 'Policy violation', 'owner team-a must have a description');
-      return { resource, upsertResult: 'Created' as const };
-    });
+    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
+      resource.kind === 'Application'
+        ? Promise.reject(new ConsoleError(422, 'Policy violation', 'owner team-a must have a description'))
+        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
+    );
     const items = await planDocuments(
       { upsert },
       snapshotCatalog,
@@ -155,10 +159,11 @@ spec: { partitions: 1 }
 
 describe('upsertDocuments with stopOnError', () => {
   it('applies in order, stops at the first failure and skips the rest', async () => {
-    const upsert = vi.fn(async (_t: unknown, resource: Resource, _o: { dryRun: boolean }) => {
-      if (resource.kind === 'Application') throw new ConsoleError(400, 'Bad request', 'owner is invalid');
-      return { resource, upsertResult: 'Created' as const };
-    });
+    const upsert = vi.fn((_t: unknown, resource: Resource, _o: { dryRun: boolean }) =>
+      resource.kind === 'Application'
+        ? Promise.reject(new ConsoleError(400, 'Bad request', 'owner is invalid'))
+        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
+    );
     const items = await upsertDocuments({ upsert }, snapshotCatalog, documents(), { dryRun: false, stopOnError: true });
     expect(items.map((i) => [i.document.kind, i.outcome.status])).toEqual([
       ['Group', 'ok'],

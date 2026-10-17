@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { kindSchema } from '../src/openapi/kindSchema';
 import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import { schemaAt } from '../src/openapi/schemaAt';
-import type { JsonSchema } from '../src/openapi/types';
 import { snapshotCatalog, snapshotDoc } from './fixtures';
 
 const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
-const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never) as JsonSchema;
+const rootOf = (kind: string) => kindSchema(schema, snapshotCatalog.latest(kind) as never);
 
 describe('schemaAt', () => {
   it('says the type, whether it is required and the allowed values', () => {

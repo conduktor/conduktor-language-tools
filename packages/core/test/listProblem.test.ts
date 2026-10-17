@@ -3,7 +3,7 @@ import { ConsoleError, listProblem, NetworkError, UnexpectedResponseError } from
 
 describe('listProblem', () => {
   it('reads a feature this cluster or Console lacks as not available, not as a failure', () => {
-    for (const error of [
+    const unavailable = [
       new ConsoleError(404, 'Schema Registry Not Found', 'Schema Registry not found for cluster local-gateway'),
       new ConsoleError(400, 'No schema registry configured', 'No schema registry is configured for cluster x'),
       new ConsoleError(400, 'Security disabled', 'Security features are disabled.'),
@@ -11,8 +11,8 @@ describe('listProblem', () => {
         200,
         'http://localhost:8080 did not answer like a Conduktor Console (got text/html).',
       ),
-    ])
-      expect(listProblem(error).kind, error.message).toBe('unavailable');
+    ];
+    expect(unavailable.filter((error) => listProblem(error).kind !== 'unavailable')).toEqual([]);
     expect(listProblem(new ConsoleError(404, 'Schema Registry Not Found', 'not for local-gateway')).detail).toBe(
       'Schema Registry Not Found: not for local-gateway',
     );

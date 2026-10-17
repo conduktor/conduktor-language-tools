@@ -30,7 +30,7 @@ export function fieldHover(
   ];
   if (field?.default !== undefined) parts.push(`Default ${markdownCode(JSON.stringify(field.default))}`);
   if (reference) parts.push(reference);
-  const section = sections.size === 1 ? docs[0]!.url : undefined;
+  const section = sections.size === 1 ? docs[0]?.url : undefined;
   parts.push(`[Docs](${section ?? kindDoc(resource.kind)?.url ?? REFERENCE_URL})`);
   return parts.join('\n\n');
 }

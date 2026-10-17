@@ -7,13 +7,13 @@ let fake: FakeConsole;
 const running: Started[] = [];
 
 beforeAll(async () => {
-  fake = await fakeConsole();
   directory = buildServer();
+  fake = await fakeConsole();
+  return () => fake.close();
 }, 60_000);
 
 afterAll(() => {
   running.forEach((server) => server.stop());
-  fake?.close();
 });
 
 async function start(options: StartOptions = { settings: { url: fake.url, name: 'fake' } }): Promise<Started> {
@@ -59,8 +59,8 @@ describe('reference problems', () => {
     const server = await start();
     const uri = 'file:///work/nowhere.yaml';
     server.open(uri, topic('orders', 'nowhere'));
-    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => /nowhere/.test(x.message)));
-    expect(diagnostics.find((d) => /nowhere/.test(d.message))).toMatchObject({
+    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('nowhere')));
+    expect(diagnostics.find((d) => d.message.includes('nowhere'))).toMatchObject({
       message: "KafkaCluster 'nowhere' is not in the repository or on fake.",
       severity: 2,
       range: { start: { line: 4, character: 11 } },
@@ -74,16 +74,17 @@ describe('reference problems', () => {
     const server = await start({ settings: { url: quiet.url, name: 'quiet' } });
     // The session settled first, so no publish of this file is still in flight when the other one opens.
     server.open('file:///work/warm-up.yaml', topic('warm', 'nowhere'));
-    await server.diagnostics('file:///work/warm-up.yaml', (d) => d.some((x) => /'nowhere'/.test(x.message)));
+    await server.diagnostics('file:///work/warm-up.yaml', (d) => d.some((x) => x.message.includes("'nowhere'")));
     const uri = 'file:///work/later.yaml';
     server.open(uri, topic('orders', 'later'));
-    await server.diagnostics(uri, (d) => d.some((x) => /'later'/.test(x.message)));
+    await server.diagnostics(uri, (d) => d.some((x) => x.message.includes("'later'")));
     server.open('file:///work/later-cluster.yaml', cluster('later'));
     // Well before the dry run gives up on the Console (20 s), which would publish this file again on its own.
-    await Promise.race([
-      server.diagnostics(uri, (d) => !d.some((x) => /'later'/.test(x.message))),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('not published again')), 5_000)),
+    const published = await Promise.race([
+      server.diagnostics(uri, (d) => !d.some((x) => x.message.includes("'later'"))),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('not published again')), 5_000)),
     ]);
+    expect(published.filter((d) => d.message.includes("'later'"))).toEqual([]);
   }, 30_000);
 });
 

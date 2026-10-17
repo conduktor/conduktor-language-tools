@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import type { Resource } from '../src/resources/types';
 import { applyPreset, checkTopicConfig, presetFromTemplate, TOPIC_PRESETS } from '../src/topicConfigs';
+import { at } from './fixtures';
 
 describe('topic presets', () => {
   it('offers the common profiles, every value valid', () => {
@@ -26,9 +27,9 @@ describe('topic presets', () => {
       topic,
       TOPIC_PRESETS.find((p) => p.id === 'compacted')!,
     );
-    const value = parse(text);
-    expect(value.spec.configs['cleanup.policy']).toBe('compact');
-    expect(value.spec.configs['segment.bytes']).toBe('1073741824');
+    const value: unknown = parse(text);
+    expect(at(value, 'spec', 'configs', 'cleanup.policy')).toBe('compact');
+    expect(at(value, 'spec', 'configs', 'segment.bytes')).toBe('1073741824');
     expect(text).toContain('partitions: 1 # small');
   });
 
@@ -56,7 +57,7 @@ describe('topic presets', () => {
   it('applies a preset to a topic whose spec or configs are still empty', () => {
     const compacted = TOPIC_PRESETS.find((p) => p.id === 'compacted')!;
     for (const text of ['kind: Topic\nspec:\n', 'kind: Topic\nspec:\n  configs:\n'])
-      expect(parse(applyPreset(text, compacted)).spec.configs).toEqual(compacted.configs);
+      expect(at(parse(applyPreset(text, compacted)), 'spec', 'configs')).toEqual(compacted.configs);
   });
 
   it('replaces a commented value and keeps its comment', () => {

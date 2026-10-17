@@ -30,10 +30,10 @@ export type BootstrapStage =
 
 export interface CollectOptions {
   /** Only these Kafka clusters' resources and definitions; global resources are collected either way. */
-  clusters?: readonly string[];
+  clusters?: readonly string[] | undefined;
   concurrency?: number;
   cancelled?: () => boolean;
-  onProgress?: (stage: BootstrapStage) => void;
+  onProgress?: ((stage: BootstrapStage) => void) | undefined;
 }
 
 export interface BootstrapResult {
@@ -106,8 +106,8 @@ export async function collectResources(
 
   const inScope = (cluster: string) => !options.clusters || options.clusters.includes(cluster);
   const chains = async (kind: KindVersion, prefix: string[]): Promise<string[][]> => {
-    if (prefix.length === kind.parentPathParams.length) return [prefix];
-    const param = kind.parentPathParams[prefix.length]!;
+    const param = kind.parentPathParams[prefix.length];
+    if (param === undefined) return [prefix];
     const parentKind = PARENT_KINDS[param] ? catalog.latest(PARENT_KINDS[param]) : undefined;
     if (!parentKind) {
       skipped.push({ kind: kind.kind, parents: prefix, reason: `Listing by ${param} is not supported` });
@@ -221,9 +221,10 @@ function limiter(slots: number): <T>(run: () => Promise<T>) => Promise<T> {
 }
 
 export async function eachLimit<T>(items: readonly T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
-  let next = 0;
+  // The workers share one iterator, so each item is taken once.
+  const queue = items.values();
   const worker = async () => {
-    while (next < items.length) await run(items[next++]!);
+    for (const item of queue) await run(item);
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }

@@ -73,8 +73,8 @@ function resolve(
 function concretePaths(resource: unknown, pattern: string): YamlPath[] {
   const segments = pattern.replace(/\[\]/g, '.[]').split('.');
   const walk = (node: unknown, i: number, at: YamlPath): YamlPath[] => {
-    if (i === segments.length) return [at];
-    const segment = segments[i]!;
+    const segment = segments[i];
+    if (segment === undefined) return [at];
     if (segment === '[]') return Array.isArray(node) ? node.flatMap((item, n) => walk(item, i + 1, [...at, n])) : [];
     return isRecord(node) && segment in node ? walk(node[segment], i + 1, [...at, segment]) : [];
   };

@@ -27,7 +27,7 @@ import {
   type InitializeResult,
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { CREDENTIAL_VARIABLES, SETTINGS_SECTION } from './connectionSettings';
+import { CREDENTIAL_VARIABLES, envValue, SETTINGS_SECTION } from './connectionSettings';
 import { labelCompletions } from './labels';
 import { definitionAt, fieldHoverAt, referencesAt } from './navigation';
 import {
@@ -141,7 +141,8 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
 
   /** Once, on the first Console resource opened without a Console to check it against: where to name one. */
   const hintSetup = async () => {
-    const zedSettings = join(options.env.XDG_CONFIG_HOME || join(options.home, '.config'), 'zed', 'settings.json');
+    const configHome = envValue(options.env, 'XDG_CONFIG_HOME') ?? join(options.home, '.config');
+    const zedSettings = join(configHome, 'zed', 'settings.json');
     const canOpen = inZed && existsSync(zedSettings);
     const choice = await lsp.window.showInformationMessage(
       `Conduktor: no Console set, so only the schema is checked. To dry-run against yours, set CDK_BASE_URL and CDK_API_KEY in your shell as for the conduktor CLI, or add to ${inZed ? "Zed's" : 'your'} settings: "lsp": { "conduktor-console": { "settings": { "url": "https://…", "token": "…" } } }`,
@@ -200,18 +201,19 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
   });
 
   // Zed pushes the settings after initializing and whenever they change; other clients may only answer when asked.
-  lsp.onInitialized(async () => {
+  const initialized = async () => {
     try {
       const snapshot = buildSpec(await options.snapshotText(), 'snapshot');
       if (!session) schema.useSpec(snapshot);
     } finally {
       bundled();
     }
-    const settings = pullsSettings
+    const settings: unknown = pullsSettings
       ? await lsp.workspace.getConfiguration(SETTINGS_SECTION).catch(() => undefined)
       : undefined;
     await configure(settings);
-  });
+  };
+  lsp.onInitialized(() => void initialized());
   lsp.onDidChangeConfiguration(({ settings }) => {
     if (isRecord(settings) && SETTINGS_SECTION in settings) void configure(settings[SETTINGS_SECTION]);
     else if (pullsSettings) void lsp.workspace.getConfiguration(SETTINGS_SECTION).then(configure, () => undefined);
@@ -383,6 +385,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
 }
 
 function workspaceFolders(params: InitializeParams): string[] {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- a client without workspace folders only sends rootUri
   const uris = params.workspaceFolders?.map((folder) => folder.uri) ?? (params.rootUri ? [params.rootUri] : []);
   return uris.filter((uri) => uri.startsWith('file:')).map((uri) => fileURLToPath(uri));
 }

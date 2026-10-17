@@ -17,7 +17,7 @@ export function blankDocumentAt(text: string, offset: number): { start: number; 
     }
     position = end + 1;
   }
-  const word = /[A-Za-z0-9_-]*$/.exec(text.slice(from, offset))![0];
+  const word = /[\w-]*$/.exec(text.slice(from, offset))?.[0] ?? '';
   const start = offset - word.length;
   const rest = text.slice(from, start) + text.slice(offset, to);
   const content = rest.split('\n').some((line) => line.trim() !== '' && !line.trim().startsWith('#'));

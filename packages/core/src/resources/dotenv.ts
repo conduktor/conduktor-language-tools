@@ -5,8 +5,8 @@ import { dirname, join } from 'node:path';
 export function parseDotenv(text: string): Record<string, string> {
   const variables: Record<string, string> = {};
   for (const line of text.split(/\r?\n/)) {
-    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line);
-    if (match) variables[match[1]!] = match[2]!;
+    const [, name, value] = /^\s*([a-z_]\w*)=(.*)$/i.exec(line) ?? [];
+    if (name !== undefined && value !== undefined) variables[name] = value;
   }
   return variables;
 }
@@ -17,7 +17,12 @@ export function parseDotenv(text: string): Record<string, string> {
  */
 export function envSearchPath(
   file: string,
-  stops: { workspace?: string; home: string; isRepoRoot: (dir: string) => boolean; caseInsensitive?: boolean },
+  stops: {
+    workspace?: string | undefined;
+    home: string;
+    isRepoRoot: (dir: string) => boolean;
+    caseInsensitive?: boolean;
+  },
 ): string[] {
   // Windows paths differ in case between sources (VS Code lower-cases the drive letter, os.homedir() does not).
   const same = (a: string, b: string | undefined) =>
@@ -39,7 +44,7 @@ const read = new Map<string, { mtimeMs: number; values: Record<string, string> }
 export function fileVariables(
   file: string,
   base: Readonly<Record<string, string | undefined>>,
-  stops: { workspace?: string; home: string },
+  stops: { workspace?: string | undefined; home: string },
 ): Readonly<Record<string, string | undefined>> {
   const search = envSearchPath(file, {
     ...stops,

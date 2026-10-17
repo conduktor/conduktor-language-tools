@@ -26,7 +26,9 @@ export function expandEnvVars(input: string, env: Readonly<Record<string, string
 export function referencedVariables(text: string): string[] {
   const names = new Set<string>();
   for (const [, dollars, body] of text.matchAll(ENV_VAR)) {
-    if (dollars === '$') names.add(body!.split(':-')[0]!);
+    if (dollars !== '$' || body === undefined) continue;
+    const separator = body.indexOf(':-');
+    names.add(separator === -1 ? body : body.slice(0, separator));
   }
   return [...names];
 }

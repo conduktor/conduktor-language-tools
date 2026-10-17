@@ -36,7 +36,7 @@ const listKinds: ToolDefinition = {
     'KafkaCluster) with their apiVersions, API group, the metadata fields that name their parents (such as cluster) ' +
     'and the order they are applied in. Call this first when you are not sure which kind to use.',
   inputSchema: { type: 'object', properties: {} },
-  async run(_input, context) {
+  run: immediate((_input, context) => {
     const kinds = new Map<
       string,
       { kind: string; apiVersions: string[]; group: string; parents: string[]; applyOrder: number }
@@ -57,7 +57,7 @@ const listKinds: ToolDefinition = {
       }
     }
     return json({ console: context.connectionName, kinds: [...kinds.values()] });
-  },
+  }),
 };
 
 const getKindSchema: ToolDefinition = {
@@ -75,7 +75,7 @@ const getKindSchema: ToolDefinition = {
     },
     required: ['kind'],
   },
-  async run(input, context) {
+  run: immediate((input, context) => {
     const kind = bodyKind(resolveKind(context, input.kind, input.apiVersion));
     const schema = JSON.stringify(kindSchema(context.schema, kind), null, 2);
     const example =
@@ -85,7 +85,7 @@ const getKindSchema: ToolDefinition = {
     const parents =
       kind.parentPathParams.length > 0 ? ` It lives under metadata.${kind.parentPathParams.join(', metadata.')}.` : '';
     return `${kind.kind} v${kind.version} on ${context.connectionName}.${parents}\n\nJSON Schema:\n\n\`\`\`json\n${schema}\n\`\`\`${example}`;
-  },
+  }),
 };
 
 const validate: ToolDefinition = {
@@ -96,7 +96,7 @@ const validate: ToolDefinition = {
     'Console. Pass the YAML text or a workspace file path. Returns, for each resource, the schema errors with ' +
     'their JSON paths. Run it after writing or changing a resource, fix every error, then use conduktor_dry_run.',
   inputSchema: { type: 'object', properties: YAML_OR_PATH },
-  async run(input, context) {
+  run: immediate((input, context) => {
     const documents = resourceDocuments(input, context).map((document) => {
       const { resource } = document;
       const identity = { index: document.index, kind: document.kind, name: resource?.metadata.name ?? null };
@@ -115,7 +115,7 @@ const validate: ToolDefinition = {
       documents,
       ...(documents.some((d) => d.variables) && { note: VARIABLES_NOTE }),
     });
-  },
+  }),
 };
 
 const dryRun: ToolDefinition = {
@@ -130,8 +130,9 @@ const dryRun: ToolDefinition = {
   async run(input, context) {
     const documents = resourceDocuments(input, context);
     for (const { resource } of documents) {
-      const [path] = resource ? redactedPaths(resource) : [];
-      if (path) throw new ToolError(`${resource!.kind} ${resource!.metadata.name} ${path} ${REDACTED_MESSAGE}.`);
+      if (!resource) continue;
+      const [path] = redactedPaths(resource);
+      if (path) throw new ToolError(`${resource.kind} ${resource.metadata.name} ${path} ${REDACTED_MESSAGE}.`);
     }
     const items = await planDocuments(context.client, context.catalog, documents, {
       readInclude: context.readInclude,
@@ -175,11 +176,10 @@ const getResources: ToolDefinition = {
   async run(input, context) {
     const kind = resolveKind(context, input.kind, input.apiVersion);
     const missing = kind.parentPathParams.filter((param) => typeof input[param] !== 'string' || input[param] === '');
-    if (missing.length > 0) {
-      const parentKind = PARENT_KINDS[missing[0]!];
-      const hint = parentKind
-        ? ` conduktor_get_resources with kind ${parentKind} lists the ${plural(missing[0]!)}.`
-        : '';
+    const [first] = missing;
+    if (first !== undefined) {
+      const parentKind = PARENT_KINDS[first];
+      const hint = parentKind ? ` conduktor_get_resources with kind ${parentKind} lists the ${plural(first)}.` : '';
       throw new ToolError(`${kind.kind} needs ${missing.join(' and ')}.${hint}`);
     }
     const parents = Object.fromEntries(kind.parentPathParams.map((param) => [param, input[param] as string]));
@@ -204,6 +204,11 @@ export const conduktorTools: readonly ToolDefinition[] = [listKinds, getKindSche
 
 const VARIABLES_NOTE =
   '${VAR} references are set by the user when applying; they are left unexpanded here, so a dry run sends them as written.';
+
+// A tool that answers without waiting on the Console still settles its promise, so a failure rejects, never throws.
+function immediate(run: (input: Record<string, unknown>, context: ToolContext) => string): ToolDefinition['run'] {
+  return (input, context) => new Promise((resolve) => resolve(run(input, context)));
+}
 
 function withVariables(variables: readonly string[]) {
   return variables.length > 0 ? { variables } : {};

@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { parse, stringify } from 'yaml';
-import { itemPath, parentsOf, syncPath, upsertTarget, type Resource } from '@conduktor/core';
+import { isRecord, itemPath, parentsOf, syncPath, upsertTarget, type Resource } from '@conduktor/core';
 import type { ExtensionApi } from '../extension';
 import type { ExplorerNode, ResourceNode } from '../explorer/explorerModel';
 
@@ -73,6 +73,35 @@ async function until(condition: () => boolean, timeoutMs = 30_000): Promise<void
     if (Date.now() > deadline) throw new Error('Timed out waiting');
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
+}
+
+/** The value down a path of keys and indexes in parsed YAML or JSON; `undefined` where the path leads nowhere. */
+function dig(value: unknown, ...path: (string | number)[]): unknown {
+  return path.reduce<unknown>((node, key) => {
+    if (typeof key === 'number') return Array.isArray(node) ? node[key] : undefined;
+    return isRecord(node) ? node[key] : undefined;
+  }, value);
+}
+
+/** The YAML with a value set down a path of keys, the mappings on the way created when missing. */
+function withValue(text: string, path: readonly string[], value: unknown): string {
+  const root: unknown = parse(text);
+  assert.ok(isRecord(root), text);
+  const parent = path.slice(0, -1).reduce((node, key) => {
+    const child = node[key];
+    if (isRecord(child)) return child;
+    const created: Record<string, unknown> = {};
+    node[key] = created;
+    return created;
+  }, root);
+  parent[path.at(-1)!] = value;
+  return stringify(root);
+}
+
+function nameIn(text: string): string {
+  const name = dig(parse(text), 'metadata', 'name');
+  assert.ok(typeof name === 'string', text);
+  return name;
 }
 
 // The CLI expands ${CDK_SECRET_…} from its environment; the values are what the Console holds, read back for the run.
@@ -177,7 +206,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const live = await vscode.workspace.openTextDocument(api.liveUri(topic));
     assert.match(live.getText(), /kind: Topic/);
     const titles = (
-      (await vscode.commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', live.uri)) ?? []
+      (await vscode.commands.executeCommand<vscode.CodeLens[] | undefined>(
+        'vscode.executeCodeLensProvider',
+        live.uri,
+      )) ?? []
     ).map((lens) => lens.command?.title ?? '');
     assert.ok(
       titles.some((title) => title.includes('Dry run')),
@@ -211,10 +243,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const live = await vscode.workspace.openTextDocument(
       api.liveUri({ type: 'resource', kind: topicKind, parents: ['local-kafka'], name }),
     );
-    const edited = parse(live.getText());
-    edited.metadata.labels = { ...(edited.metadata.labels ?? {}), staged: 'from-live' };
+    const edited = withValue(live.getText(), ['metadata', 'labels', 'staged'], 'from-live');
     const edit = new vscode.WorkspaceEdit();
-    edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
+    edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), edited);
     assert.ok(await vscode.workspace.applyEdit(edit));
     assert.ok(await live.save(), 'saving a live document in prod mode succeeds');
 
@@ -227,8 +258,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       `${name}.yaml`,
     );
     try {
-      const staged = parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(local)));
-      assert.strictEqual(staged.metadata.labels.staged, 'from-live');
+      const staged: unknown = parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(local)));
+      assert.strictEqual(dig(staged, 'metadata', 'labels', 'staged'), 'from-live');
       assert.strictEqual(api.sync.entryAt(local)?.status, 'modified');
       await until(() => !live.getText().includes('from-live'));
     } finally {
@@ -251,7 +282,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('creates, edits, diffs and deletes a topic in dev mode', async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
     await until(() => {
       const current = api.sessions.current();
@@ -267,7 +298,10 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const exists = () =>
       state.client.get(`/public/kafka/v2/cluster/${cluster}/topic/${name}`).then(
         () => true,
-        (error: { status?: number }) => (error.status === 404 ? false : Promise.reject(error)),
+        (error: unknown) => {
+          if (isRecord(error) && error.status === 404) return false;
+          throw error;
+        },
       );
 
     try {
@@ -296,10 +330,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         true,
         'dev mode can edit live documents',
       );
-      const edited = parse(live.getText());
-      edited.metadata.labels = { ...(edited.metadata.labels ?? {}), smoke: 'edited' };
+      const edited = withValue(live.getText(), ['metadata', 'labels', 'smoke'], 'edited');
       const edit = new vscode.WorkspaceEdit();
-      edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
+      edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), edited);
       assert.ok(await vscode.workspace.applyEdit(edit));
       assert.ok(await live.save(), 'live document saved');
       const saved = await state.client.get(`/public/kafka/v2/cluster/${cluster}/topic/${name}`);
@@ -326,8 +359,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const clipboard = await vscode.env.clipboard.readText();
     try {
       await vscode.commands.executeCommand('conduktor.copyClaudeCodeConfig');
-      const [server] = JSON.parse(await vscode.env.clipboard.readText()).mcpServers.conduktor.args as string[];
-      assert.ok(server && !server.startsWith(vscode.Uri.joinPath(extension.extensionUri, 'dist').fsPath), server);
+      const server = dig(JSON.parse(await vscode.env.clipboard.readText()), 'mcpServers', 'conduktor', 'args', 0);
+      assert.ok(typeof server === 'string' && server !== '', 'the config names the server');
+      assert.ok(!server.startsWith(vscode.Uri.joinPath(extension.extensionUri, 'dist').fsPath), server);
       assert.ok(server.endsWith(join('mcp', 'mcp-server.js')), server);
       await vscode.workspace.fs.stat(vscode.Uri.file(server));
       await vscode.workspace.fs.stat(vscode.Uri.file(join(dirname(server), 'public-api-doc.yaml')));
@@ -342,20 +376,22 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       const result = await vscode.lm.invokeTool(name, { input, toolInvocationToken: undefined });
       return result.content.map((part) => (part instanceof vscode.LanguageModelTextPart ? part.value : '')).join('');
     };
-    const kinds = JSON.parse(await call('conduktor_list_kinds', {}));
-    assert.ok(kinds.kinds.some((k: { kind: string }) => k.kind === 'Topic'));
+    const kinds = dig(JSON.parse(await call('conduktor_list_kinds', {})), 'kinds');
+    assert.ok(Array.isArray(kinds) && kinds.some((k) => dig(k, 'kind') === 'Topic'));
     assert.match(await call('conduktor_get_kind_schema', { kind: 'Topic' }), /TopicResourceV2/);
 
     const yaml =
       'apiVersion: v2\nkind: Topic\nmetadata: { name: vscode-agent-probe, cluster: local-kafka }\nspec: { partitions: three }\n';
-    const validation = JSON.parse(await call('conduktor_validate', { yaml }));
-    assert.ok(validation.documents[0].errors.some((e: { path: string }) => e.path === '/spec/partitions'));
+    const errors = dig(JSON.parse(await call('conduktor_validate', { yaml })), 'documents', 0, 'errors');
+    assert.ok(Array.isArray(errors) && errors.some((e) => dig(e, 'path') === '/spec/partitions'));
 
-    const dryRun = JSON.parse(
+    const dryRun: unknown = JSON.parse(
       await call('conduktor_dry_run', { yaml: yaml.replace('three', '1, replicationFactor: 1') }),
     );
-    assert.strictEqual(dryRun.documents[0].result, 'Created');
-    assert.match(dryRun.note, /Nothing was changed/);
+    assert.strictEqual(dig(dryRun, 'documents', 0, 'result'), 'Created');
+    const note = dig(dryRun, 'note');
+    assert.ok(typeof note === 'string');
+    assert.match(note, /Nothing was changed/);
 
     for (const path of ['../outside.yaml', '/etc/hosts'])
       assert.match(await call('conduktor_validate', { path }), /outside the workspace|is absolute/, path);
@@ -363,7 +399,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('applies a group, an application and its instance from one file, in order', async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     await until(() => {
       const current = api.sessions.current();
       return current.status === 'ready' && current.connection.mode === 'dev';
@@ -422,7 +458,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('syncs a topic into the folder and tracks local changes against it', async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     const topicKind = state.spec.catalog.latest('Topic')!;
@@ -443,9 +479,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
 
     const synced = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-    const edited = parse(synced);
-    edited.metadata.labels = { ...(edited.metadata.labels ?? {}), staged: 'yes' };
-    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(stringify(edited)));
+    const edited = withValue(synced, ['metadata', 'labels', 'staged'], 'yes');
+    await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(edited));
     await api.sync.refresh();
     assert.strictEqual(api.sync.entryAt(uri)?.status, 'modified');
 
@@ -481,15 +516,15 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     assert.match(drafted.getText(), /cluster: local-kafka/);
     assert.strictEqual(api.sync.entryAt(drafted.uri)?.status, 'new');
     const renamed = `vscode-renamed-${Date.now()}`;
-    const draft = parse(drafted.getText());
-    draft.metadata.name = renamed;
+    const draft = withValue(drafted.getText(), ['metadata', 'name'], renamed);
     const rename = new vscode.WorkspaceEdit();
-    rename.replace(drafted.uri, new vscode.Range(0, 0, drafted.lineCount, 0), stringify(draft));
+    rename.replace(drafted.uri, new vscode.Range(0, 0, drafted.lineCount, 0), draft);
     assert.ok(await vscode.workspace.applyEdit(rename));
     assert.ok(await drafted.save());
     await api.sync.refresh();
     const moved = api.sync.entryFor('Topic', ['local-kafka'], renamed);
-    assert.ok(moved && moved.path.endsWith(`clusters/local-kafka/kafka/Topic/${renamed}.yaml`), moved?.path);
+    assert.ok(moved, `${renamed} is tracked`);
+    assert.ok(moved.path.endsWith(`clusters/local-kafka/kafka/Topic/${renamed}.yaml`), moved.path);
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     await vscode.workspace.fs.delete(moved.uri);
 
@@ -503,7 +538,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('stages a group, an application and its instance as files and applies all changes in order', async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     await useWorkspaceSyncRoot(api);
@@ -585,7 +620,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     try {
       const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
       const variable = 'CDK_SECRET_KAFKACLUSTER_LOCAL_GATEWAY_SPEC_KAFKAFLAVOR_PASSWORD';
-      assert.strictEqual(parse(text).spec.kafkaFlavor.password, `\${${variable}}`);
+      assert.strictEqual(dig(parse(text), 'spec', 'kafkaFlavor', 'password'), `\${${variable}}`);
       assert.ok((await api.sync.requiredVariables()).some((v) => v.name === variable));
       await api.sync.refresh({ drift: true });
       assert.deepStrictEqual(
@@ -639,15 +674,17 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const local = await api.sync.syncResource(topicKind, ['local-kafka'], name);
     const live = await vscode.workspace.openTextDocument(api.liveUri(node));
     try {
-      const mine = parse(await read(local));
-      mine.metadata.labels = { ...(mine.metadata.labels ?? {}), local: 'edit' };
-      await vscode.workspace.fs.writeFile(local, new TextEncoder().encode(stringify(mine)));
+      const mine = withValue(await read(local), ['metadata', 'labels', 'local'], 'edit');
+      await vscode.workspace.fs.writeFile(local, new TextEncoder().encode(mine));
       await api.sync.refresh();
-      const fromLive = parse(live.getText());
-      fromLive.metadata.labels = { ...(fromLive.metadata.labels ?? {}), live: 'edit' };
-      await replaceAll(live, stringify(fromLive));
+      const fromLive = withValue(live.getText(), ['metadata', 'labels', 'live'], 'edit');
+      await replaceAll(live, fromLive);
       assert.strictEqual(await live.save(), false, 'the live save is refused');
-      assert.strictEqual(parse(await read(local)).metadata.labels.local, 'edit', 'the local edit survives');
+      assert.strictEqual(
+        dig(parse(await read(local)), 'metadata', 'labels', 'local'),
+        'edit',
+        'the local edit survives',
+      );
     } finally {
       await vscode.commands.executeCommand('workbench.action.files.revert', live.uri);
       await api.sync.discard(local).catch(() => undefined);
@@ -663,7 +700,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await api.sync.syncResource(topicKind, ['local-kafka'], name);
     }
 
-    const other = vscode.Uri.from({ ...api.liveUri(node), authority: 'another-connection' });
+    const other = api.liveUri(node).with({ authority: 'another-connection' });
     await assert.rejects(
       Promise.resolve(vscode.workspace.fs.writeFile(other, new TextEncoder().encode(live.getText()))),
     );
@@ -683,10 +720,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       api.liveUri({ type: 'resource', kind: topicKind, parents: ['local-kafka'], name }),
     );
     const renamed = `vscode-copy-${Date.now()}`;
-    const edited = parse(live.getText());
-    edited.metadata.name = renamed;
+    const edited = withValue(live.getText(), ['metadata', 'name'], renamed);
     const edit = new vscode.WorkspaceEdit();
-    edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), stringify(edited));
+    edit.replace(live.uri, new vscode.Range(0, 0, live.lineCount, 0), edited);
     assert.ok(await vscode.workspace.applyEdit(edit));
     assert.ok(await live.save());
     await api.sync.refresh();
@@ -787,7 +823,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(await read(baseOf(single)), topic(id));
       await vscode.commands.executeCommand('workbench.action.files.revert', single);
 
-      api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+      api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
       await vscode.workspace.fs.writeFile(
         pair,
         new TextEncoder().encode(`${topic(names[1]!)}---\n${topic(names[2]!)}`),
@@ -816,7 +852,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test("reads each file's includes next to it when the sync folder is outside the workspace", async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     assert.strictEqual(state.connection.mode, 'dev');
@@ -857,7 +893,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('counts an included file in status, and discards it back', async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     assert.strictEqual(state.connection.mode, 'dev');
@@ -897,8 +933,12 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(api.sync.entryAt(uri)?.status, 'synced');
 
       await api.sync.syncResource(state.spec.catalog.latest('Subject')!, ['local-kafka'], name);
-      assert.strictEqual(parse(readFileSync(uri.fsPath, 'utf8')).spec.schemaFile, 'schema.avsc', 'the layout stays');
-      assert.strictEqual(JSON.parse(readFileSync(file, 'utf8')).fields[0].name, 'applied');
+      assert.strictEqual(
+        dig(parse(readFileSync(uri.fsPath, 'utf8')), 'spec', 'schemaFile'),
+        'schema.avsc',
+        'the layout stays',
+      );
+      assert.strictEqual(dig(JSON.parse(readFileSync(file, 'utf8')), 'fields', 0, 'name'), 'applied');
     } finally {
       await state.client.delete(`/public/kafka/v2/cluster/local-kafka/subject/${name}`).catch(() => undefined);
       await useWorkspaceSyncRoot(api);
@@ -1043,15 +1083,16 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual(again.unchanged, total);
 
       const topic = api.sync.list().find((e) => e.kind === 'Topic')!;
-      const edited = parse(readFileSync(topic.uri.fsPath, 'utf8'));
-      edited.metadata.labels = { ...(edited.metadata.labels ?? {}), local: 'edit' };
-      writeFileSync(topic.uri.fsPath, stringify(edited));
+      writeFileSync(
+        topic.uri.fsPath,
+        withValue(readFileSync(topic.uri.fsPath, 'utf8'), ['metadata', 'labels', 'local'], 'edit'),
+      );
       await api.sync.refresh();
       const third = await api.sync.syncEverything(kinds);
       // Nothing new on the Console, so the local edit is just a local change: kept, and not a conflict.
       assert.deepStrictEqual(third.conflicts, []);
       assert.strictEqual(third.unchanged, total);
-      assert.strictEqual(parse(readFileSync(topic.uri.fsPath, 'utf8')).metadata.labels.local, 'edit');
+      assert.strictEqual(dig(parse(readFileSync(topic.uri.fsPath, 'utf8')), 'metadata', 'labels', 'local'), 'edit');
       await api.sync.discard(topic.uri);
 
       // The Gateway's cluster is a simulator: it holds ACLs Kafka (and so Console) would refuse, such as
@@ -1132,11 +1173,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       mode,
     }));
     try {
-      await settings.update(
-        'connections',
-        [...((before as object[]) ?? []), ...legacy],
-        vscode.ConfigurationTarget.Global,
-      );
+      await settings.update('connections', [...(before ?? []), ...legacy], vscode.ConfigurationTarget.Global);
       const modes = () =>
         Object.fromEntries(
           api.connections
@@ -1187,7 +1224,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     );
     const [missing] = (await api.dryRun(file)) ?? [];
     assert.ok(
-      missing?.outcome.status === 'error' && /TEAM/.test(missing.outcome.message),
+      missing?.outcome.status === 'error' && missing.outcome.message.includes('TEAM'),
       `a .env above the repository is not read: ${JSON.stringify(missing?.outcome)}`,
     );
     writeFileSync(join(repo, '.env'), 'TEAM=data\r\n');
@@ -1209,7 +1246,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         spec: { partitions: 1, replicationFactor: 1 },
       });
     const problems = (uri: vscode.Uri) =>
-      vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'Conduktor' && /no-such-cluster/.test(d.message));
+      vscode.languages
+        .getDiagnostics(uri)
+        .filter((d) => d.source === 'Conduktor' && d.message.includes('no-such-cluster'));
     const settings = vscode.workspace.getConfiguration('conduktor.validation');
     try {
       const bad = vscode.Uri.file(join(folder, 'bad.yaml'));
@@ -1252,7 +1291,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
           kind: state.spec.catalog.latest('Topic')!,
           parents: ['local-kafka'],
           name: 'orders',
-        } as ResourceNode),
+        }),
       );
       await api.validator.settled();
       assert.strictEqual(api.resources.lastResult(live.uri, 0), undefined, 'a live document is the Console’s own');
@@ -1431,16 +1470,16 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       spec: { partitions: 1, replicationFactor: 1 },
     };
     let asked = 0;
-    api.setConfirm(async (_message, _detail, ...actions) => {
+    api.setConfirm((_message, _detail, ...actions) => {
       asked++;
-      return actions[0];
+      return Promise.resolve(actions[0]);
     });
     try {
       await api.connections.update({ ...connection, mode: 'prod' });
       await settledOn(api, connection.id);
       const prod = api.sessions.current();
       if (prod.status !== 'ready') assert.fail(prod.status);
-      await prod.client.upsert(upsertTarget(topicKind, topic as Resource), topic as Resource, { dryRun: false });
+      await prod.client.upsert(upsertTarget(topicKind, topic), topic, { dryRun: false });
       const file = vscode.Uri.file(join(mkdtempSync(join(tmpdir(), 'conduktor-prod-')), 't.yaml'));
       writeFileSync(file.fsPath, stringify({ ...topic, spec: { partitions: 2, replicationFactor: 1 } }));
       assert.strictEqual(await api.apply(file), undefined, 'apply');
@@ -1449,7 +1488,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         kind: topicKind,
         parents: ['local-kafka'],
         name,
-      } as ResourceNode);
+      });
       assert.strictEqual(
         await vscode.commands.executeCommand('conduktor.applyEnvironment'),
         undefined,
@@ -1461,7 +1500,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       assert.strictEqual((live.spec as { partitions: number }).partitions, 1, 'still there, unchanged');
     } finally {
       await state.client.delete(path).catch(() => undefined);
-      api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+      api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
       await api.connections.update(connection);
       await settledOn(api, connection.id);
     }
@@ -1769,7 +1808,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const second = await api.sync.writeNew(kind, [], instance(`${id}-b`, `${id}.orders`), `${id}-b`);
     try {
       const doc = await vscode.workspace.openTextDocument(second);
-      await until(() => problems(doc.uri).some((d) => /^Overlaps/.test(d.message)));
+      await until(() => problems(doc.uri).some((d) => d.message.startsWith('Overlaps')));
       const messages = problems(doc.uri).map((d) => d.message);
       assert.ok(messages.includes(`Overlaps TOPIC ${id}. (PREFIXED) owned by ${id}-a.`), messages.join('\n'));
       assert.ok(
@@ -1886,7 +1925,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
   test('sees a resource it has just applied, without a manual refresh', async () => {
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     assert.strictEqual(state.connection.mode, 'dev');
@@ -2098,21 +2137,25 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     if (state.status !== 'ready') assert.fail(state.status);
     await useWorkspaceSyncRoot(api);
     const asked: string[] = [];
-    api.setVariantPicker(async (choice) => {
+    api.setVariantPicker((choice) => {
       asked.push(choice.path.join('.'));
-      return choice.path.join('.') === 'spec.kafkaFlavor' ? 'Gateway' : null;
+      return Promise.resolve(choice.path.join('.') === 'spec.kafkaFlavor' ? 'Gateway' : null);
     });
     const doc = await api.newResource({ type: 'kind', kind: state.spec.catalog.latest('KafkaCluster')!, parents: [] });
     assert.ok(doc);
     try {
       assert.ok(asked.includes('spec.kafkaFlavor'), asked.join(', '));
-      const value = parse(doc.getText());
-      assert.strictEqual(value.spec.kafkaFlavor.type, 'Gateway');
-      assert.ok(!('schemaRegistry' in value.spec));
-      value.metadata.name = `vscode-skeleton-${Date.now()}`;
-      value.spec.displayName = 'D';
-      value.spec.bootstrapServers = 'gateway-plain-1:9099';
-      Object.assign(value.spec.kafkaFlavor, {
+      const value: unknown = parse(doc.getText());
+      const metadata = dig(value, 'metadata');
+      const spec = dig(value, 'spec');
+      const flavor = dig(spec, 'kafkaFlavor');
+      assert.ok(isRecord(metadata) && isRecord(spec) && isRecord(flavor), doc.getText());
+      assert.strictEqual(flavor.type, 'Gateway');
+      assert.ok(!('schemaRegistry' in spec));
+      metadata.name = `vscode-skeleton-${Date.now()}`;
+      spec.displayName = 'D';
+      spec.bootstrapServers = 'gateway-plain-1:9099';
+      Object.assign(flavor, {
         url: 'http://gateway-plain-1:8888',
         user: 'admin',
         password: 'conduktor',
@@ -2124,7 +2167,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
 
       const before = api.sync.list().length;
       let questions = 0;
-      api.setVariantPicker(async (choice) => (questions++ === 0 ? choice.options[0]! : undefined));
+      api.setVariantPicker((choice) => Promise.resolve(questions++ === 0 ? choice.options[0] : undefined));
       const dismissed = await api.newResource({
         type: 'kind',
         kind: state.spec.catalog.latest('KafkaCluster')!,
@@ -2135,14 +2178,14 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await api.sync.refresh();
       assert.strictEqual(api.sync.list().length, before);
 
-      api.setVariantPicker(async () => null);
+      api.setVariantPicker(() => Promise.resolve(null));
       const integration = state.spec.catalog.latest('Integration')!;
       const drafts = [
         await api.newResource({ type: 'kind', kind: integration, parents: [] }),
         await api.newResource({ type: 'kind', kind: integration, parents: [] }),
       ];
       try {
-        const names = drafts.map((d) => parse(d!.getText()).metadata.name as string);
+        const names = drafts.map((d) => nameIn(d!.getText()));
         assert.notStrictEqual(names[0], names[1], 'each draft takes an allowed name not yet used');
         drafts.forEach((d, i) => assert.ok(d!.uri.path.endsWith(`/${names[i]}.yaml`), d!.uri.path));
       } finally {
@@ -2159,6 +2202,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const state = api.sessions.current();
     if (state.status !== 'ready') assert.fail(state.status);
     await api.clusters.set('local-kafka');
+    const labelOf = (i: vscode.CompletionItem) => (typeof i.label === 'string' ? i.label : i.label.label);
     const complete = async (content: string, offset = content.length) => {
       const doc = await vscode.workspace.openTextDocument({ language: 'yaml', content });
       const list = await vscode.commands.executeCommand<vscode.CompletionList>(
@@ -2166,13 +2210,11 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         doc.uri,
         doc.positionAt(offset),
       );
-      return list.items.filter((i) =>
-        String(typeof i.label === 'string' ? i.label : i.label.label).startsWith('Conduktor: '),
-      );
+      return list.items.filter((i) => labelOf(i).startsWith('Conduktor: '));
     };
     const items = await complete('Top');
     const topic = items.find((i) => i.label === 'Conduktor: Topic');
-    assert.ok(topic, items.map((i) => i.label).join(', '));
+    assert.ok(topic, items.map(labelOf).join(', '));
     const snippet = (topic.insertText as vscode.SnippetString).value;
     assert.match(snippet, /kind: Topic/);
     assert.match(snippet, /cluster: \$\{2\|local-kafka,/);
@@ -2202,15 +2244,18 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const topic = state.spec.catalog.latest('Topic')!;
     try {
       let offered: string[] = [];
-      api.setTemplatePicker(async (_kind, templates) => {
+      api.setTemplatePicker((_kind, templates) => {
         offered = templates.map((t) => t.label);
-        return templates.find((t) => t.label === 'high-throughput')!.uri;
+        return Promise.resolve(templates.find((t) => t.label === 'high-throughput')!.uri);
       });
       const doc = await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] });
       assert.deepStrictEqual(offered.sort(), ['broken', 'high-throughput']);
       assert.ok(doc);
       assert.match(doc.getText(), /^# Our standard/);
-      assert.deepStrictEqual(parse(doc.getText()).metadata, { name: 'high-throughput', cluster: 'local-kafka' });
+      assert.deepStrictEqual(dig(parse(doc.getText()), 'metadata'), {
+        name: 'high-throughput',
+        cluster: 'local-kafka',
+      });
       assert.ok(
         doc.uri.path.endsWith(
           `/environments/${state.connection.name}/clusters/local-kafka/kafka/Topic/high-throughput.yaml`,
@@ -2220,14 +2265,14 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
       const again = await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] });
-      assert.strictEqual(parse(again!.getText()).metadata.name, 'high-throughput-2', 'a free name from the template');
+      assert.strictEqual(nameIn(again!.getText()), 'high-throughput-2', 'a free name from the template');
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
       await api.sync.refresh();
       const before = api.sync.list().length;
-      api.setTemplatePicker(async (_kind, templates) => templates.find((t) => t.label === 'broken')!.uri);
+      api.setTemplatePicker((_kind, templates) => Promise.resolve(templates.find((t) => t.label === 'broken')!.uri));
       assert.strictEqual(await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] }), undefined);
-      api.setTemplatePicker(async () => undefined);
+      api.setTemplatePicker(() => Promise.resolve(undefined));
       assert.strictEqual(await api.newResource({ type: 'parent', kind: topic, parents: ['local-kafka'] }), undefined);
       await api.sync.refresh();
       assert.strictEqual(api.sync.list().length, before, 'a broken or dismissed template writes nothing');
@@ -2237,9 +2282,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         vscode.Uri.joinPath(root, 'templates', 'Integration', 'slack.yaml'),
         new TextEncoder().encode('apiVersion: v3\nkind: Integration\nmetadata:\n  name: Slack\nspec: {}\n'),
       );
-      api.setTemplatePicker(async (_kind, templates) => templates[0]!.uri);
+      api.setTemplatePicker((_kind, templates) => Promise.resolve(templates[0]!.uri));
       const slack = await api.newResource({ type: 'kind', kind: integration, parents: [] });
-      assert.strictEqual(parse(slack!.getText()).metadata.name, 'Slack', 'a fixed-name template keeps its own name');
+      assert.strictEqual(nameIn(slack!.getText()), 'Slack', 'a fixed-name template keeps its own name');
       assert.ok(slack!.uri.path.endsWith('/Integration/Slack.yaml'), slack!.uri.path);
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
       assert.strictEqual(
@@ -2297,15 +2342,18 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       new vscode.Position(7, 6),
     );
     const text = hovers
-      .flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')))
+      .flatMap((h) =>
+        h.contents.map((c) => (typeof c === 'string' ? c : c instanceof vscode.MarkdownString ? c.value : '')),
+      )
       .join('\n');
     assert.match(text, /topicconfigs_retention\.ms/);
 
     const presets = await complete(at(5));
     const compacted = presets.items.find((i) => label(i) === 'Preset: Compacted (latest value per key)');
     assert.ok(compacted?.command, presets.items.map(label).join(', '));
-    await vscode.commands.executeCommand(compacted.command.command, ...(compacted.command.arguments ?? []));
-    assert.strictEqual(parse(doc.getText()).spec.configs['cleanup.policy'], 'compact');
+    const compactedArguments: unknown[] = compacted.command.arguments ?? [];
+    await vscode.commands.executeCommand(compacted.command.command, ...compactedArguments);
+    assert.strictEqual(dig(parse(doc.getText()), 'spec', 'configs', 'cleanup.policy'), 'compact');
 
     const empty = await vscode.workspace.openTextDocument({
       language: 'yaml',
@@ -2318,8 +2366,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     );
     const durable = offered.items.find((i) => label(i) === 'Preset: Durable');
     assert.ok(durable?.command, offered.items.map(label).join(', '));
-    await vscode.commands.executeCommand(durable.command.command, ...(durable.command.arguments ?? []));
-    assert.deepStrictEqual(parse(empty.getText()).spec, {
+    const durableArguments: unknown[] = durable.command.arguments ?? [];
+    await vscode.commands.executeCommand(durable.command.command, ...durableArguments);
+    assert.deepStrictEqual(dig(parse(empty.getText()), 'spec'), {
       replicationFactor: 3,
       configs: { 'min.insync.replicas': '2', 'unclean.leader.election.enable': 'false' },
     });
@@ -2342,7 +2391,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       await api.sync.setSyncRoot(root);
       const moved = api.sync.entryFor('KafkaCluster', [], 'legacy');
       assert.strictEqual(moved?.uri.fsPath, join(root.fsPath, 'environments', env, file));
-      assert.strictEqual(moved?.status, 'synced', 'the base came along');
+      assert.strictEqual(moved.status, 'synced', 'the base came along');
       await vscode.workspace.fs.stat(vscode.Uri.joinPath(root, '.conduktor', 'base', env, file));
       assert.ok(!existsSync(join(root.fsPath, env)), 'the old folder is gone');
       assert.ok(!existsSync(join(root.fsPath, 'environments', env, '.conduktor')), 'nothing but resources is left');
@@ -2416,8 +2465,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       const { documents, took: indexed } = await timed();
       assert.ok(indexed < 300, `the name index took ${indexed} ms after one change`);
       assert.strictEqual(
-        (documents.find((d) => d.resource.metadata.name === 't-11')?.resource.spec as { partitions?: number })
-          ?.partitions,
+        dig(documents.find((d) => d.resource.metadata.name === 't-11')?.resource.spec, 'partitions'),
         5,
         'the changed file is read afresh',
       );
@@ -2449,7 +2497,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         doc.positionAt(content.indexOf(needle) + inside),
       );
       return hovers
-        .flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')))
+        .flatMap((h) =>
+          h.contents.map((c) => (typeof c === 'string' ? c : c instanceof vscode.MarkdownString ? c.value : '')),
+        )
         .join('\n');
     };
     assert.match(
@@ -2470,7 +2520,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       registry.uri,
       registry.positionAt(cluster2.lastIndexOf('type') + 1),
     );
-    const text = described!.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')).join('\n');
+    const text = described!.contents
+      .map((c) => (typeof c === 'string' ? c : c instanceof vscode.MarkdownString ? c.value : ''))
+      .join('\n');
     assert.match(text, /\[Confluent or Confluent-like Registry\]\([^)]*#confluent-or-confluent-like-registry\)/);
     assert.match(text, /\[AWS Glue registry\]/, 'each section the docs describe it in is named');
     assert.match(text, /\[Docs\]\([^)]*#kafkacluster\)/, 'the Docs link goes to the kind when sections differ');
@@ -2483,7 +2535,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
         opened.positionAt(content.indexOf(needle) + 1),
       );
       return found
-        .flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')))
+        .flatMap((h) =>
+          h.contents.map((c) => (typeof c === 'string' ? c : c instanceof vscode.MarkdownString ? c.value : '')),
+        )
         .join('\n');
     };
     const unscoped = await hoverIn(
@@ -2519,7 +2573,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       }).catch(() => {
         const current = api.sessions.current();
         throw new Error(
-          `switching to ${id}: ${JSON.stringify({ status: current.status, message: 'message' in current ? current.message : undefined, id: 'connection' in current ? current.connection?.id : undefined })}`,
+          `switching to ${id}: ${JSON.stringify({ status: current.status, message: 'message' in current ? current.message : undefined, id: 'connection' in current ? current.connection.id : undefined })}`,
         );
       });
     };
@@ -2571,7 +2625,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       return (
         found && {
           badge: found.badge,
-          color: (found.color as vscode.ThemeColor | undefined)?.id,
+          color: found.color?.id,
           up: !!found.propagate,
         }
       );
@@ -2590,20 +2644,18 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       });
       assert.strictEqual((synced.iconPath as vscode.ThemeIcon).id, 'check');
       assert.strictEqual(synced.resourceUri?.scheme, 'conduktor-tree');
-      assert.strictEqual(look(synced.resourceUri!), undefined, 'synced reads as normal');
+      assert.strictEqual(look(synced.resourceUri), undefined, 'synced reads as normal');
 
       // A collapsed kind shows the dot only from decorations VS Code already holds, so a change names each resource.
       const announced: string[] = [];
       const listening = api.treeDecorations.onDidChangeFileDecorations((uris) => {
-        for (const changed of Array.isArray(uris) ? uris : uris ? [uris] : []) announced.push(changed.toString());
+        for (const changed of uris ?? []) announced.push(changed.toString());
       });
-      const edited = parse(readFileSync(uri.fsPath, 'utf8'));
-      edited.spec.displayName = 'Edited here';
-      writeFileSync(uri.fsPath, stringify(edited));
+      writeFileSync(uri.fsPath, withValue(readFileSync(uri.fsPath, 'utf8'), ['spec', 'displayName'], 'Edited here'));
       await api.sync.refresh();
       listening.dispose();
-      assert.ok(announced.includes(synced.resourceUri!.toString()), announced.join('\n'));
-      assert.deepStrictEqual(look(synced.resourceUri!), {
+      assert.ok(announced.includes(synced.resourceUri.toString()), announced.join('\n'));
+      assert.deepStrictEqual(look(synced.resourceUri), {
         badge: 'M',
         color: 'gitDecoration.modifiedResourceForeground',
         up: true,
@@ -2662,15 +2714,13 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     try {
       const uri = await api.sync.syncResource(state.spec.catalog.latest('KafkaCluster')!, [], 'local-gateway');
       const base = readFileSync(uri.fsPath, 'utf8');
-      const edited = parse(base);
-      edited.spec.displayName = 'Edited locally';
-      writeFileSync(uri.fsPath, stringify(edited));
+      writeFileSync(uri.fsPath, withValue(base, ['spec', 'displayName'], 'Edited locally'));
       await api.sync.refresh();
       await vscode.window.showTextDocument(uri);
       await vscode.commands.executeCommand('conduktor.openChanges');
       const changes = diffTab();
       assert.strictEqual(changes?.original.scheme, 'conduktor-base');
-      assert.strictEqual(changes?.modified.toString(), uri.toString());
+      assert.strictEqual(changes.modified.toString(), uri.toString());
       assert.strictEqual((await vscode.workspace.openTextDocument(changes.original)).getText(), base);
       await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
@@ -2803,7 +2853,7 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
   test("plans and applies an environment with ctl, and leaves a removed file's resource on the Console", async function () {
     if (spawnSync('docker', ['version']).status !== 0) return this.skip();
     const api = await activate();
-    api.setConfirm(async (_message, _detail, ...actions) => actions[0]);
+    api.setConfirm((_message, _detail, ...actions) => Promise.resolve(actions[0]));
     await api.connections.add({ id: 'smoke-apply', name: 'smoke-apply', url: baseUrl!, mode: 'dev' }, apiKey!);
     // Adding an already active connection reloads twice; wait until it is ready and stays so.
     const ready = () => {
@@ -2853,9 +2903,9 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
       rmSync(file.fsPath);
       await api.sync.refresh();
       let asked = '';
-      api.setConfirm(async (_message, detail, ...actions) => {
-        asked = detail ?? '';
-        return actions[0];
+      api.setConfirm((_message, detail, ...actions) => {
+        asked = detail;
+        return Promise.resolve(actions[0]);
       });
       const removal =
         await vscode.commands.executeCommand<{ kind: string; name: string; result: string }[]>(

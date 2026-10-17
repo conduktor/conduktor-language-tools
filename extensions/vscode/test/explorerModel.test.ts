@@ -23,11 +23,11 @@ function source(responses: Record<string, Resource[] | Error>, extra: Partial<Ex
     catalog,
     cluster: 'local',
     client: {
-      list: async (path: string) => {
+      list: (path: string) => {
         const response = responses[path];
-        if (response instanceof Error) throw response;
-        if (!response) throw new Error(`unexpected ${path}`);
-        return response;
+        if (response instanceof Error) return Promise.reject(response);
+        if (!response) return Promise.reject(new Error(`unexpected ${path}`));
+        return Promise.resolve(response);
       },
     },
     ...extra,
@@ -111,6 +111,10 @@ describe('childrenOf', () => {
       { type: 'scope', scope: 'cluster' },
     ]);
     expect(await childrenOf(s, { type: 'scope', scope: 'cluster' })).toEqual([
+      { type: 'message', text: 'Select a cluster…', selectCluster: true },
+    ]);
+    // A group still shown from before the cluster was cleared.
+    expect(await childrenOf(s, { type: 'group', group: 'kafka', scope: 'cluster' })).toEqual([
       { type: 'message', text: 'Select a cluster…', selectCluster: true },
     ]);
   });

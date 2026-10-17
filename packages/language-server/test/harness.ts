@@ -10,10 +10,13 @@ import {
   StreamMessageWriter,
   type MessageConnection,
 } from 'vscode-jsonrpc/node';
+import { expect } from 'vitest';
 import type {
   ApplyWorkspaceEditParams,
+  Command,
   ConfigurationParams,
   Diagnostic,
+  ExecuteCommandParams,
   ShowDocumentParams,
   PublishDiagnosticsParams,
   ShowMessageParams,
@@ -21,10 +24,11 @@ import type {
 } from 'vscode-languageserver';
 import { snapshotPath } from './fixtures';
 
-export interface ConsoleRequest {
+interface ConsoleRequest {
   method: string;
   url: string;
-  authorization?: string;
+  /** The request's Authorization header, `undefined` when it had none. */
+  authorization: string | undefined;
   body: string;
 }
 
@@ -49,7 +53,7 @@ export async function fakeConsole(
   const requests: ConsoleRequest[] = [];
   const server: Server = createServer((request, response) => {
     let body = '';
-    request.on('data', (chunk) => (body += chunk));
+    request.on('data', (chunk: Buffer) => (body += chunk.toString()));
     request.on('end', () => {
       if (options.silentWrites && request.method === 'PUT') {
         requests.push({
@@ -105,6 +109,10 @@ export async function fakeConsole(
   };
 }
 
+// Vitest types its asymmetric matchers `any`; a field of an expected object takes them as the opaque values they are.
+export const matching = (pattern: RegExp): unknown => expect.stringMatching(pattern);
+export const anything = (): unknown => expect.anything();
+
 /** Polls until the check holds: for what the server does on its own, with nothing to wait on. */
 export async function until(check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -153,6 +161,8 @@ export interface Started {
   /** Changes the settings, as Zed does when the user edits them. */
   configure(settings: unknown): void;
   command(command: string, ...args: unknown[]): Promise<unknown>;
+  /** Runs a code action's command, as the editor does once the user picks it. */
+  run(command: Command): Promise<unknown>;
   stop(): void;
 }
 
@@ -173,7 +183,7 @@ export async function startServer(directory: string, options: StartOptions = {})
   );
   // A server that dies fails the test with what it said, rather than leaving it to time out.
   let stderr = '';
-  child.stderr!.on('data', (chunk) => (stderr += chunk));
+  child.stderr!.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
   const exited = new Promise<never>((_, reject) =>
     child.once('exit', (code) => reject(new Error(`The server exited with ${code}:\n${stderr}`))),
   );
@@ -219,6 +229,8 @@ export async function startServer(directory: string, options: StartOptions = {})
   connection.onRequest('workspace/configuration', (params: ConfigurationParams) =>
     params.items.map((item) => (item.section === 'conduktor' ? (settings ?? null) : null)),
   );
+  const execute = (params: ExecuteCommandParams) =>
+    Promise.race([connection.sendRequest('workspace/executeCommand', params), exited]);
   const push = () =>
     void connection.sendNotification('workspace/didChangeConfiguration', { settings: { conduktor: settings ?? null } });
   connection.listen();
@@ -261,8 +273,8 @@ export async function startServer(directory: string, options: StartOptions = {})
       void connection.sendNotification('textDocument/didOpen', {
         textDocument: { uri, languageId: 'yaml', version: 1, text },
       }),
-    command: (command, ...args) =>
-      Promise.race([connection.sendRequest('workspace/executeCommand', { command, arguments: args }), exited]),
+    command: (command, ...args) => execute({ command, arguments: args }),
+    run: ({ command, arguments: args = [] }) => execute({ command, arguments: args }),
     stop: () => {
       connection.dispose();
       child.kill();

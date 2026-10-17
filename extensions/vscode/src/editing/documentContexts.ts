@@ -59,6 +59,6 @@ export class DocumentContexts implements vscode.Disposable {
 
   dispose(): void {
     if (this.timer) clearTimeout(this.timer);
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
   }
 }

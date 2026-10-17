@@ -17,11 +17,17 @@ function harness() {
         const done = () => active--;
         runs.push({
           options,
-          finish: () => (done(), resolve()),
-          fail: (error) => (done(), reject(error)),
+          finish: () => {
+            done();
+            resolve();
+          },
+          fail: (error) => {
+            done();
+            reject(error);
+          },
         });
       }),
-    (a, b) => ({ drift: a.drift || b.drift }),
+    (a, b) => ({ drift: a.drift === true || b.drift === true }),
   );
   return { refresh, runs, overlapped: () => overlapped };
 }

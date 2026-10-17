@@ -14,12 +14,14 @@ const APPLY_FAILED = /^Could not apply resource ([A-Za-z]+)\/(\S+): (.*)$/;
 export function readCliOutput(stdout: string, stderr: string): CliOutcome[] {
   const outcomes: CliOutcome[] = [];
   for (const line of stdout.split(/\r?\n/)) {
-    const result = RESULT.exec(line);
-    if (result) outcomes.push({ kind: result[1]!, name: result[2]!, result: result[3] as CliOutcome['result'] });
+    const [, kind, name, result] = RESULT.exec(line) ?? [];
+    if (kind !== undefined && name !== undefined && result !== undefined)
+      outcomes.push({ kind, name, result: result as CliOutcome['result'] });
   }
   for (const line of stderr.split(/\r?\n/)) {
-    const failed = APPLY_FAILED.exec(line);
-    if (failed) outcomes.push({ kind: failed[1]!, name: failed[2]!, result: 'failed', message: failed[3]! });
+    const [, kind, name, message] = APPLY_FAILED.exec(line) ?? [];
+    if (kind !== undefined && name !== undefined && message !== undefined)
+      outcomes.push({ kind, name, result: 'failed', message });
   }
   return outcomes;
 }

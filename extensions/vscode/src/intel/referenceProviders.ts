@@ -7,11 +7,11 @@ import type { Names } from './names';
 
 type Ready = Extract<SessionState, { status: 'ready' }>;
 
-async function referenceUnder(
+function referenceUnder(
   sessions: SessionManager,
   document: vscode.TextDocument,
   position: vscode.Position,
-): Promise<{ reference: Reference; range: vscode.Range } | undefined> {
+): { reference: Reference; range: vscode.Range } | undefined {
   const state = sessions.current();
   if (state.status !== 'ready') return undefined;
   const offset = document.offsetAt(position);
@@ -37,7 +37,7 @@ export class ReferenceCompletionProvider implements vscode.CompletionItemProvide
     document: vscode.TextDocument,
     position: vscode.Position,
   ): Promise<vscode.CompletionItem[]> {
-    const found = await referenceUnder(this.sessions, document, position);
+    const found = referenceUnder(this.sessions, document, position);
     const parents = found?.reference.parents;
     if (!found || !parents) return [];
     const { reference, range } = found;
@@ -67,7 +67,7 @@ export class ReferenceDefinitionProvider implements vscode.DefinitionProvider {
 
   async provideDefinition(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Location[]> {
     const state = this.sessions.current();
-    const found = await referenceUnder(this.sessions, document, position);
+    const found = referenceUnder(this.sessions, document, position);
     if (state.status !== 'ready' || !found) return [];
     const target = await referenceTarget(state, this.sync, this.names, this.explorer, found.reference);
     return target ? [new vscode.Location(target.uri, new vscode.Position(0, 0))] : [];

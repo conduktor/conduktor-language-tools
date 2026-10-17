@@ -57,7 +57,7 @@ async function copyToWorkspace(sessions: SessionManager, target?: ResourceNode |
     const file = `${kebabCase(kind.kind)}-${name}.yaml`;
     const destination = await vscode.window.showSaveDialog({
       title: `Copy ${kind.kind} ${name} to the workspace`,
-      defaultUri: folder ? vscode.Uri.joinPath(folder.uri, file) : undefined,
+      ...(folder && { defaultUri: vscode.Uri.joinPath(folder.uri, file) }),
       filters: { YAML: ['yaml', 'yml'] },
     });
     if (!destination) return;

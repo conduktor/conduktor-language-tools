@@ -46,7 +46,7 @@ export class ClusterSelection implements vscode.Disposable {
     }
     const current = this.current();
     const picked = await vscode.window.showQuickPick(
-      names.map((name) => ({ label: name, description: name === current ? 'selected' : undefined })),
+      names.map((name) => ({ label: name, ...(name === current && { description: 'selected' }) })),
       { title: `Which cluster on ${state.connection.name}?` },
     );
     if (picked && this.sessions.current() === state) await this.set(picked.label);

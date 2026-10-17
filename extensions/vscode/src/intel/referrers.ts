@@ -69,8 +69,8 @@ export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeL
   private async locations(resource: Resource): Promise<vscode.Location[]> {
     const state = this.sessions.current();
     const kind = state.status === 'ready' ? state.spec.catalog.latest(resource.kind) : undefined;
-    if (state.status !== 'ready' || !kind || typeof resource.metadata?.name !== 'string') return [];
-    const parents = kind.parentPathParams.map((param) => String(resource.metadata[param] ?? ''));
+    if (state.status !== 'ready' || !kind) return [];
+    const parents = kind.parentPathParams.map((param) => scalarText(resource.metadata[param]));
     const target = { kind: kind.kind, parents, name: resource.metadata.name };
     const documents: RepoDocument[] = [];
     for (const referencing of referencingKinds(kind.kind))
@@ -81,14 +81,15 @@ export class ReferrersProvider implements vscode.ReferenceProvider, vscode.CodeL
       state.spec.catalog,
     );
     return referrers.flatMap(({ index, reference }) => {
-      const document = documents[index]!;
+      const document = documents[index];
+      if (!document) return [];
       const range = rangeOf(document.text, reference.path);
       return range ? [new vscode.Location(document.uri, rangeIn(document, range))] : [];
     });
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.changed.dispose();
   }
 }
@@ -100,4 +101,8 @@ function rangeIn(document: RepoDocument, [start, end]: [number, number]): vscode
     return new vscode.Position(line, before.length - before.lastIndexOf('\n') - 1);
   };
   return new vscode.Range(position(start), position(end));
+}
+
+function scalarText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : '';
 }

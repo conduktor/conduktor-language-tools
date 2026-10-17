@@ -35,5 +35,6 @@ export function fieldDocs(kind: string, path: YamlPath): FieldDoc[] {
 // The docs write list items as `[]` and some fields relative to `spec`.
 function segmentsOf(path: string): string[] {
   const segments = path.replace(/\[\]/g, '').split('.');
-  return ROOTS.has(segments[0]!) ? segments : ['spec', ...segments];
+  const [root = ''] = segments;
+  return ROOTS.has(root) ? segments : ['spec', ...segments];
 }

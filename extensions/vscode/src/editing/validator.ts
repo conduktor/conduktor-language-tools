@@ -59,7 +59,7 @@ export class Validator implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.timers.forEach((timer) => clearTimeout(timer));
   }
 
@@ -89,8 +89,9 @@ export class Validator implements vscode.Disposable {
   }
 
   private pump(): void {
-    while (this.running < AT_ONCE && this.queue.length > 0) {
-      const uri = this.queue.shift()!;
+    while (this.running < AT_ONCE) {
+      const uri = this.queue.shift();
+      if (!uri) break;
       // Only what the user has open: VS Code also loads documents for other reasons (the CLI's Problems, a search).
       if (!shownInTab(uri)) continue;
       this.running++;

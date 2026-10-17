@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parse, stringify } from 'yaml';
+import { stringify } from 'yaml';
+import type { Resource } from '../src/resources/types';
 import { collapseIncludes, expandedText, includeRestores, statusWithIncludes } from '../src/sync/includedStatus';
 import { driftOf, syncStatus } from '../src/sync/status';
 
@@ -9,19 +10,19 @@ const subject = stringify({
   metadata: { name: 's', cluster: 'c' },
   spec: { format: 'AVRO', schemaFile: 's.avsc' },
 });
-const applied = stringify({
+const appliedResource: Resource = {
   apiVersion: 'v2',
   kind: 'Subject',
   metadata: { name: 's', cluster: 'c' },
   spec: { format: 'AVRO', schema: 'A' },
-});
+};
+const applied = stringify(appliedResource);
 const reading = (content: string) => () => content;
 
 describe('included files in status', () => {
   it('drifts against the applied copy, not the file as written', () => {
-    const live = parse(applied);
-    expect(driftOf(applied, live)).toBeUndefined();
-    expect(driftOf(subject, live)).toBe('changed');
+    expect(driftOf(applied, appliedResource)).toBeUndefined();
+    expect(driftOf(subject, appliedResource)).toBe('changed');
   });
 
   it('is modified when an included file changed since it was applied', () => {

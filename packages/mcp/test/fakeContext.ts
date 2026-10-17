@@ -10,9 +10,9 @@ export function fakeContext(overrides: Partial<ToolContext> = {}): ToolContext {
     catalog: spec.catalog,
     schema: spec.schema,
     client: {
-      list: async () => [],
-      get: async () => ({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x' } }),
-      upsert: async (_target, resource: Resource) => ({ resource, upsertResult: 'Created' }),
+      list: () => Promise.resolve([]),
+      get: () => Promise.resolve({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x' } }),
+      upsert: (_target, resource: Resource) => Promise.resolve({ resource, upsertResult: 'Created' }),
     },
     ...overrides,
   };

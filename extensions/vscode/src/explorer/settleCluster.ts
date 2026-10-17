@@ -1,8 +1,8 @@
 export interface ClusterMemory<S> {
-  isCurrent(state: S): boolean;
-  remembered(state: S): string | undefined;
-  remember(state: S, cluster: string | undefined): PromiseLike<void>;
-  show(cluster: string | undefined): PromiseLike<void>;
+  isCurrent: (state: S) => boolean;
+  remembered: (state: S) => string | undefined;
+  remember: (state: S, cluster: string | undefined) => PromiseLike<void>;
+  show: (cluster: string | undefined) => PromiseLike<void>;
 }
 
 // Keeps a remembered cluster only while it exists, and picks the only cluster there is. Listing takes a round trip, so

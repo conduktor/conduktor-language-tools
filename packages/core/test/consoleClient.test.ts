@@ -4,9 +4,11 @@ import { ConsoleError, NetworkError } from '../src/client/errors';
 
 type Handler = (url: URL, init: RequestInit) => Response | Promise<Response>;
 
+const href = (input: string | URL | Request) => (input instanceof Request ? input.url : String(input));
+
 function client(handler: Handler, onRequest?: (e: RequestEvent) => void) {
   const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) =>
-    handler(new URL(String(input)), init ?? {}),
+    handler(new URL(href(input)), init ?? {}),
   );
   return {
     fetch,
@@ -14,7 +16,7 @@ function client(handler: Handler, onRequest?: (e: RequestEvent) => void) {
       baseUrl: 'http://console:8080',
       token: 'secret',
       userAgent: 'VSCode/0.0.1',
-      fetch: fetch as unknown as typeof globalThis.fetch,
+      fetch,
       onRequest,
     }),
   };
@@ -38,14 +40,14 @@ describe('ConsoleClient', () => {
     const { client: c, fetch } = client(() => json({ type: 'PersonalAccessToken', id: '1', email: 'a@b', name: 'n' }));
     await expect(c.whoami()).resolves.toMatchObject({ type: 'PersonalAccessToken' });
     const [url, init] = fetch.mock.calls[0]!;
-    expect(String(url)).toBe('http://console:8080/api/token/v1/whoami');
+    expect(href(url)).toBe('http://console:8080/api/token/v1/whoami');
     expect(init?.headers).toMatchObject({ Authorization: 'Bearer secret', 'X-CDK-CLIENT': 'VSCode/0.0.1' });
   });
 
   it('fetches the OpenAPI document without credentials', async () => {
     const { client: c, fetch } = client(() => new Response('openapi: 3.1.0'));
     await expect(c.fetchOpenApiText()).resolves.toBe('openapi: 3.1.0');
-    expect(String(fetch.mock.calls[0]![0])).toBe('http://console:8080/api/public/docs/docs.yaml');
+    expect(href(fetch.mock.calls[0]![0])).toBe('http://console:8080/api/public/docs/docs.yaml');
     expect(fetch.mock.calls[0]![1]?.headers).not.toHaveProperty('Authorization');
   });
 
@@ -56,7 +58,7 @@ describe('ConsoleClient', () => {
       c.upsert({ path: '/public/monitoring/v3/alert', query: { group: 'ops' } }, resource, { dryRun: true }),
     ).resolves.toEqual({ resource, upsertResult: 'NotChanged' });
     const [url, init] = fetch.mock.calls[0]!;
-    expect(String(url)).toBe('http://console:8080/api/public/monitoring/v3/alert?group=ops&dryMode=true');
+    expect(href(url)).toBe('http://console:8080/api/public/monitoring/v3/alert?group=ops&dryMode=true');
     expect(init).toMatchObject({ method: 'PUT', body: JSON.stringify(resource) });
     expect(init?.headers).toMatchObject({ 'Content-Type': 'application/json' });
   });
@@ -65,14 +67,14 @@ describe('ConsoleClient', () => {
     const resource = { apiVersion: 'v1', kind: 'Application', metadata: { name: 'shop' } };
     const { client: c, fetch } = client(() => json({ resource, upsertResult: 'Created' }));
     await c.upsert({ path: '/public/self-serve/v1/application', query: {} }, resource, { dryRun: false });
-    expect(String(fetch.mock.calls[0]![0])).toBe('http://console:8080/api/public/self-serve/v1/application');
+    expect(href(fetch.mock.calls[0]![0])).toBe('http://console:8080/api/public/self-serve/v1/application');
   });
 
   it('deletes with the bearer token and ignores the response body', async () => {
     const { client: c, fetch } = client(() => new Response(null, { status: 204 }));
     await expect(c.delete('/public/kafka/v2/cluster/local/topic/orders')).resolves.toBeUndefined();
     const [url, init] = fetch.mock.calls[0]!;
-    expect(String(url)).toBe('http://console:8080/api/public/kafka/v2/cluster/local/topic/orders');
+    expect(href(url)).toBe('http://console:8080/api/public/kafka/v2/cluster/local/topic/orders');
     expect(init).toMatchObject({ method: 'DELETE', headers: { Authorization: 'Bearer secret' } });
   });
 

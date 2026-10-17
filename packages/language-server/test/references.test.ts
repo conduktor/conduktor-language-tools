@@ -7,13 +7,13 @@ let fake: FakeConsole;
 const running: Started[] = [];
 
 beforeAll(async () => {
-  fake = await fakeConsole();
   directory = buildServer();
+  fake = await fakeConsole();
+  return () => fake.close();
 }, 60_000);
 
 afterAll(() => {
   running.forEach((server) => server.stop());
-  fake?.close();
 });
 
 async function start(options: StartOptions): Promise<Started> {

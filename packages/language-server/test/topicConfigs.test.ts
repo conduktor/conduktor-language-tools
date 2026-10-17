@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { CodeAction, CompletionItem, CompletionList, Hover, MarkupContent, TextEdit } from 'vscode-languageserver';
 import { buildServer, fakeConsole, startServer, type FakeConsole, type Started } from './harness';
 
@@ -7,15 +7,15 @@ let fake: FakeConsole;
 let server: Started;
 
 beforeAll(async () => {
-  fake = await fakeConsole();
   directory = buildServer();
-  server = await startServer(directory, { settings: { url: fake.url, name: 'fake' } });
+  fake = await fakeConsole();
+  return () => fake.close();
 }, 60_000);
 
-afterAll(() => {
-  server?.stop();
-  fake?.close();
-});
+beforeAll(async () => {
+  server = await startServer(directory, { settings: { url: fake.url, name: 'fake' } });
+  return () => server.stop();
+}, 60_000);
 
 let files = 0;
 function open(text: string): string {
@@ -45,7 +45,8 @@ describe("a Topic's configs", () => {
     expect(labels).toContain('retention.ms');
     expect(labels).not.toContain('min.insync.replicas');
     const retention = items!.find((i) => i.label === 'retention.ms')!;
-    expect(retention).toMatchObject({ insertTextFormat: 2, detail: expect.stringContaining('default 604800000') });
+    expect(retention).toMatchObject({ insertTextFormat: 2 });
+    expect(retention.detail).toContain('default 604800000');
     expect((retention.textEdit as TextEdit).newText).toMatch(/^retention\.ms: "?\$\{1:604800000\}"?$/);
     expect((retention.documentation as MarkupContent).value).toMatch(/^\*\*retention\.ms\*\*/);
   }, 30_000);
@@ -69,7 +70,7 @@ describe("a Topic's configs", () => {
 
   it('flag a key Kafka does not know and a value it would refuse', async () => {
     const uri = open(topic('    retention.mss: "1"\n    cleanup.policy: "sometimes"\n'));
-    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => /retention\.mss/.test(x.message)));
+    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('retention.mss')));
     expect(diagnostics.map((d) => [d.severity, d.range.start.line])).toEqual(
       expect.arrayContaining([
         [2, 8],
@@ -87,7 +88,7 @@ describe("a Topic's configs", () => {
     });
     const preset = actions.find((a) => a.title === 'Preset: High throughput')!;
     expect(preset).toBeDefined();
-    await server.command(preset.command!.command, ...preset.command!.arguments!);
+    await server.run(preset.command!);
     const [edit] = server.edits.at(-1)!.edit.changes![uri]!;
     expect(edit!.newText).toMatch(/partitions: 12/);
     expect(edit!.newText).toMatch(/name: orders/);

@@ -44,7 +44,7 @@ export class SessionManager implements vscode.Disposable {
   }
 
   get userAgent(): string {
-    return `VSCode/${this.context.extension.packageJSON.version as string}`;
+    return `VSCode/${(this.context.extension.packageJSON as { version: string }).version}`;
   }
 
   current(): SessionState {
@@ -65,7 +65,10 @@ export class SessionManager implements vscode.Disposable {
     const generation = ++this.generation;
     const connection = this.store.active();
     await vscode.commands.executeCommand('setContext', 'conduktor.hasConnection', connection !== undefined);
-    if (!connection) return this.update(generation, { status: 'none' });
+    if (!connection) {
+      this.update(generation, { status: 'none' });
+      return;
+    }
 
     this.update(generation, { status: 'loading', connection });
     const token = await this.store.token(connection.id);
@@ -96,7 +99,7 @@ export class SessionManager implements vscode.Disposable {
       });
     } catch (error) {
       this.output.error(`${connection.name}: ${describeError(error)}`);
-      this.update(generation, { status: 'error', connection, message: describeError(error), spec });
+      this.update(generation, { status: 'error', connection, message: describeError(error), ...(spec && { spec }) });
     }
   }
 

@@ -1,7 +1,7 @@
 import type { JsonSchema, OpenApiDoc } from './types';
 
 const CLI_TAG = /^cli_([^_]+)_([^_]+)_v(\d+)(?:_(\d+))?$/;
-const PATH_PARAM = /\{([^}]+)\}/g;
+const PATH_PARAM = /\{[^}]+\}/g;
 export const COMPONENT_REF = '#/components/schemas/';
 export const DEFAULT_ORDER = 1000;
 
@@ -27,18 +27,20 @@ export class KindCatalog {
       const match = item.put.tags?.map((tag) => CLI_TAG.exec(tag)).find((m) => m !== null);
       if (!match) continue;
       const [, kebabKind, group, version, order] = match;
+      if (kebabKind === undefined || group === undefined || version === undefined) continue;
       const body = item.put.requestBody?.content?.['application/json'];
+      const bodySchema = componentName(body?.schema);
       const kindVersion: KindVersion = {
-        kind: pascalCase(kebabKind!),
+        kind: pascalCase(kebabKind),
         version: Number(version),
-        group: group!,
+        group,
         order: order === undefined ? DEFAULT_ORDER : Number(order),
         listPath: path,
-        parentPathParams: [...path.matchAll(PATH_PARAM)].map((m) => m[1]!),
+        parentPathParams: (path.match(PATH_PARAM) ?? []).map((param) => param.slice(1, -1)),
         parentQueryParams: [...(item.parameters ?? []), ...(item.put.parameters ?? [])]
           .filter((p) => p.in === 'query' && p.name !== 'dryMode')
           .map((p) => p.name),
-        bodySchema: componentName(body?.schema),
+        ...(bodySchema !== undefined && { bodySchema }),
         applyExample: body?.example,
       };
       const versions = byKind.get(kindVersion.kind) ?? [];

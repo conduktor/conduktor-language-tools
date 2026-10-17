@@ -32,10 +32,12 @@ spec: { schemaFile: orders.avsc }
 
 describe('upsertDocuments', () => {
   it('dry-runs in apply order and reports per-document outcomes', async () => {
-    const upsert = vi.fn(async (target: { path: string }, _resource: unknown, _options: { dryRun: boolean }) => {
-      if (target.path.endsWith('/kafka-cluster')) return { resource: {} as never, upsertResult: 'NotChanged' as const };
-      return { resource: {} as never, upsertResult: 'Created' as const };
-    });
+    const upsert = vi.fn((target: { path: string }, _resource: unknown, _options: { dryRun: boolean }) =>
+      Promise.resolve({
+        resource: {} as never,
+        upsertResult: target.path.endsWith('/kafka-cluster') ? ('NotChanged' as const) : ('Created' as const),
+      }),
+    );
     const documents = parseResourceDocuments(text, { env: {} });
     const items = await upsertDocuments({ upsert }, snapshotCatalog, documents, {
       dryRun: true,
@@ -54,10 +56,9 @@ describe('upsertDocuments', () => {
   });
 
   it("reads each document's includes for that document, so files from different folders resolve on their own", async () => {
-    const upsert = vi.fn(async (_target: unknown, resource: unknown) => ({
-      resource: resource as never,
-      upsertResult: 'Created' as const,
-    }));
+    const upsert = vi.fn((_target: unknown, resource: unknown) =>
+      Promise.resolve({ resource: resource as never, upsertResult: 'Created' as const }),
+    );
     const subject = (name: string) =>
       `apiVersion: v2\nkind: Subject\nmetadata: { name: ${name}, cluster: local }\nspec: { schemaFile: s.avsc }\n`;
     const documents = [
@@ -76,9 +77,7 @@ describe('upsertDocuments', () => {
   });
 
   it('turns Console errors and parse errors into error outcomes', async () => {
-    const upsert = vi.fn(async () => {
-      throw new ConsoleError(403, 'No Ownership', 'You do not own orders');
-    });
+    const upsert = vi.fn(() => Promise.reject(new ConsoleError(403, 'No Ownership', 'You do not own orders')));
     const documents = parseResourceDocuments(
       'apiVersion: v2\nkind: Topic\nmetadata: { name: orders, cluster: ${C} }\nspec: {}\n---\n' +
         'apiVersion: v2\nkind: Topic\nmetadata: { name: t, cluster: local }\nspec: {}\n',
@@ -94,17 +93,14 @@ describe('upsertDocuments', () => {
   it('reports an include that cannot be read without a file', async () => {
     const documents = parseResourceDocuments(text, { env: {} }).filter((d) => d.kind === 'Subject');
     const items = await upsertDocuments({ upsert: vi.fn() }, snapshotCatalog, documents, { dryRun: true });
-    expect(items[0]?.outcome).toMatchObject({
-      status: 'error',
-      message: expect.stringMatching(/save the YAML as a file/),
-    });
+    expect(items[0]?.outcome).toMatchObject({ status: 'error' });
+    expect(items[0]?.outcome).toHaveProperty('message', expect.stringMatching(/save the YAML as a file/));
   });
 
   it('applies for real when dryRun is false', async () => {
-    const upsert = vi.fn(async (_target: unknown, _resource: unknown, _options: { dryRun: boolean }) => ({
-      resource: {} as never,
-      upsertResult: 'Updated' as const,
-    }));
+    const upsert = vi.fn((_target: unknown, _resource: unknown, _options: { dryRun: boolean }) =>
+      Promise.resolve({ resource: {} as never, upsertResult: 'Updated' as const }),
+    );
     const documents = parseResourceDocuments(
       'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec: {}\n',
       {

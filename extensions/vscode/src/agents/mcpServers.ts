@@ -44,7 +44,7 @@ export function registerClaudeCodeConfigCommand(
     installMcpServer(
       vscode.Uri.joinPath(context.extensionUri, 'dist').fsPath,
       vscode.Uri.joinPath(context.globalStorageUri, 'mcp').fsPath,
-      context.extension.packageJSON.version as string,
+      (context.extension.packageJSON as { version: string }).version,
     );
   // A config copied before an update keeps working: the copy it points at is refreshed when the extension starts.
   let installing = install().catch(() => undefined);

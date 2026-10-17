@@ -40,7 +40,7 @@ export function snippetVariants(root: JsonSchema): { label?: string; answers: An
   const keys = 'spec' in defaults ? ['spec'] : Object.keys(defaults).filter((k) => k.split('.').length <= 2);
   for (const key of keys) {
     const choice = nextChoice(root, withoutKey(defaults, key));
-    if (!choice || choice.path.join('.') !== key) continue;
+    if (choice?.path.join('.') !== key) continue;
     for (const option of choice.options)
       labelled.push({
         label: key === 'spec' ? option : `${key.slice('spec.'.length)} ${option}`,
@@ -55,7 +55,7 @@ export function snippetVariants(root: JsonSchema): { label?: string; answers: An
 function defaultAnswers(root: JsonSchema, fixed: Answers): Record<string, string | null> {
   const answers: Record<string, string | null> = { ...fixed };
   for (let c = nextChoice(root, answers); c; c = nextChoice(root, answers))
-    answers[c.path.join('.')] = c.optional ? null : c.options[0]!;
+    answers[c.path.join('.')] = c.optional ? null : c.options[0];
   return answers;
 }
 

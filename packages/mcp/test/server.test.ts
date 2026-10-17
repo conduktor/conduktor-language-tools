@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolContext } from '@conduktor/core';
 import { describe, expect, it } from 'vitest';
 import { createConduktorServer } from '../src/server';
@@ -13,8 +14,10 @@ async function connect(context: ToolContext) {
   return client;
 }
 
-const text = (result: Awaited<ReturnType<Client['callTool']>>) =>
-  (result.content as { type: string; text: string }[]).map((part) => part.text).join('');
+const text = (result: unknown) =>
+  CallToolResultSchema.parse(result)
+    .content.map((part) => (part.type === 'text' ? part.text : ''))
+    .join('');
 
 describe('Conduktor MCP server', () => {
   it('lists the core tools with their input schemas and tells agents the workflow', async () => {
@@ -38,8 +41,9 @@ describe('Conduktor MCP server', () => {
       arguments: { yaml: 'apiVersion: v2\nkind: Topic\nmetadata: { name: t, cluster: c }\nspec: { partitions: x }\n' },
     });
     expect(result.isError).toBeFalsy();
-    expect(JSON.parse(text(result)).documents[0].errors).toContainEqual(
-      expect.objectContaining({ path: '/spec/partitions' }),
+    expect(JSON.parse(text(result))).toHaveProperty(
+      ['documents', 0, 'errors'],
+      expect.arrayContaining([expect.objectContaining({ path: '/spec/partitions' })]),
     );
   });
 

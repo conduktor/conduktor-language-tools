@@ -6,7 +6,7 @@ import type { ClusterSelection } from './clusterSelection';
 import { scopeOf, type ExplorerNode, type ResourceNode } from './explorerModel';
 import type { ExplorerProvider } from './explorerProvider';
 
-export const AUTO_REVEAL = 'conduktor.explorer.autoReveal';
+const AUTO_REVEAL = 'conduktor.explorer.autoReveal';
 
 /** The tree node for a document: a live resource of this connection, or a file the sync folder tracks. */
 function nodeFor(uri: vscode.Uri, sessions: SessionManager, sync: SyncFolder): ResourceNode | undefined {
@@ -14,8 +14,8 @@ function nodeFor(uri: vscode.Uri, sessions: SessionManager, sync: SyncFolder): R
   if (state.status !== 'ready') return undefined;
   if (isLiveScheme(uri.scheme)) {
     const ref = parseLiveUriParts(uri.authority, uri.path);
-    const kind =
-      ref && ref.connectionId === state.connection.id && state.spec.catalog.resolve(`v${ref.version}`, ref.kind);
+    if (ref?.connectionId !== state.connection.id) return undefined;
+    const kind = state.spec.catalog.resolve(`v${ref.version}`, ref.kind);
     if (!kind) return undefined;
     // The tree marks a resource by its local copy, live document or not.
     const copy = sync.entryFor(kind.kind, ref.parents, ref.name);
@@ -81,6 +81,6 @@ export class Reveal implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
   }
 }

@@ -1,26 +1,24 @@
 import Ajv from 'ajv';
-import { describe, expect, it, vi } from 'vitest';
+import { assert, describe, expect, it, vi } from 'vitest';
 import { parseAllDocuments } from 'yaml';
 import { ConsoleError } from '../src/client/errors';
 import { buildResourceSchema } from '../src/openapi/schemaBuilder';
 import { conduktorTools, ToolError, type ToolContext } from '../src/tools';
 import type { Resource } from '../src/resources/types';
-import { snapshotCatalog, snapshotDoc } from './fixtures';
+import { isRecord } from '../src/util';
+import { at, snapshotCatalog, snapshotDoc } from './fixtures';
 
 const schema = buildResourceSchema(snapshotDoc, snapshotCatalog);
 
 function context(overrides: Partial<ToolContext> = {}) {
   const client = {
-    list: vi.fn(async (_path: string): Promise<Resource[]> => []),
-    get: vi.fn(async (_path: string): Promise<Resource> => ({
-      apiVersion: 'v2',
-      kind: 'Topic',
-      metadata: { name: 'x' },
-    })),
-    upsert: vi.fn(async (_target: unknown, resource: Resource, _options: { dryRun: boolean }) => ({
-      resource,
-      upsertResult: 'Created' as const,
-    })),
+    list: vi.fn((_path: string): Promise<Resource[]> => Promise.resolve([])),
+    get: vi.fn((_path: string): Promise<Resource> =>
+      Promise.resolve({ apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x' } }),
+    ),
+    upsert: vi.fn((_target: unknown, resource: Resource, _options: { dryRun: boolean }) =>
+      Promise.resolve({ resource, upsertResult: 'Created' as const }),
+    ),
   };
   const ctx: ToolContext = {
     connectionName: 'local',
@@ -61,13 +59,13 @@ describe('conduktor tools', () => {
 describe('conduktor_list_kinds', () => {
   it('lists kinds in apply order with their versions and parents', async () => {
     const { ctx } = context();
-    const result = JSON.parse(await tool('conduktor_list_kinds').run({}, ctx));
-    expect(result.console).toBe('local');
-    expect(result.kinds[0].kind).toBe('User');
-    expect(result.kinds).toContainEqual(
+    const result: unknown = JSON.parse(await tool('conduktor_list_kinds').run({}, ctx));
+    expect(at(result, 'console')).toBe('local');
+    expect(at(result, 'kinds', 0, 'kind')).toBe('User');
+    expect(at(result, 'kinds')).toContainEqual(
       expect.objectContaining({ kind: 'Topic', apiVersions: ['v2'], group: 'kafka', parents: ['cluster'] }),
     );
-    expect(result.kinds.find((k: { kind: string }) => k.kind === 'Alert').apiVersions).toEqual(['v2', 'v3']);
+    expect(at(result, 'kinds')).toContainEqual(expect.objectContaining({ kind: 'Alert', apiVersions: ['v2', 'v3'] }));
   });
 });
 
@@ -78,7 +76,8 @@ describe('conduktor_get_kind_schema', () => {
     const json = /```json\n([\s\S]*?)\n```/.exec(text)?.[1];
     const yaml = /```yaml\n([\s\S]*?)\n```/.exec(text)?.[1];
     expect(json && yaml).toBeTruthy();
-    const kindSchema = JSON.parse(json!);
+    const kindSchema: unknown = JSON.parse(json!);
+    assert(isRecord(kindSchema) && isRecord(kindSchema.definitions));
     expect(Object.keys(kindSchema.definitions)).toContain('TopicResourceV2');
     expect(Object.keys(kindSchema.definitions)).not.toContain('KafkaClusterResourceV2');
     const validate = new Ajv({ strict: false, validateFormats: false }).compile(kindSchema);
@@ -107,18 +106,18 @@ describe('conduktor_validate', () => {
       topic('{ partitions: three, replicationFactor: 1 }'),
       topic('{ partitions: 3, replicationFactor: 1 }', '{ name: ok, cluster: local }'),
     ].join('---\n');
-    const result = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
-    expect(result.documents[0]).toMatchObject({ index: 0, kind: 'Topic', name: 'orders', valid: false });
-    expect(result.documents[0].errors).toContainEqual(expect.objectContaining({ path: '/spec/partitions' }));
-    expect(result.documents[1]).toMatchObject({ name: 'ok', valid: true, errors: [] });
+    const result: unknown = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
+    expect(at(result, 'documents', 0)).toMatchObject({ index: 0, kind: 'Topic', name: 'orders', valid: false });
+    expect(at(result, 'documents', 0, 'errors')).toContainEqual(expect.objectContaining({ path: '/spec/partitions' }));
+    expect(at(result, 'documents', 1)).toMatchObject({ name: 'ok', valid: true, errors: [] });
   });
 
   it('names a missing required field', async () => {
     const { ctx } = context();
-    const result = JSON.parse(
+    const result: unknown = JSON.parse(
       await tool('conduktor_validate').run({ yaml: topic('{ partitions: 1 }', '{ name: orders }') }, ctx),
     );
-    expect(result.documents[0].errors).toContainEqual({
+    expect(at(result, 'documents', 0, 'errors')).toContainEqual({
       path: '/metadata',
       message: "must have required property 'cluster'",
     });
@@ -127,15 +126,17 @@ describe('conduktor_validate', () => {
   it('leaves ${VAR} references for the user to set, without expanding or rejecting them', async () => {
     const { ctx } = context();
     const yaml = topic('{ partitions: "${PARTITIONS}", replicationFactor: 1, configs: { a: "${A:-x}" } }');
-    const result = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
-    expect(result.documents[0]).toMatchObject({ valid: true, errors: [], variables: ['PARTITIONS', 'A'] });
-    expect(result.note).toMatch(/set by the user when applying/);
+    const result: unknown = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
+    expect(at(result, 'documents', 0)).toMatchObject({ valid: true, errors: [], variables: ['PARTITIONS', 'A'] });
+    expect(at(result, 'note')).toMatch(/set by the user when applying/);
   });
 
   it('says which versions exist when the apiVersion is wrong', async () => {
     const { ctx } = context();
-    const result = JSON.parse(await tool('conduktor_validate').run({ yaml: topic('{}').replace('v2', 'v9') }, ctx));
-    expect(result.documents[0]).toMatchObject({
+    const result: unknown = JSON.parse(
+      await tool('conduktor_validate').run({ yaml: topic('{}').replace('v2', 'v9') }, ctx),
+    );
+    expect(at(result, 'documents', 0)).toMatchObject({
       valid: false,
       errors: [{ path: '/apiVersion', message: 'Topic has no v9 on local; it has v2.' }],
     });
@@ -144,9 +145,9 @@ describe('conduktor_validate', () => {
   it('reads a file when given a path', async () => {
     const readFile = vi.fn(() => topic('{ partitions: 1, replicationFactor: 1 }'));
     const { ctx } = context({ readFile });
-    const result = JSON.parse(await tool('conduktor_validate').run({ path: 'topics/orders.yaml' }, ctx));
+    const result: unknown = JSON.parse(await tool('conduktor_validate').run({ path: 'topics/orders.yaml' }, ctx));
     expect(readFile).toHaveBeenCalledWith('topics/orders.yaml');
-    expect(result.documents[0].valid).toBe(true);
+    expect(at(result, 'documents', 0, 'valid')).toBe(true);
   });
 
   it('asks for exactly one of yaml or path', async () => {
@@ -166,7 +167,7 @@ describe('conduktor_validate', () => {
 describe('conduktor_dry_run', () => {
   it('dry-runs every document and says nothing was changed', async () => {
     const { ctx, client } = context();
-    const result = JSON.parse(
+    const result: unknown = JSON.parse(
       await tool('conduktor_dry_run').run({ yaml: topic('{ partitions: 1, replicationFactor: 1 }') }, ctx),
     );
     expect(client.upsert).toHaveBeenCalledWith(
@@ -178,21 +179,21 @@ describe('conduktor_dry_run', () => {
       console: 'local',
       documents: [{ index: 0, kind: 'Topic', name: 'orders', result: 'Created' }],
     });
-    expect(result.note).toMatch(/nothing was changed/i);
+    expect(at(result, 'note')).toMatch(/nothing was changed/i);
   });
 
   it('reports resources that wait for earlier ones in the same YAML as pending, not failed', async () => {
     const { ctx, client } = context();
-    client.upsert.mockImplementation(async (_target: unknown, resource: Resource) => {
-      if (resource.kind === 'Application')
-        throw new ConsoleError(404, 'Group not found', "Group with id 'team-a' not found");
-      return { resource, upsertResult: 'Created' as const };
-    });
+    client.upsert.mockImplementation((_target: unknown, resource: Resource) =>
+      resource.kind === 'Application'
+        ? Promise.reject(new ConsoleError(404, 'Group not found', "Group with id 'team-a' not found"))
+        : Promise.resolve({ resource, upsertResult: 'Created' as const }),
+    );
     const yaml =
       'apiVersion: v1\nkind: Application\nmetadata: { name: shop }\nspec: { title: Shop, owner: team-a }\n---\n' +
       'apiVersion: v2\nkind: Group\nmetadata: { name: team-a }\nspec: { displayName: A }\n';
-    const result = JSON.parse(await tool('conduktor_dry_run').run({ yaml }, ctx));
-    expect(result.documents).toEqual([
+    const result: unknown = JSON.parse(await tool('conduktor_dry_run').run({ yaml }, ctx));
+    expect(at(result, 'documents')).toEqual([
       { index: 1, kind: 'Group', name: 'team-a', result: 'Created' },
       {
         index: 0,
@@ -214,7 +215,7 @@ describe('conduktor_get_resources', () => {
     ]);
     const text = await tool('conduktor_get_resources').run({ kind: 'Topic', cluster: 'local' }, ctx);
     expect(client.list).toHaveBeenCalledWith('/public/kafka/v2/cluster/local/topic');
-    expect(parseAllDocuments(text).map((d) => d.toJS().metadata.name)).toEqual(['a', 'b']);
+    expect(parseAllDocuments(text).map((d) => at(d.toJS(), 'metadata', 'name'))).toEqual(['a', 'b']);
   });
 
   it('gets one resource by name', async () => {
@@ -271,8 +272,8 @@ describe('secrets in tool output', () => {
     const { ctx, client } = context();
     const yaml =
       'apiVersion: v2\nkind: KafkaCluster\nmetadata: { name: prod }\nspec: { bootstrapServers: k, kafkaFlavor: { type: Gateway, url: u, user: a, password: <redacted> } }\n';
-    const validation = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
-    expect(validation.documents[0].errors).toContainEqual({
+    const validation: unknown = JSON.parse(await tool('conduktor_validate').run({ yaml }, ctx));
+    expect(at(validation, 'documents', 0, 'errors')).toContainEqual({
       path: '/spec/kafkaFlavor/password',
       message: 'is a redacted secret; leave it out or use a ${VAR} the user sets',
     });

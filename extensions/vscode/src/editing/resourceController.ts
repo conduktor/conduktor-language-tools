@@ -32,7 +32,7 @@ type Ready = Extract<SessionState, { status: 'ready' }>;
 
 export interface AppliedEvent {
   uri?: vscode.Uri;
-  appliedText?: string;
+  appliedText?: string | undefined;
   items: readonly UpsertItem[];
 }
 
@@ -123,10 +123,10 @@ export class ResourceController implements vscode.Disposable {
     const documents = catalogDocuments(text, state.spec.catalog, { env: process.env });
     if (documents.length !== 1) throw new Error('A live document holds exactly one Conduktor resource.');
     const [plan] = await upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: true });
-    if (plan?.outcome.status !== 'ok') throw new Error(failureOf(plan?.outcome, 'Dry run failed'));
+    const resource = plan?.document.resource;
+    if (plan?.outcome.status !== 'ok' || !resource) throw new Error(failureOf(plan?.outcome, 'Dry run failed'));
     if (plan.outcome.result === 'NotChanged') return;
 
-    const resource = plan.document.resource!;
     const subject = `${resource.kind} ${resource.metadata.name}`;
     const renamed = resource.metadata.name !== liveName;
     const detail = `Dry run: ${outcomeLabel(plan.outcome)}${renamed ? `. The name changed, so this creates ${subject}.` : ''}`;
@@ -145,7 +145,7 @@ export class ResourceController implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.listeners.forEach((listener) => listener.dispose());
+    for (const listener of this.listeners) listener.dispose();
     this.diagnostics.dispose();
     this.decoration.dispose();
     this.resultsChanged.dispose();

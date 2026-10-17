@@ -8,7 +8,7 @@ const SCHEMA_SCHEME = 'conduktor-schema';
 
 // yaml-language-server labels schema problems `yaml-schema: <title>` and its own (syntax, unused anchors) `YAML`. The
 // editor's YAML server reports the latter already, so only the former are ours to publish.
-const SCHEMA_SOURCE = /^yaml-schema/;
+const SCHEMA_SOURCE = 'yaml-schema';
 
 export interface SchemaService {
   useSpec(spec: LoadedSpec): void;
@@ -34,14 +34,14 @@ export function createSchemaService(): SchemaService {
   const schemaUri = (current: LoadedSpec) => `${SCHEMA_SCHEME}://schema/${current.version}.json`;
 
   const service = getLanguageService({
-    schemaRequestService: async (uri: string) => {
-      if (spec && uri === schemaUri(spec)) return JSON.stringify(spec.schema);
-      throw new Error(`Unknown schema ${uri}`);
-    },
+    schemaRequestService: (uri: string) =>
+      spec && uri === schemaUri(spec)
+        ? Promise.resolve(JSON.stringify(spec.schema))
+        : Promise.reject(new Error(`Unknown schema ${uri}`)),
     workspaceContext: { resolveRelativePath: (relative: string, resource: string) => new URL(relative, resource).href },
   });
   service.configure({ validate: true, completion: true, hover: true, hoverSchemaSource: false });
-  service.registerCustomSchemaProvider(async () => (spec ? schemaUri(spec) : []));
+  service.registerCustomSchemaProvider(() => Promise.resolve(spec ? schemaUri(spec) : []));
 
   const claims = (document: TextDocument): boolean =>
     spec !== undefined && claimsForEditing(document.getText(), spec.catalog);
@@ -56,7 +56,9 @@ export function createSchemaService(): SchemaService {
     async validate(document) {
       if (!claims(document)) return [];
       const diagnostics = await service.doValidation(document, false);
-      return diagnostics.filter((d) => SCHEMA_SOURCE.test(d.source ?? '')).map((d) => ({ ...d, source: 'Conduktor' }));
+      return diagnostics
+        .filter((d) => (d.source ?? '').startsWith(SCHEMA_SOURCE))
+        .map((d) => ({ ...d, source: 'Conduktor' }));
     },
     async complete(document, position) {
       if (!spec) return null;

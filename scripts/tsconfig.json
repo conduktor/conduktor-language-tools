@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.base.json",
+  // Run by Node directly, which strips types: imports name their .ts files, and only erasable syntax is allowed.
+  "compilerOptions": { "allowImportingTsExtensions": true, "erasableSyntaxOnly": true },
+  "include": ["*.ts"]
+}

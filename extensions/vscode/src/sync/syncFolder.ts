@@ -61,7 +61,7 @@ export interface LocalEntry {
   parents: string[];
   name: string;
   status: SyncStatus;
-  drift?: Drift;
+  drift?: Drift | undefined;
 }
 
 interface RefreshOptions {
@@ -83,7 +83,7 @@ export class SyncFolder implements vscode.Disposable {
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly refreshes = singleFlight<RefreshOptions>(
     (options) => this.rescan(options),
-    (a, b) => ({ drift: a.drift || b.drift }),
+    (a, b) => ({ drift: a.drift === true || b.drift === true }),
   );
   private readonly scanned = new ContentCache<{ identity: Identity; status: SyncStatus } | undefined>();
   private scannedWith: SessionState | undefined;
@@ -244,7 +244,7 @@ export class SyncFolder implements vscode.Disposable {
   async syncAll(
     kind: KindVersion,
     parents: readonly string[],
-    proceed: (total: number) => Promise<boolean> = async () => true,
+    proceed: (total: number) => Promise<boolean> = () => Promise.resolve(true),
   ): Promise<number | undefined> {
     await this.requireChosen();
     const state = this.ready();
@@ -286,7 +286,8 @@ export class SyncFolder implements vscode.Disposable {
   async syncEverything(
     kinds: readonly string[],
     options: {
-      clusters?: readonly string[];
+      /** Every cluster when undefined. */
+      clusters?: readonly string[] | undefined;
       cancelled?: () => boolean;
       onProgress?: (stage: BootstrapStage) => void;
     } = {},
@@ -313,15 +314,9 @@ export class SyncFolder implements vscode.Disposable {
       onProgress: options.onProgress,
       cancelled: () => switched() || (options.cancelled?.() ?? false),
     });
-    const result: BootstrapResult = {
-      written: {},
-      unchanged: 0,
-      conflicts: [],
-      skipped,
-      builtIn,
-      cancelled: cancelled || switched(),
-    };
-    if (result.cancelled) return result;
+    const stopped = cancelled || switched();
+    const result: BootstrapResult = { written: {}, unchanged: 0, conflicts: [], skipped, builtIn, cancelled: stopped };
+    if (stopped) return result;
     // Thousands of files are written; the watcher's rescans would re-read the folder after every one.
     this.bootstrapping = true;
     try {
@@ -375,7 +370,8 @@ export class SyncFolder implements vscode.Disposable {
       identity &&
       !(identity.kind === kind.kind && identity.name === name && sameParents(identity.parents, parents))
     ) {
-      const renamed = state.spec.catalog.resolve(identity.apiVersion, identity.kind)!;
+      const renamed = state.spec.catalog.resolve(identity.apiVersion, identity.kind);
+      if (!renamed) throw new Error(`${identity.kind} ${identity.apiVersion} is not available on this Console.`);
       const missing = renamed.parentPathParams.filter((_, i) => identity.parents[i] === '');
       if (missing.length > 0)
         throw new Error(`${identity.kind} ${identity.name} needs metadata.${missing.join(', metadata.')}.`);
@@ -384,11 +380,7 @@ export class SyncFolder implements vscode.Disposable {
     const entry = this.entryFor(kind.kind, parents, name);
     if (entry && entry.status !== 'synced') throw new LocalChangesError(entry);
     const onDisk = entry && (await read(entry.uri));
-    if (
-      entry &&
-      onDisk !== undefined &&
-      (await this.changedLocally(entry.uri, onDisk, await read(this.baseOf(entry.uri)!)))
-    )
+    if (entry && onDisk !== undefined && (await this.changedLocally(entry.uri, onDisk, await this.readCopy(entry.uri))))
       throw new LocalChangesError(entry);
     const uri = entry?.uri ?? (await this.syncResource(kind, parents, name));
     await write(uri, staged);
@@ -416,7 +408,7 @@ export class SyncFolder implements vscode.Disposable {
     for (let n = 1; ; n++) {
       const candidate = n === 1 ? name : `${name}-${n}`;
       const taken =
-        this.entryFor(kind.kind, parents, candidate) ||
+        this.entryFor(kind.kind, parents, candidate) !== undefined ||
         (await fileExists(vscode.Uri.joinPath(root, syncPath(kind, parents, candidate))));
       if (!taken) return candidate;
     }
@@ -598,9 +590,9 @@ export class SyncFolder implements vscode.Disposable {
       if (!(await vscode.workspace.applyEdit(edit))) continue;
       if (tracked) {
         for (const copy of ['base', 'applied'] as const) {
-          const from = this.baseOf(entry.uri, copy)!;
-          const to = this.baseOf(target, copy)!;
-          if (!(await fileExists(from))) continue;
+          const from = this.baseOf(entry.uri, copy);
+          const to = this.baseOf(target, copy);
+          if (!from || !to || !(await fileExists(from))) continue;
           await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(to, '..'));
           await vscode.workspace.fs.rename(from, to, { overwrite: true });
         }
@@ -633,10 +625,9 @@ export class SyncFolder implements vscode.Disposable {
     const tracked = entries.filter((entry) => entry.status !== 'new');
     const bases = await readAll(tracked.map((entry) => this.baseOf(entry.uri)));
     const applied = await readAll(tracked.map((entry) => this.baseOf(entry.uri, 'applied')));
-    await eachLimit([...tracked.keys()], 8, async (i) => {
-      const entry = tracked[i]!;
+    const checks = tracked.map((entry, i) => ({ entry, base: applied[i] ?? bases[i] }));
+    await eachLimit(checks, 8, async ({ entry, base }) => {
       const kind = state.spec.catalog.resolve(entry.apiVersion, entry.kind);
-      const base = applied[i] ?? bases[i];
       if (!kind || base === undefined) return;
       try {
         const live = await state.client.get(itemPath(kind, parentsOf(kind, entry.parents), entry.name));
@@ -657,8 +648,9 @@ export class SyncFolder implements vscode.Disposable {
   ): Promise<{ uri: vscode.Uri; written: boolean; kept?: boolean }> {
     const path = syncPath(kind, parents, live.metadata.name);
     const uri = vscode.Uri.joinPath(root, path);
-    const base = this.baseOf(uri)!;
-    const appliedCopy = this.baseOf(uri, 'applied')!;
+    const base = this.baseOf(uri);
+    const appliedCopy = this.baseOf(uri, 'applied');
+    if (!base || !appliedCopy) throw new Error(`${uri.fsPath} is not in an environment of the sync folder.`);
     const current = await read(uri);
     const baseText = current === undefined ? undefined : await read(base);
     const { resource: placeholdered, variables } = withSecretPlaceholders(live, parents);
@@ -696,7 +688,7 @@ export class SyncFolder implements vscode.Disposable {
   private async changedLocally(uri: vscode.Uri, current: string, baseText: string | undefined): Promise<boolean> {
     if (current !== baseText) return true;
     if (!includes(current)) return false;
-    const applied = await read(this.baseOf(uri, 'applied')!);
+    const applied = await this.readCopy(uri, 'applied');
     return statusWithIncludes(current, baseText, applied, includeReaderFor(uri) ?? unreadable) !== 'synced';
   }
 
@@ -731,6 +723,11 @@ export class SyncFolder implements vscode.Disposable {
     const syncRoot = this.syncRoot();
     const path = syncRoot && basePathOf(syncRoot.path, uri.path, copy);
     return path === undefined ? undefined : uri.with({ path });
+  }
+
+  private async readCopy(uri: vscode.Uri, copy: 'base' | 'applied' = 'base'): Promise<string | undefined> {
+    const at = this.baseOf(uri, copy);
+    return at && read(at);
   }
 
   private requireSyncRoot(): vscode.Uri {
@@ -892,9 +889,7 @@ function identify(text: string, state: Ready) {
   const metadata = isRecord(value.metadata) ? value.metadata : {};
   const kind = state.spec.catalog.resolve(value.apiVersion, value.kind);
   if (!kind || typeof metadata.name !== 'string') return undefined;
-  const parents = kind.parentPathParams.map((param) =>
-    typeof metadata[param] === 'string' ? (metadata[param] as string) : '',
-  );
+  const parents = kind.parentPathParams.map((param) => (typeof metadata[param] === 'string' ? metadata[param] : ''));
   return { kind: kind.kind, apiVersion: value.apiVersion, parents, name: metadata.name };
 }
 
@@ -906,7 +901,7 @@ export async function chooseFolder(suggested: vscode.Uri | undefined): Promise<v
       canSelectFolders: true,
       canSelectFiles: false,
       canSelectMany: false,
-      defaultUri: suggested,
+      ...(suggested && { defaultUri: suggested }),
     })) ?? [];
   return folder;
 }

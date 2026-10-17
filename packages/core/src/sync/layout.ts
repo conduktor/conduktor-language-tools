@@ -8,7 +8,7 @@ export interface Move {
 }
 
 export function environmentName(connectionName: string): string {
-  const name = connectionName.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  const name = connectionName.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '');
   return name === '' || /^\.+$/.test(name) ? 'console' : name;
 }
 

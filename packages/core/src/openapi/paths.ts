@@ -25,7 +25,12 @@ export function itemPath(kind: KindVersion, parents: Readonly<Record<string, str
 }
 
 export function parentsOf(kind: KindVersion, values: readonly string[]): Record<string, string> {
-  return Object.fromEntries(kind.parentPathParams.slice(0, values.length).map((param, i) => [param, values[i]!]));
+  return Object.fromEntries(
+    kind.parentPathParams.flatMap((param, i) => {
+      const value = values[i];
+      return value === undefined ? [] : [[param, value]];
+    }),
+  );
 }
 
 export function upsertTarget(kind: KindVersion, resource: Resource): Target {

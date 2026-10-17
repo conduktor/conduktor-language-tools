@@ -10,8 +10,7 @@ export function templateDocument(text: string, kind: string): { name: string; te
     const value: unknown = document.toJS();
     if (!isRecord(value) || value.kind !== kind) continue;
     const metadata = isMap(document.contents) ? document.contents.get('metadata', true) : undefined;
-    if (isAlias(metadata) || (metadata !== undefined && metadata !== null && !isMap(metadata) && !isEmpty(metadata)))
-      return undefined;
+    if (isAlias(metadata) || (metadata !== undefined && !isMap(metadata) && !isEmpty(metadata))) return undefined;
     const source = text.slice(i === 0 ? 0 : document.range[0], document.range[2]).replace(/^---[^\n]*\n/, '');
     const meta = isRecord(value.metadata) ? value.metadata : {};
     return { name: typeof meta.name === 'string' ? meta.name : '', text: source };

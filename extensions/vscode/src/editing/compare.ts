@@ -12,7 +12,7 @@ import type { SessionManager } from '../connections/session';
 import { includeReaderFor } from './includes';
 import { variablesFor } from './variables';
 
-export const COMPARE_SCHEME = 'conduktor-compare';
+const COMPARE_SCHEME = 'conduktor-compare';
 
 export class Compare implements vscode.TextDocumentContentProvider, vscode.Disposable {
   // The live side holds the Console's version, secrets included, so it is kept only while its diff is open.
@@ -96,7 +96,7 @@ export class Compare implements vscode.TextDocumentContentProvider, vscode.Dispo
   }
 
   dispose(): void {
-    this.registrations.forEach((registration) => registration.dispose());
+    for (const registration of this.registrations) registration.dispose();
     this.contents.clear();
   }
 
