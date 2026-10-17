@@ -2,6 +2,8 @@
 !dist/extension.js
 !dist/mcp-server.js
 !dist/public-api-doc.yaml
+!dist/LICENSE
+!dist/THIRD_PARTY_NOTICES.md
 !resources/**
 !README.md
 !walkthrough/**

@@ -1,6 +1,7 @@
 import { build, context } from 'esbuild';
 import { cp, mkdir } from 'node:fs/promises';
 import { globSync, readFileSync } from 'node:fs';
+import { writeNotices } from '../../scripts/third-party-notices.mjs';
 
 const watch = process.argv.includes('--watch');
 const tests = process.argv.includes('--tests');
@@ -14,6 +15,7 @@ const extension = {
   target: 'node22',
   external: ['vscode'],
   sourcemap: true,
+  metafile: true,
   logLevel: 'info',
 };
 
@@ -33,8 +35,11 @@ if (watch) {
   await (await context(extension)).watch();
   await (await context(mcpServer)).watch();
 } else {
-  await build(extension);
-  await build(mcpServer);
+  const bundles = [await build(extension), await build(mcpServer)];
+  writeNotices(
+    'dist',
+    bundles.map((bundle) => bundle.metafile),
+  );
   if (tests) {
     const { outfile: _outfile, ...shared } = extension;
     await build({

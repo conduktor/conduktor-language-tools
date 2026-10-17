@@ -58,6 +58,14 @@ the window lands in `extensions/vscode/test/ui/screenshots/`, and CI keeps it as
 The harness pauses on each prompt for a moment before answering it, as a person reading it would. That pause is what
 catches a prompt that loses focus, so it is not a delay to remove.
 
+### Licenses of what ships
+
+Each build writes `dist/THIRD_PARTY_NOTICES.md`, with the license of every npm package esbuild put in the bundle, and
+copies `LICENSE` beside it; both go into the `.vsix` and the language server's package. A build stops when a bundled
+package's license is not in the allow list at the top of `scripts/third-party-notices.mjs`, or when it ships no license
+text. What an npm release leaves out (its own license, or the notice of code it bundles) goes in
+`scripts/licenses/<package>/`, copied from its repository at the release's tag.
+
 ## Releases
 
 Releases are built by GitHub Actions from a version tag (`.github/workflows/release.yml`):

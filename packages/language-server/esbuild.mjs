@@ -2,6 +2,7 @@ import { build } from 'esbuild';
 import { chmod, cp, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { writeNotices } from '../../scripts/third-party-notices.mjs';
 
 const { values } = parseArgs({ options: { outdir: { type: 'string', default: 'dist' } } });
 const { version } = JSON.parse(await readFile('package.json', 'utf8'));
@@ -10,7 +11,7 @@ const outfile = join(values.outdir, 'server.cjs');
 
 await mkdir(values.outdir, { recursive: true });
 await cp('../core/snapshot/public-api-doc.yaml', join(values.outdir, 'public-api-doc.yaml'));
-await build({
+const bundle = await build({
   entryPoints: ['src/main.ts'],
   bundle: true,
   platform: 'node',
@@ -22,6 +23,8 @@ await build({
   banner: { js: '#!/usr/bin/env node' },
   define: { CONDUKTOR_VERSION: JSON.stringify(version) },
   sourcemap: true,
+  metafile: true,
   logLevel: 'warning',
 });
 await chmod(outfile, 0o755);
+writeNotices(values.outdir, [bundle.metafile]);
