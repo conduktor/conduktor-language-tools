@@ -16,6 +16,17 @@ export interface ResourceSymbol {
   nameEnd: number;
 }
 
+/** Whether a search box's query finds the name: its letters in order, whatever their case. */
+export function nameMatches(name: string, query: string): boolean {
+  const lower = name.toLowerCase();
+  let at = 0;
+  for (const letter of query.toLowerCase()) {
+    at = lower.indexOf(letter, at) + 1;
+    if (at === 0) return false;
+  }
+  return true;
+}
+
 /** A file's resources, as an outline and a workspace search show them. */
 export function resourceSymbols(text: string, catalog: KindCatalog): ResourceSymbol[] {
   return parsedDocuments(text, catalog).flatMap((document) => resourceSymbol(document, catalog) ?? []);

@@ -1,8 +1,9 @@
 import {
   apiVersionFixes,
+  nameMatches,
   PARENT_KINDS,
-  referenceAt,
   renameEdits,
+  renameTarget,
   resourceSymbol,
   resourceSymbols,
   type Fix,
@@ -22,7 +23,6 @@ import {
   type WorkspaceEdit,
 } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { ownScope, resourceAt } from './references';
 import type { Located } from './workspaceIndex';
 
 const PARENTS = new Set(Object.values(PARENT_KINDS));
@@ -42,17 +42,16 @@ export function documentSymbols(document: TextDocument, catalog: KindCatalog): D
   }));
 }
 
-/** The workspace's resources whose name holds the query's letters in order, as a search box matches them. */
+/** The workspace's resources whose name the query finds. */
 export function workspaceSymbols(
   query: string,
   located: readonly Located[],
   catalog: KindCatalog,
 ): SymbolInformation[] {
-  const wanted = query.toLowerCase();
   const found: SymbolInformation[] = [];
   for (const entry of located) {
     const symbol = resourceSymbol(entry, catalog);
-    if (!symbol || !inOrder(wanted, symbol.name.toLowerCase())) continue;
+    if (!symbol || !nameMatches(symbol.name, query)) continue;
     found.push({
       name: symbol.name,
       kind: symbolKind(symbol.kind),
@@ -64,27 +63,14 @@ export function workspaceSymbols(
   return found;
 }
 
-/**
- * What a rename at the position renames, and the value it starts from: the resource whose name is there, or the one a
- * reference there names. Not a pattern or `*`, which name no single resource.
- */
+/** What a rename at the position renames, and the range of the value it starts from. */
 export function renameTargetAt(
   document: TextDocument,
   position: Position,
   catalog: KindCatalog,
 ): { target: ReferenceTarget; range: Range } | undefined {
-  const here = resourceAt(document, position, catalog);
-  const name = here?.value?.value;
-  if (!here?.value || !name) return undefined;
-  const { value } = here;
-  const range = rangeOf(document, value.start, value.end);
-  if (value.path.join('.') === 'metadata.name') {
-    const scope = ownScope(here.resource, catalog);
-    return scope && { target: { ...scope, name }, range };
-  }
-  const reference = referenceAt(here.resource, catalog, value.path);
-  if (!reference?.parents || reference.value === '' || reference.pattern || reference.wildcard) return undefined;
-  return { target: { kind: reference.kind, parents: reference.parents, name: reference.value }, range };
+  const found = renameTarget(document.getText(), document.offsetAt(position), catalog);
+  return found && { target: found.target, range: rangeOf(document, found.start, found.end) };
 }
 
 /** The workspace edit renaming the target, and how many patterns or wildcards covering it stay as written. */
@@ -141,16 +127,6 @@ export function quickFixes(
       .filter(({ start, end }) => start <= offset && offset <= end)
       .map(({ fix }) => action(fix.title, lspEdit(document, 0, fix.edit), undefined, true)),
   ];
-}
-
-// Whether the letters of `query` appear in `name`, in order.
-function inOrder(query: string, name: string): boolean {
-  let at = 0;
-  for (const letter of query) {
-    at = name.indexOf(letter, at) + 1;
-    if (at === 0) return false;
-  }
-  return true;
 }
 
 function lspEdit(document: TextDocument, offset: number, edit: { start: number; end: number; newText: string }) {

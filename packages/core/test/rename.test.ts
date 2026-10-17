@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TextEdit } from '../src/fixes';
-import { renameEdits } from '../src/references/rename';
+import { renameEdits, renameTarget } from '../src/references/rename';
 import { parsedDocuments } from '../src/resources/parsedDocuments';
 import { snapshotCatalog } from './fixtures';
 
@@ -26,6 +26,33 @@ function renamed(name: string, newName: string, parents = ['local']) {
   );
   return { texts, patterns };
 }
+
+describe('renameTarget', () => {
+  // The target at the |, and the text its offsets are in.
+  const at = (marked: string) => {
+    const text = marked.replace('|', '');
+    const found = renameTarget(text, marked.indexOf('|'), snapshotCatalog);
+    return found && { target: found.target, value: text.slice(found.start, found.end) };
+  };
+
+  it("start from a resource's name, or from a reference to one", () => {
+    expect(at("apiVersion: v2\nkind: Topic\nmetadata:\n  name: 'or|ders'\n  cluster: local\n")).toEqual({
+      target: { kind: 'Topic', parents: ['local'], name: 'orders' },
+      value: "'orders'",
+    });
+    expect(at('apiVersion: v2\nkind: Topic\nmetadata:\n  name: orders\n  cluster: lo|cal\n')?.target).toEqual({
+      kind: 'KafkaCluster',
+      parents: [],
+      name: 'local',
+    });
+  });
+
+  it('not from a name whose parents are missing, a pattern, or anything else', () => {
+    expect(at('apiVersion: v2\nkind: Topic\nmetadata:\n  name: or|ders\n')).toBeUndefined();
+    expect(at('apiVersion: v2\nkind: To|pic\nmetadata:\n  name: orders\n  cluster: local\n')).toBeUndefined();
+    expect(at(files[3]!.replace('name: "orders."', 'name: "ord|ers."'))).toBeUndefined();
+  });
+});
 
 describe('renameEdits', () => {
   it('rename a resource and what names it, in its scope, keeping quotes', () => {
