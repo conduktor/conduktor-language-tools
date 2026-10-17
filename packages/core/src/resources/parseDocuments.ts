@@ -9,7 +9,6 @@ import type { Resource } from './types';
 const KIND_LINE = /^kind:[ \t]*["']?([A-Za-z]+)["']?[ \t]*(?:#.*)?$/m;
 const API_VERSION_LINE = /^apiVersion:[ \t]*["']?([\w./-]+)["']?[ \t]*(?:#.*)?$/m;
 const NAMESPACE_LINE = /^[ \t]+namespace:/m;
-const CONSOLE_API_VERSION = /^v\d+$/;
 const SEPARATOR = /^(?:---|\.\.\.)(?:[ \t].*)?\r?$/;
 const BLANK_OR_COMMENT = /^[ \t]*(?:#.*)?\r?$/;
 
@@ -40,12 +39,13 @@ export function parseResourceDocuments(text: string, options: ParseOptions = {})
 }
 
 // Kubernetes, Argo CD and Helm share kind names with Console (ServiceAccount, Application); no Console kind has a
-// namespace or a group-qualified apiVersion. Validity is not checked here: a broken Console document is kept so the
-// dry run can report what is wrong with it.
+// namespace, and a group-qualified apiVersion (`kafka/v2`) names the kind's own group, never `argoproj.io`. Validity
+// is not checked here: a broken Console document is kept so the dry run can report what is wrong with it.
 export function catalogDocuments(text: string, catalog: KindCatalog, options: ParseOptions = {}): ResourceDocument[] {
   const kinds = catalog.kindNames();
   return parseResourceDocuments(text, options).filter(
-    (document) => !document.namespaced && CONSOLE_API_VERSION.test(document.apiVersion) && kinds.has(document.kind),
+    (document) =>
+      !document.namespaced && kinds.has(document.kind) && catalog.acceptsApiVersion(document.apiVersion, document.kind),
   );
 }
 
@@ -62,7 +62,7 @@ export function claimsForEditing(text: string, catalog: KindCatalog): boolean {
     return (
       typeof kind === 'string' &&
       kinds.has(kind) &&
-      (apiVersion === undefined || (typeof apiVersion === 'string' && CONSOLE_API_VERSION.test(apiVersion))) &&
+      (apiVersion === undefined || (typeof apiVersion === 'string' && catalog.acceptsApiVersion(apiVersion, kind))) &&
       document.getIn(['metadata', 'namespace']) === undefined
     );
   });

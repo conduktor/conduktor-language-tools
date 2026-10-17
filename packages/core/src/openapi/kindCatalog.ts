@@ -24,6 +24,9 @@ export function hasBody(kind: KindVersion | undefined): kind is BodyKind {
   return !!kind?.bodySchema;
 }
 
+// `v2`, or the group-qualified form the CLI also takes and the Console accepts: `kafka/v2`, `self-serve/v1`.
+const API_VERSION = /^(?:([a-z][a-z-]*)\/)?v(\d+)$/;
+
 export class KindCatalog {
   private constructor(private readonly byKind: ReadonlyMap<string, readonly KindVersion[]>) {}
 
@@ -76,9 +79,22 @@ export class KindCatalog {
     return this.versions(kind).at(-1);
   }
 
+  /** The kind version an apiVersion names: `v2`, or the CLI's `kafka/v2`, in the kind's own group. */
   resolve(apiVersion: string, kind: string): KindVersion | undefined {
-    const match = /^v(\d+)$/.exec(apiVersion);
-    return match ? this.versions(kind).find((v) => v.version === Number(match[1])) : undefined;
+    const match = API_VERSION.exec(apiVersion);
+    if (!match) return undefined;
+    const [, group, version] = match;
+    return this.versions(kind).find((v) => v.version === Number(version) && (group === undefined || v.group === group));
+  }
+
+  /**
+   * Whether an apiVersion has a Console form for the kind, whatever its number: `v<N>`, or `<group>/v<N>` in one of
+   * the kind's groups. A version the kind lacks still passes, for the dry run to say so.
+   */
+  acceptsApiVersion(apiVersion: string, kind: string): boolean {
+    const match = API_VERSION.exec(apiVersion);
+    const group = match?.[1];
+    return match !== null && (group === undefined || this.versions(kind).some((v) => v.group === group));
   }
 
   orderOf(kind: string): number {

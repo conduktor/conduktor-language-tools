@@ -44,6 +44,12 @@ describe('buildResourceSchema', () => {
     expect(errorsOf(topic)).toEqual([]);
   });
 
+  it("accepts the CLI's group-qualified apiVersion, and checks the kind's body under it", () => {
+    expect(errorsOf({ ...topic, apiVersion: 'kafka/v2' })).toEqual([]);
+    expect(validate({ ...topic, apiVersion: 'kafka/v2', spec: { ...topic.spec, partitions: 'three' } })).toBe(false);
+    expect(validate({ ...topic, apiVersion: 'iam/v2' })).toBe(false);
+  });
+
   it.each([
     ['a wrong field type inside the kind body', { ...topic, spec: { ...topic.spec, partitions: 'three' } }],
     ['a kind body without spec', { apiVersion: 'v2', kind: 'Topic', metadata: { name: 'x', cluster: 'c' } }],

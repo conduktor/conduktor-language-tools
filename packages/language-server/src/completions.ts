@@ -16,7 +16,7 @@ import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 const SEPARATOR = /^---[ \t]*(?:#.*)?$/gm;
 const KIND_LINE = /^kind:[ \t]*["']?([A-Za-z]+)/m;
-const VERSION = /^v\d+$/;
+const VERSION = /^(?:[a-z][a-z-]*\/)?v\d+$/;
 
 /** A completion's edit of the scalar from `start` to `end`: after a bare `key:`, with the space a value needs first. */
 export function valueEdit(document: TextDocument, start: number, end: number): (value: string) => TextEdit {
@@ -69,7 +69,7 @@ export function onlyKindVersions(
   const line = text.slice(text.lastIndexOf('\n', offset - 1) + 1, offset);
   if (!line.startsWith('apiVersion:')) return list;
   const kind = KIND_LINE.exec(documentAround(text, offset))?.[1];
-  const versions = new Set(catalog.versions(kind ?? '').map((v) => `v${v.version}`));
+  const versions = new Set(catalog.versions(kind ?? '').flatMap((v) => [`v${v.version}`, `${v.group}/v${v.version}`]));
   if (versions.size === 0) return list;
   return { ...list, items: list.items.filter((item) => !VERSION.test(item.label) || versions.has(item.label)) };
 }

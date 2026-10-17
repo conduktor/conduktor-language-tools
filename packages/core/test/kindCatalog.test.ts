@@ -38,6 +38,13 @@ describe('KindCatalog', () => {
     expect(snapshotCatalog.resolve('v3', 'Alert')?.listPath).toBe('/public/monitoring/v3/alert');
     expect(snapshotCatalog.resolve('v9', 'Topic')).toBeUndefined();
     expect(snapshotCatalog.resolve('kafka', 'Topic')).toBeUndefined();
+  });
+
+  it("resolves the CLI's group-qualified form, in the kind's own group only", () => {
+    expect(snapshotCatalog.resolve('kafka/v2', 'Topic')?.version).toBe(2);
+    expect(snapshotCatalog.resolve('self-serve/v1', 'ApplicationInstance')?.kind).toBe('ApplicationInstance');
+    expect(snapshotCatalog.resolve('iam/v2', 'Topic')).toBeUndefined();
+    expect(snapshotCatalog.resolve('apps/v1', 'Topic')).toBeUndefined();
     expect(snapshotCatalog.resolve('argoproj.io/v1alpha1', 'Application')).toBeUndefined();
   });
 

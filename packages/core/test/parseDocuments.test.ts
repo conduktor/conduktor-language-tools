@@ -120,6 +120,18 @@ describe('catalogDocuments', () => {
     expect(docs.map((d) => [d.index, d.kind, d.resource?.metadata.name])).toEqual([[3, 'ServiceAccount', 'payments']]);
   });
 
+  it("keeps the CLI's group-qualified apiVersion, in the kind's own group", () => {
+    const text = [
+      'apiVersion: kafka/v2\nkind: Topic\nmetadata: { name: a, cluster: local }\nspec: {}\n',
+      'apiVersion: self-serve/v1\nkind: Application\nmetadata: { name: shop }\nspec: {}\n',
+      'apiVersion: iam/v2\nkind: Topic\nmetadata: { name: wrong-group, cluster: local }\nspec: {}\n',
+    ].join('---\n');
+    expect(catalogDocuments(text, snapshotCatalog, { env: {} }).map((d) => [d.index, d.kind])).toEqual([
+      [0, 'Topic'],
+      [1, 'Application'],
+    ]);
+  });
+
   it('drops kinds the Console does not know, including Kubernetes look-alikes', () => {
     const docs = catalogDocuments(file, snapshotCatalog, { env: { CLUSTER: 'local' } });
     expect(docs.map((d) => [d.index, d.kind])).toEqual([
@@ -133,6 +145,7 @@ describe('claimsForEditing', () => {
   it.each([
     ['as soon as it names a Console kind, before its apiVersion is written', 'kind: Topic\nspec:\n  '],
     ['with a Console apiVersion', 'apiVersion: v2\nkind: Topic'],
+    ["with the CLI's group-qualified apiVersion", 'apiVersion: kafka/v2\nkind: Topic'],
     ['in a file where any document is a Console resource', 'apiVersion: v1\nkind: ConfigMap\n---\nkind: Topic'],
     ['that is half written, by its kind', 'kind: Topic\nspec:\n  partitions: [1'],
   ])('takes a document %s', (_, text) => expect(claimsForEditing(text, snapshotCatalog)).toBe(true));

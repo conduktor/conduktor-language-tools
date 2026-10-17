@@ -25,9 +25,9 @@ export function buildResourceSchema(doc: OpenApiDoc, catalog: KindCatalog): Json
   }
 
   const versionsByKind = new Map<string, string[]>();
-  for (const kv of kinds) versionsByKind.set(kv.kind, [...(versionsByKind.get(kv.kind) ?? []), `v${kv.version}`]);
+  for (const kv of kinds) versionsByKind.set(kv.kind, [...(versionsByKind.get(kv.kind) ?? []), ...apiVersionsOf(kv)]);
 
-  const apiVersions = [...new Set(kinds.map((kv) => `v${kv.version}`))].sort();
+  const apiVersions = [...new Set(kinds.flatMap(apiVersionsOf))].sort();
   const kindNames = [...versionsByKind.keys()].sort();
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
@@ -40,7 +40,7 @@ export function buildResourceSchema(doc: OpenApiDoc, catalog: KindCatalog): Json
     // Mirrors catalogDocuments: other documents in the same file (ConfigMaps, namespaced Kubernetes kinds) pass.
     if: {
       properties: {
-        apiVersion: { pattern: '^v\\d+$' },
+        apiVersion: { pattern: '^(?:[a-z][a-z-]*/)?v\\d+$' },
         kind: { enum: kindNames },
         metadata: { not: { required: ['namespace'] } },
       },
@@ -56,7 +56,7 @@ export function buildResourceSchema(doc: OpenApiDoc, catalog: KindCatalog): Json
         })),
         ...kinds.map((kv) => ({
           if: {
-            properties: { kind: { const: kv.kind }, apiVersion: { const: `v${kv.version}` } },
+            properties: { kind: { const: kv.kind }, apiVersion: { enum: apiVersionsOf(kv) } },
             required: ['kind', 'apiVersion'],
           },
           then: { $ref: `#/definitions/${kv.bodySchema}` },
@@ -67,10 +67,15 @@ export function buildResourceSchema(doc: OpenApiDoc, catalog: KindCatalog): Json
   };
 }
 
+// A kind version's apiVersion as written: `v2`, or the CLI's group-qualified `kafka/v2`, which the Console accepts.
+function apiVersionsOf(kv: KindVersion): string[] {
+  return [`v${kv.version}`, `${kv.group}/v${kv.version}`];
+}
+
 // The published apiVersion is an unanchored `pattern: v2`, which would accept "v21"; pin both identity fields.
 function pinIdentity(definition: JsonSchema | undefined, kv: KindVersion): void {
   if (!definition || !isRecord(definition.properties)) return;
-  definition.properties.apiVersion = { type: 'string', const: `v${kv.version}` };
+  definition.properties.apiVersion = { type: 'string', enum: apiVersionsOf(kv) };
   definition.properties.kind = { type: 'string', const: kv.kind };
 }
 

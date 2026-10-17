@@ -41,6 +41,16 @@ describe('reference problems', () => {
     });
   }, 30_000);
 
+  it("check a file written with the CLI's group-qualified apiVersion, kafka/v2", async () => {
+    const server = await start();
+    const uri = 'file:///work/grouped.yaml';
+    server.open(uri, topic('orders', 'nowhere-grouped').replace('apiVersion: v2', 'apiVersion: kafka/v2'));
+    const diagnostics = await server.diagnostics(uri, (d) => d.some((x) => x.message.includes('nowhere-grouped')));
+    expect(diagnostics.map((d) => d.message)).toContain(
+      "KafkaCluster 'nowhere-grouped' is not in the repository or on fake.",
+    );
+  }, 30_000);
+
   it('clear once another open file defines it', async () => {
     // Dry runs that never finish: only the other file's opening can publish this one again.
     const quiet = await startConsole({ unanswered: 'writes' });
