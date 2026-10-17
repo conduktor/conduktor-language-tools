@@ -81,7 +81,6 @@ extensions/vscode/    VS Code wiring: connections, explorer, live documents, Cod
 extensions/zed/       the Zed extension (Rust, which Zed builds to wasm): runs the language server from the PATH,
                       else from npm
 docs/specs/           designs
-docs/plans/           implementation plans, as executed
 docs/assets/          the README's illustrations and screenshots (SHOTS.md says how to capture them)
 ```
 
@@ -112,4 +111,4 @@ resources.
 - Checks pass before every commit: typecheck, lint, format, unit tests, and the live suite for changes to the
   extension. CI (`.github/workflows/ci.yml`) runs all but the live suite on every pull request, on Node 22 and 24.
 - Tests first: a test that has been seen failing, then the change that makes it pass.
-- Plans for larger work go in `docs/plans/`, their designs in `docs/specs/`.
+- Larger work starts with a design in `docs/specs/`.

@@ -4,4 +4,3 @@ pnpm-lock.yaml
 **/dist/
 **/out/
 **/.vscode-test/
-docs/plans/
