@@ -403,7 +403,7 @@
           {
             "id": "sync",
             "title": "Keep your resources in git (optional)",
-            "description": "**Sync Everything** copies the Console's resources into a folder laid out like a GitOps repository, one file per resource, with secrets kept out as `${CDK_SECRET_…}` placeholders. The tree then marks what is new, edited or changed on the Console.\n[Sync Everything](command:conduktor.syncEverything)",
+            "description": "**Sync Everything** copies the Console's resources into a folder laid out like a GitOps repository, one file per resource, with secrets kept out as placeholders. The tree then marks what is new, edited or changed on the Console.\n[Sync Everything](command:conduktor.syncEverything)",
             "media": {
               "markdown": "walkthrough/sync.md"
             },
@@ -414,7 +414,7 @@
           {
             "id": "agents",
             "title": "Let AI agents write it (optional)",
-            "description": "Copilot and Claude Code get the Console's schema and dry run as tools, so they write YAML the Console accepts. In Copilot's agent mode the tools are ready as soon as you are connected; Claude Code needs the MCP config in the project's `.mcp.json`.\n[Copy MCP Config for Claude Code](command:conduktor.copyClaudeCodeConfig)",
+            "description": "Copilot and Claude Code get the Console's schema and dry run as tools, so they write YAML the Console accepts. In Copilot's agent mode the tools are ready as soon as you are connected; Claude Code needs the MCP config in the project's .mcp.json file.\n[Copy MCP Config for Claude Code](command:conduktor.copyClaudeCodeConfig)",
             "media": {
               "markdown": "walkthrough/agents.md"
             },

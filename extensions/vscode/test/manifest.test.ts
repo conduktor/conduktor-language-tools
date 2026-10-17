@@ -61,4 +61,8 @@ describe('manifest', () => {
     expect(media.filter((path) => !existsSync(mediaUrl(path)))).toEqual([]);
     expect(new Set(media).size).toBe(steps.length);
   });
+
+  it('writes step descriptions without inline code, which the walkthrough shows as raw backticks', () => {
+    expect(steps.filter((step) => step.description.includes('`')).map((step) => step.id)).toEqual([]);
+  });
 });

@@ -4,12 +4,18 @@ The sync folder stages changes as files before they reach the Console, laid out 
 
 ```
 <sync folder>/
-  conduktor.yaml                                environments: their Console, kinds and clusters
-  environments/<env>/global/<group>/<kind>/<name>.yaml
-  environments/<env>/clusters/<cluster>/<group>/<kind>/[<connect cluster>/]<name>.yaml
-  environments/<env>/.env.example               every ${VAR} the environment needs
-  templates/<Kind>/*.yaml                       your own New Resource… starting points
+  conduktor.yaml
+  environments/<env>/
+    global/<group>/<kind>/<name>.yaml
+    clusters/<cluster>/<group>/<kind>/<name>.yaml
+    .env.example
+  templates/<Kind>/*.yaml
 ```
+
+- `conduktor.yaml` names the environments: their Console, kinds and clusters.
+- A connector sits one folder deeper, under its Connect cluster.
+- `.env.example` lists every `${VAR}` the environment needs.
+- `templates/` holds your own starting points for **New Resource…**.
 
 - **Sync Everything** asks which clusters and kinds, then writes every resource as a file. Run it again to pull in what
   changed on the Console; it never overwrites a file with local changes.
