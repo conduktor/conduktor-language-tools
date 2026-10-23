@@ -8,6 +8,8 @@ const tests = process.argv.includes('--tests');
 
 const extension = {
   entryPoints: ['src/extension.ts'],
+  // The release workflow's secret; without it the extension and its MCP server send no telemetry.
+  define: { SEGMENT_WRITE_KEY: JSON.stringify(process.env.SEGMENT_WRITE_KEY ?? '') },
   bundle: true,
   outfile: 'dist/extension.js',
   platform: 'node',
@@ -25,7 +27,10 @@ const mcpServer = {
   entryPoints: ['../../packages/mcp/src/main.ts'],
   outfile: 'dist/mcp-server.js',
   external: [],
-  define: { CONDUKTOR_VERSION: JSON.stringify(JSON.parse(readFileSync('package.json', 'utf8')).version) },
+  define: {
+    ...extension.define,
+    CONDUKTOR_VERSION: JSON.stringify(JSON.parse(readFileSync('package.json', 'utf8')).version),
+  },
 };
 
 await mkdir('dist', { recursive: true });

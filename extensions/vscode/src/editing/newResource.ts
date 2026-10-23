@@ -19,6 +19,7 @@ import {
 import type { Ready, SessionManager } from '../connections/session';
 import type { ExplorerNode } from '../explorer/explorerModel';
 import type { SyncFolder } from '../sync/syncFolder';
+import { track } from '../telemetry';
 
 /** `undefined` when the user dismissed the pick, `null` for leaving an optional variant out. */
 export type VariantPicker = (choice: Choice, kind: string) => Promise<string | null | undefined>;
@@ -101,6 +102,7 @@ export async function newResource(
     ? await vscode.workspace.openTextDocument(await sync.writeNew(kind, parents, content, name))
     : await vscode.workspace.openTextDocument({ language: 'yaml', content });
   await vscode.window.showTextDocument(document);
+  track({ name: 'resource.Drafted', properties: { kind: kind.kind } });
   return document;
 }
 

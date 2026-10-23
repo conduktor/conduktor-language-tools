@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { canChange, planDocuments, summarise, upsertDocuments, type UpsertItem } from '@conduktor/core';
+import { canChange, outcomes, planDocuments, summarise, upsertDocuments, type UpsertItem } from '@conduktor/core';
 import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import { fileDocuments } from '../editing/includes';
@@ -7,6 +7,7 @@ import { isInView } from '../explorer/explorerModel';
 import type { Output } from '../output';
 import { driftNotes, sharedIdentities } from './conflicts';
 import type { SyncFolder } from './syncFolder';
+import { track } from '../telemetry';
 
 export async function applyAllChanges(
   sessions: SessionManager,
@@ -43,6 +44,7 @@ export async function applyAllChanges(
   const fileOf = (item: UpsertItem) => origin.get(item.document)?.file.path ?? '?';
 
   const plan = await planDocuments(state.client, state.spec.catalog, documents, { readInclude });
+  track({ name: 'resources.Checked', properties: outcomes(plan, state.spec.catalog) });
   const preview = summarise(name, plan);
   output.info(preview.text);
   plan.forEach((item) => output.info(`  ${fileOf(item)}: ${describe(item)}`));
@@ -76,6 +78,7 @@ export async function applyAllChanges(
     readInclude,
     stopOnError: true,
   });
+  track({ name: 'resources.Applied', properties: { ...outcomes(items, state.spec.catalog), from: 'changes' } });
   const result = summarise(name, items, 'Applied to');
   output.info(result.text);
   items.forEach((item) => output.info(`  ${fileOf(item)}: ${describe(item)}`));

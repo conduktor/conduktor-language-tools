@@ -21,7 +21,11 @@ const bundle = await build({
   mainFields: ['module', 'main'],
   outfile,
   banner: { js: '#!/usr/bin/env node' },
-  define: { CONDUKTOR_VERSION: JSON.stringify(version) },
+  define: {
+    CONDUKTOR_VERSION: JSON.stringify(version),
+    // The release workflow's secret; without it the server sends no telemetry.
+    SEGMENT_WRITE_KEY: JSON.stringify(process.env.SEGMENT_WRITE_KEY ?? ''),
+  },
   sourcemap: true,
   metafile: true,
   logLevel: 'warning',

@@ -42,7 +42,7 @@ beforeAll(async () => {
     format: 'cjs',
     target: 'node22',
     outfile: join(directory, 'mcp-server.js'),
-    define: { CONDUKTOR_VERSION: '"0.0.0-test"' },
+    define: { CONDUKTOR_VERSION: '"0.0.0-test"', SEGMENT_WRITE_KEY: '""' },
     logLevel: 'silent',
   });
   copyFileSync(snapshotPath, join(directory, 'public-api-doc.yaml'));

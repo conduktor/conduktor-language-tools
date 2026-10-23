@@ -10,6 +10,7 @@ import {
   type TokenInfo,
 } from '@conduktor/core';
 import type { Output } from '../output';
+import { track } from '../telemetry';
 import type { Connection, ConnectionStore } from './connectionStore';
 import { FileSpecCache } from './specCache';
 
@@ -91,15 +92,14 @@ export class SessionManager implements vscode.Disposable {
       if (spec.liveError) this.output.warn(`${connection.name}: using the ${spec.source} OpenAPI (${spec.liveError})`);
       if (!token) throw new Error('No token is stored for this connection. Remove it and add it again.');
       const info = await client.whoami();
-      this.update(generation, {
-        status: 'ready',
-        connection,
-        client,
-        spec,
-        token: info,
-        capability: capabilityOf(info),
+      const capability = capabilityOf(info);
+      this.update(generation, { status: 'ready', connection, client, spec, token: info, capability });
+      track({
+        name: 'console.Connected',
+        properties: { mode: connection.mode, token: capability, openApi: spec.source },
       });
     } catch (error) {
+      track({ name: 'console.Failed', properties: { mode: connection.mode, reason: token ? 'refused' : 'no-token' } });
       this.output.error(`${connection.name}: ${describeError(error)}`);
       this.update(generation, { status: 'error', connection, message: describeError(error), ...(spec && { spec }) });
     }

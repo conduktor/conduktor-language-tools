@@ -6,11 +6,13 @@ import {
   describeError,
   describeToken,
   normaliseBaseUrl,
+  type Capability,
   type ConnectionMode,
   type TokenInfo,
 } from '@conduktor/core';
 import type { ConnectionStore } from './connectionStore';
 import type { SessionManager } from './session';
+import { track } from '../telemetry';
 
 const MODES: (vscode.QuickPickItem & { mode: ConnectionMode })[] = [
   { mode: 'prod', label: 'Prod', description: 'Never changes the Console: browse, dry run, diff, plan' },
@@ -49,12 +51,13 @@ async function addConnection(store: ConnectionStore, sessions: SessionManager): 
   if (!token) return;
 
   let info: TokenInfo;
+  let capability: Capability;
   try {
     info = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'Checking the token…' },
       () => new ConsoleClient({ baseUrl: url, token, userAgent: sessions.userAgent }).whoami(),
     );
-    capabilityOf(info);
+    capability = capabilityOf(info);
   } catch (error) {
     void vscode.window.showErrorMessage(`Could not connect: ${describeError(error)}`);
     return;
@@ -74,6 +77,7 @@ async function addConnection(store: ConnectionStore, sessions: SessionManager): 
   if (!mode) return;
 
   await store.add({ id: randomUUID(), name, url: normaliseBaseUrl(url), mode: mode.mode }, token);
+  track({ name: 'connection.Added', properties: { mode: mode.mode, token: capability } });
   void vscode.window.showInformationMessage(`Connected to ${name} as ${describeToken(info)}.`);
 }
 
@@ -85,12 +89,16 @@ async function removeConnection(store: ConnectionStore): Promise<void> {
     { modal: true },
     'Remove',
   );
-  if (confirm === 'Remove') await store.remove(picked.id);
+  if (confirm !== 'Remove') return;
+  await store.remove(picked.id);
+  track({ name: 'connection.Removed', properties: {} });
 }
 
 async function switchConnection(store: ConnectionStore): Promise<void> {
   const picked = await pickConnection(store, 'Switch to which connection?');
-  if (picked) await store.setActive(picked.id);
+  if (!picked) return;
+  await store.setActive(picked.id);
+  track({ name: 'connection.Switched', properties: {} });
 }
 
 async function changeMode(store: ConnectionStore): Promise<void> {
@@ -103,7 +111,9 @@ async function changeMode(store: ConnectionStore): Promise<void> {
     m.mode === connection.mode ? { ...m, description: `${m.description} (current)` } : m,
   );
   const picked = await vscode.window.showQuickPick(items, { title: `What may ${connection.name} change?` });
-  if (picked && picked.mode !== connection.mode) await store.update({ ...connection, mode: picked.mode });
+  if (!picked || picked.mode === connection.mode) return;
+  await store.update({ ...connection, mode: picked.mode });
+  track({ name: 'mode.Changed', properties: { mode: picked.mode } });
 }
 
 async function pickConnection(store: ConnectionStore, title: string) {

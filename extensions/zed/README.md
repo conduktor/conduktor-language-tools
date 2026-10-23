@@ -76,6 +76,12 @@ The server starts in the connection's mode, prod unless the settings say `dev`. 
 dry runs, never applies. **Switch _connection_ to dev mode** in the code actions (cmd-.) lets Apply change it until
 Zed restarts, after a confirmation; **Switch _connection_ back to prod mode** undoes it.
 
+## Telemetry
+
+The language server sends usage events to Conduktor: counts and the Console's kind names, never resource names, URLs,
+files or YAML. Set `DO_NOT_TRACK=1` in the environment Zed starts from to turn it off.
+[TELEMETRY.md](../../TELEMETRY.md) lists every event and field.
+
 ## Contributing
 
 Building from source, running the tests and cutting a release: see [CONTRIBUTING.md](../../CONTRIBUTING.md).

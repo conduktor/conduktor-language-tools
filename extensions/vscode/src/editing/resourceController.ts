@@ -5,6 +5,7 @@ import {
   catalogDocuments,
   outcomeLabel,
   outcomeProblems,
+  outcomes,
   planDocuments,
   summarise,
   upsertDocuments,
@@ -17,6 +18,7 @@ import type { Output } from '../output';
 import type { Compare } from './compare';
 import { conduktorDiagnostic } from '../intel/diagnostics';
 import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
+import { countAutomaticCheck, track } from '../telemetry';
 import { appliedText } from './applied';
 import { includeReaderFor } from './includes';
 import { variablesFor } from './variables';
@@ -110,6 +112,7 @@ export class ResourceController implements vscode.Disposable {
       willExist: [...willExist, ...inFolders],
       cancelled: stale,
     });
+    countAutomaticCheck();
     if (stale()) return undefined;
     this.record(uri, document.getText(), plan, 'dry run', 'in your local files');
     return plan;
@@ -139,6 +142,7 @@ export class ResourceController implements vscode.Disposable {
     const [result] = await upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: false });
     if (result?.outcome.status !== 'ok') throw new Error(failureOf(result?.outcome, 'Apply failed'));
     this.output.info(`Applied to ${name}: ${subject} ${result.outcome.result}`);
+    track({ name: 'resources.Applied', properties: { ...outcomes([result], state.spec.catalog), from: 'live' } });
     void vscode.window.showInformationMessage(`Saved ${subject} to ${name}: ${outcomeLabel(result.outcome)}`);
     this.applied.fire({ items: [result] });
   }
@@ -185,6 +189,7 @@ export class ResourceController implements vscode.Disposable {
       () => planDocuments(state.client, state.spec.catalog, documents, { readInclude }),
     );
     this.record(uri, text, plan, 'dry run');
+    track({ name: 'resources.Checked', properties: outcomes(plan, state.spec.catalog) });
     const summary = summarise(name, plan);
     this.output.info(summary.text);
     this.shellHint(uri, apply);
@@ -211,6 +216,10 @@ export class ResourceController implements vscode.Disposable {
         upsertDocuments(state.client, state.spec.catalog, documents, { dryRun: false, readInclude, stopOnError: true }),
     );
     this.record(uri, text, items, 'applied');
+    track({
+      name: 'resources.Applied',
+      properties: { ...outcomes(items, state.spec.catalog), from: isLiveScheme(uri.scheme) ? 'live' : 'file' },
+    });
     const applied = summarise(name, items, 'Applied to');
     this.output.info(applied.text);
     this.output.report(applied.text, applied.failed > 0);

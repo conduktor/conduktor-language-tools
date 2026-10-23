@@ -15,6 +15,7 @@ import { isLiveScheme, parseLiveUriParts } from '../liveFs/uris';
 import type { ExplorerNode, ResourceNode } from './explorerModel';
 import type { ExplorerProvider } from './explorerProvider';
 import { asWritten } from '../editing/written';
+import { track } from '../telemetry';
 
 export function registerResourceCommands(
   sessions: SessionManager,
@@ -90,6 +91,7 @@ async function deleteResource(
   try {
     await state.client.delete(itemPath(node.kind, parentsOf(node.kind, node.parents), node.name));
     void vscode.window.showInformationMessage(`Deleted ${subject} from ${state.connection.name}.`);
+    track({ name: 'resource.Deleted', properties: { kind: node.kind.kind } });
     onDeleted();
     explorer.refresh();
   } catch (error) {

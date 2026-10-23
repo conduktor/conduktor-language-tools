@@ -20,8 +20,11 @@ export class Workbench {
     readonly page: Page,
   ) {}
 
-  /** VS Code with the built extension and no other, in a fresh profile and an empty folder. */
-  static async open(): Promise<Workbench> {
+  /**
+   * VS Code with the built extension and no other, in a fresh profile and an empty folder; or with another build of
+   * it, and more in its environment.
+   */
+  static async open(options: { extension?: string; env?: Record<string, string> } = {}): Promise<Workbench> {
     const executablePath = await downloadAndUnzipVSCode({
       version: 'stable',
       cachePath: join(extension, '.vscode-test'),
@@ -34,16 +37,24 @@ export class Workbench {
     writeFileSync(join(profile, 'data', 'User', 'settings.json'), JSON.stringify({ 'window.dialogStyle': 'custom' }));
     const app = await electron.launch({
       executablePath,
+      ...(options.env && {
+        env: Object.fromEntries(
+          Object.entries({ ...process.env, ...options.env }).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
+        ),
+      }),
       args: [
-        `--extensionDevelopmentPath=${extension}`,
+        `--extensionDevelopmentPath=${options.extension ?? extension}`,
         `--user-data-dir=${join(profile, 'data')}`,
         `--extensions-dir=${join(profile, 'extensions')}`,
         '--disable-extensions',
         '--skip-welcome',
         '--skip-release-notes',
         '--disable-workspace-trust',
-        // CI runs as a user the setuid sandbox does not accept, without a GPU.
-        ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : []),
+        // CI runs as a user the setuid sandbox does not accept, without a GPU, and without an OS keyring: VS Code keeps
+        // tokens in its own store rather than asking which keyring to use.
+        ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu', '--password-store=basic'] : []),
         workspace,
       ],
     });

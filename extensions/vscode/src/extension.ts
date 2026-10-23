@@ -46,6 +46,7 @@ import { Reveal } from './explorer/reveal';
 import { FieldDocsHover } from './intel/fieldDocs';
 import { APPLY_PRESET, applyTopicPreset, topicConfigDiagnostics, TopicConfigProvider } from './intel/topicConfigs';
 import { createStatusBar } from './statusBar';
+import { startTelemetry, track } from './telemetry';
 
 export type ExtensionApi = NonNullable<ReturnType<typeof activate>>;
 
@@ -58,8 +59,11 @@ export function activate(context: vscode.ExtensionContext) {
   const pickTemplate: TemplatePicker = (...args) => pickTemplateWith(...args);
 
   const output = new Output();
+  context.subscriptions.push(startTelemetry(context));
   const connections = new ConnectionStore(context);
-  void connections.migrate();
+  void connections
+    .migrate()
+    .then(() => track({ name: 'Started', properties: { connections: connections.all().length } }));
   const sessions = new SessionManager(context, connections, output);
   const compare = new Compare(sessions);
   const resources = new ResourceController(sessions, output, compare, confirm, (uri) => sync.foreignEnvironment(uri));

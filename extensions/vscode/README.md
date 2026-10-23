@@ -269,6 +269,13 @@ carries a redacted value back is refused.
 | Application-instance token           | The resources that instance owns                               |
 | Machine token, browser session token | Refused: machine tokens have no REST audience; sessions expire |
 
+## Telemetry
+
+The extension sends usage events to Conduktor: which features are used, as counts and the Console's kind names, never
+resource names, URLs, files or YAML. It follows VS Code's `telemetry.telemetryLevel`, and `DO_NOT_TRACK=1` turns it off
+too. [TELEMETRY.md](https://github.com/conduktor/conduktor-language-tools/blob/HEAD/TELEMETRY.md) lists every event and
+field.
+
 ## Settings
 
 | Setting                              | Default     | What it does                                                               |

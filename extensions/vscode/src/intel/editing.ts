@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
   apiVersionFixes,
+  kindOf,
   nameMatches,
   PARENT_KINDS,
   parsedDocuments,
@@ -19,6 +20,7 @@ import type { SessionManager } from '../connections/session';
 import { rangeIn } from './diagnostics';
 import { repoRange, type Names, type RepoDocument } from './names';
 import { nameLookup } from './referenceDiagnostics';
+import { track } from '../telemetry';
 
 const PARENTS = new Set(Object.values(PARENT_KINDS));
 // Enough for a search box; past it, the first ones.
@@ -97,6 +99,7 @@ export class ResourceRename implements vscode.RenameProvider {
       if (where) edit.replace(where.uri, repoRange(where, change.start, change.end), change.newText);
     }
     void this.renamed(found.target, newName, patterns);
+    track({ name: 'resource.Renamed', properties: { kind: kindOf(found.target.kind, catalog), files: edit.size } });
     return edit;
   }
 

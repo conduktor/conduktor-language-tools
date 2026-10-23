@@ -161,3 +161,19 @@ export { setFields, type FieldValue } from './resources/setFields';
 export { closest, editBetween, scalarYaml, type Fix, type TextEdit } from './fixes';
 export { nameMatches, resourceSymbol, resourceSymbols, type ResourceSymbol } from './resources/symbols';
 export { renameEdits, renameTarget } from './references/rename';
+export {
+  clientOf,
+  EVENT_PREFIX,
+  kindOf,
+  openSegment,
+  outcomes,
+  segmentSink,
+  Telemetry,
+  telemetryAllowed,
+  toolOf,
+  type Client,
+  type Outcomes,
+  type TelemetryContext,
+  type TelemetryEvent,
+  type TelemetrySink,
+} from './telemetry/telemetry';
