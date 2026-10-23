@@ -52,8 +52,9 @@ export class Workbench {
         '--skip-welcome',
         '--skip-release-notes',
         '--disable-workspace-trust',
-        // CI runs as a user the setuid sandbox does not accept, without a GPU.
-        ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : []),
+        // CI runs as a user the setuid sandbox does not accept, without a GPU, and without an OS keyring: VS Code keeps
+        // tokens in its own store rather than asking which keyring to use.
+        ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu', '--password-store=basic'] : []),
         workspace,
       ],
     });
