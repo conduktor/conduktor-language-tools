@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     outputs:
@@ -116,7 +116,7 @@ jobs:
   marketplace:
     needs: build
     if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: marketplace
     permissions:
       contents: read
@@ -156,7 +156,7 @@ jobs:
   openvsx:
     needs: build
     if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: openvsx
     permissions:
       contents: read
@@ -199,7 +199,7 @@ jobs:
   npm:
     needs: build
     if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: npm
     permissions:
       contents: read

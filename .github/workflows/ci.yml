@@ -19,7 +19,7 @@ concurrency:
 jobs:
   typescript:
     name: TypeScript (Node ${{ matrix.node }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -48,7 +48,7 @@ jobs:
 
   ui:
     name: VS Code UI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -71,7 +71,7 @@ jobs:
 
   rust:
     name: Zed extension (Rust)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: extensions/zed
