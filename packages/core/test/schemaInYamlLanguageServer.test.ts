@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { getLanguageService } from 'yaml-language-server/lib/umd/languageservice/yamlLanguageService';
+import { getLanguageService } from 'yaml-language-server';
 import { snapshotSchema } from './fixtures';
 
 const SCHEMA_URI = 'conduktor-schema://schema/test';

@@ -1,7 +1,7 @@
 import { claimsForEditing, resourceSnippets, type LoadedSpec, type ResourceSnippet } from '@conduktor/core';
 import type { CompletionList, Diagnostic, Hover, Position } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { getLanguageService } from 'yaml-language-server/lib/esm/languageservice/yamlLanguageService';
+import { getLanguageService } from 'yaml-language-server';
 import { onlyKindVersions, snippetCompletions } from './completions';
 
 const SCHEMA_SCHEME = 'conduktor-schema';
@@ -56,9 +56,14 @@ export function createSchemaService(): SchemaService {
     async validate(document) {
       if (!claims(document)) return [];
       const diagnostics = await service.doValidation(document, false);
+      // LSP 3.18 lets a message be markdown; this server speaks 3.17, where it is text.
       return diagnostics
         .filter((d) => (d.source ?? '').startsWith(SCHEMA_SOURCE))
-        .map((d) => ({ ...d, source: 'Conduktor' }));
+        .map((d) => ({
+          ...d,
+          message: typeof d.message === 'string' ? d.message : d.message.value,
+          source: 'Conduktor',
+        }));
     },
     async complete(document, position) {
       if (!spec) return null;
