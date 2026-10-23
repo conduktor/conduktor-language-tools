@@ -5,8 +5,8 @@
 # Each registry publishes from an environment of its own, which only v* tags may use:
 # - marketplace: an Azure managed identity, through GitHub's OIDC token (AZURE_CLIENT_ID, AZURE_TENANT_ID); no secret.
 # - openvsx: OVSX_PAT, an Open VSX access token for the conduktor namespace.
-# - npm: NPM_TOKEN, an npm token that may publish @conduktor/console-language-server.
-# A registry without its credentials is skipped with a warning, so a release does not wait for the accounts.
+# - npm: npm's trusted publishing, through GitHub's OIDC token; no secret.
+# Open VSX without its token is skipped with a warning, so a release does not wait for the account.
 name: Release
 
 on:
@@ -203,27 +203,20 @@ jobs:
     environment: npm
     permissions:
       contents: read
-      # npm's provenance: which workflow, from which commit, built the package.
+      # npm's trusted publishing signs in with this token, and records which workflow built the package.
       id-token: write
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
-      - if: env.NODE_AUTH_TOKEN == ''
-        run: echo "::warning::No NPM_TOKEN in the npm environment; the language server is not published to npm."
-
-      - if: env.NODE_AUTH_TOKEN != ''
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Node 24 ships npm 11, the first to publish with an OIDC token.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
-      - if: env.NODE_AUTH_TOKEN != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release
 
-      - if: env.NODE_AUTH_TOKEN != ''
-        name: Publish
+      - name: Publish
         env:
           PRERELEASE: ${{ needs.build.outputs.prerelease }}
           TARBALL: ${{ needs.build.outputs.server }}
