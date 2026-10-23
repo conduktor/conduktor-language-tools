@@ -1,13 +1,18 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
+import { structuredPatch } from 'diff';
 import { stringify } from 'yaml';
+import { ConsoleError } from '../client/errors';
 import { hasBody, type BodyKind, type KindVersion } from '../openapi/kindCatalog';
-import { itemPath, listPath } from '../openapi/paths';
+import { itemPath, listPath, resourcePath } from '../openapi/paths';
 import { kindSchema } from '../openapi/kindSchema';
 import { PARENT_KINDS } from '../openapi/parents';
 import type { JsonSchema } from '../openapi/types';
 import { planDocuments } from '../plan/planDocuments';
 import type { UpsertOutcome } from '../plan/upsertDocuments';
 import { referencedVariables } from '../resources/envVars';
+import { expandIncludes } from '../resources/includes';
+import type { Resource } from '../resources/types';
+import { comparableYaml } from '../resources/yamlText';
 import { kebabCase, valueAtPath } from '../util';
 import { REDACTED, REDACTED_MESSAGE, redactedPaths, redactSecrets } from './redact';
 import { noSuchVersion, resolveKind, resourceDocuments } from './resolve';
@@ -25,6 +30,7 @@ export const agentInstructions = [
   'Before writing a resource, call conduktor_get_kind_schema for its kind (conduktor_list_kinds lists them) and',
   'follow the schema exactly; conduktor_get_resources shows existing resources to copy from.',
   'After writing or changing YAML, call conduktor_validate and fix every error, then conduktor_dry_run.',
+  'To say what applying would change on a resource that exists, use conduktor_diff_with_live.',
   'These tools never change the Console. When the dry run is clean, say the YAML is ready and that the user applies',
   'it from the editor; never say it has been applied.',
 ].join(' ');
@@ -199,7 +205,74 @@ const getResources: ToolDefinition = {
   },
 };
 
-export const conduktorTools: readonly ToolDefinition[] = [listKinds, getKindSchema, validate, dryRun, getResources];
+const diffWithLive: ToolDefinition = {
+  name: 'conduktor_diff_with_live',
+  title: "Diff Conduktor YAML with the Console's version",
+  description:
+    "Compare Conduktor Console resource YAML with the connected Console's version of each resource: a unified diff " +
+    "from the Console's version (-) to the YAML (+), or whether it is new or the same. Pass the YAML text or a " +
+    'workspace file path. Use it to tell the user, field by field, what applying would change. Fields the Console ' +
+    'fills in itself show on its side only: conduktor_dry_run says whether applying changes anything. Secret values ' +
+    'from the Console are redacted.',
+  inputSchema: { type: 'object', properties: YAML_OR_PATH },
+  async run(input, context) {
+    const sections: string[] = [];
+    for (const document of resourceDocuments(input, context)) {
+      if (!document.resource) {
+        sections.push(`## Document ${document.index + 1}: ${document.error ?? 'not a Conduktor resource'}`);
+        continue;
+      }
+      const resource = expandIncludes(document.resource, context.readInclude);
+      const subject = `${resource.kind} ${resource.metadata.name}`;
+      const kind = context.catalog.resolve(resource.apiVersion, resource.kind);
+      if (!kind) {
+        sections.push(`## ${subject}: ${noSuchVersion(context, resource.kind, resource.apiVersion)}`);
+        continue;
+      }
+      const live = await liveVersion(context, resourcePath(kind, resource));
+      if (!live) {
+        sections.push(`## ${subject}: not on ${context.connectionName} yet, so applying creates it`);
+        continue;
+      }
+      const before = comparableYaml(redactSecrets(live).value as Resource);
+      const after = comparableYaml(resource);
+      sections.push(
+        before === after
+          ? `## ${subject}: the same as on ${context.connectionName}`
+          : `## ${subject}: changes from ${context.connectionName}\n\n\`\`\`diff\n${unifiedDiff(before, after, context.connectionName)}\`\`\``,
+      );
+    }
+    return `${sections.join('\n\n')}\n`;
+  },
+};
+
+export const conduktorTools: readonly ToolDefinition[] = [
+  listKinds,
+  getKindSchema,
+  validate,
+  dryRun,
+  diffWithLive,
+  getResources,
+];
+
+// The Console's version of a resource, or undefined when it has none.
+async function liveVersion(context: ToolContext, path: string): Promise<Resource | undefined> {
+  try {
+    return await context.client.get(path);
+  } catch (error) {
+    if (error instanceof ConsoleError && error.status === 404) return undefined;
+    throw error;
+  }
+}
+
+function unifiedDiff(before: string, after: string, consoleName: string): string {
+  const { hunks } = structuredPatch(consoleName, 'yours', before, after, '', '', { context: 3 });
+  const lines = hunks.flatMap(({ oldStart, oldLines, newStart, newLines, lines: changed }) => [
+    `@@ -${oldStart},${oldLines} +${newStart},${newLines} @@`,
+    ...changed,
+  ]);
+  return `--- ${consoleName}\n+++ yours\n${lines.join('\n')}\n`;
+}
 
 const VARIABLES_NOTE =
   '${VAR} references are set by the user when applying; they are left unexpanded here, so a dry run sends them as written.';

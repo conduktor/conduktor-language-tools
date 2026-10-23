@@ -21,6 +21,7 @@ describe('Conduktor MCP server', () => {
       'conduktor_get_kind_schema',
       'conduktor_validate',
       'conduktor_dry_run',
+      'conduktor_diff_with_live',
       'conduktor_get_resources',
     ]);
     expect(tools.find((t) => t.name === 'conduktor_get_kind_schema')?.inputSchema.required).toEqual(['kind']);
@@ -46,5 +47,36 @@ describe('Conduktor MCP server', () => {
     expect(result.isError).toBe(true);
     expect(text(result)).toMatch(/No Conduktor resources found/);
     expect((await client.callTool({ name: 'nope', arguments: {} })).isError).toBe(true);
+  });
+
+  it('offers prompts for the common tasks, filled in with their arguments', async () => {
+    const client = await connect();
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => [p.name, p.arguments?.map((a) => [a.name, a.required ?? false])])).toEqual([
+      ['get_started', []],
+      [
+        'write_resource',
+        [
+          ['kind', true],
+          ['what', false],
+        ],
+      ],
+      ['review_changes', [['path', false]]],
+    ]);
+    const prompt = await client.getPrompt({
+      name: 'write_resource',
+      arguments: { kind: 'Topic', what: 'order events' },
+    });
+    const [message] = prompt.messages;
+    expect(message?.role).toBe('user');
+    const text = message?.content.type === 'text' ? message.content.text : '';
+    expect(text).toMatch(/^Write a Conduktor Topic for this: order events\./);
+    expect(text).toContain('conduktor_get_kind_schema for Topic');
+  });
+
+  it('refuses a prompt without its required arguments', async () => {
+    const client = await connect();
+    await expect(client.getPrompt({ name: 'write_resource', arguments: {} })).rejects.toThrow(/kind/);
+    await expect(client.getPrompt({ name: 'nope' })).rejects.toThrow(/nope/);
   });
 });
