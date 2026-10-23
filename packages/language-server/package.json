@@ -3,7 +3,23 @@
   "version": "0.0.1",
   "description": "Conduktor Console resources in any LSP editor: the Console's schema, checked as you type",
   "license": "Apache-2.0",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/conduktor/conduktor-language-tools",
+    "directory": "packages/language-server"
+  },
+  "homepage": "https://github.com/conduktor/conduktor-language-tools/tree/main/extensions/zed#readme",
+  "bugs": {
+    "url": "https://github.com/conduktor/conduktor-language-tools/issues"
+  },
+  "keywords": [
+    "conduktor",
+    "kafka",
+    "language-server",
+    "lsp",
+    "yaml",
+    "zed"
+  ],
   "type": "module",
   "bin": {
     "conduktor-console-language-server": "./dist/server.cjs"
@@ -11,22 +27,27 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node esbuild.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
+  "devDependencies": {
     "@conduktor/core": "workspace:*",
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.0",
+    "vitest": "^5.0.5",
+    "vscode-jsonrpc": "^8.2.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.12",
     "yaml": "^2.9.0",
     "yaml-language-server": "^1.25.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.20.5",
-    "esbuild": "^0.28.0",
-    "vitest": "^5.0.5",
-    "vscode-jsonrpc": "^8.2.1"
   }
 }

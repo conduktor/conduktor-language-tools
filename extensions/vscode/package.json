@@ -820,6 +820,7 @@
     "test:ui": "node esbuild.mjs && vitest run --config test/ui/vitest.config.mts",
     "package": "node esbuild.mjs && pnpm vsix --out dist/conduktor-console.vsix",
     "vsix": "vsce package --no-dependencies --skip-license --baseContentUrl https://github.com/conduktor/conduktor-language-tools/blob/HEAD/extensions/vscode --baseImagesUrl https://github.com/conduktor/conduktor-language-tools/raw/HEAD/extensions/vscode",
+    "openvsx": "ovsx publish",
     "sync-tools": "node scripts/sync-tool-manifest.mjs"
   },
   "dependencies": {
@@ -835,6 +836,7 @@
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.0",
+    "ovsx": "^1.3.0",
     "playwright-core": "^1.64.1",
     "vitest": "^5.0.5"
   }

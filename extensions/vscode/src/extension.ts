@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { TopicPreset } from '@conduktor/core';
+import { describeError, type TopicPreset } from '@conduktor/core';
 import { registerLanguageModelTools } from './agents/languageModelTools';
 import { registerClaudeCodeConfigCommand, registerConsoleMcpServer } from './agents/mcpServers';
 import { exposedApi } from './api';
@@ -101,6 +101,16 @@ export function activate(context: vscode.ExtensionContext) {
     newResource(sessions, sync, clusters.current(), node, pickVariant, pickTemplate);
   const applyChanges = () => applyAllChanges(sessions, sync, confirm, output, clusters.current());
   const reveal = new Reveal(explorerView, explorer, clusters, sessions, sync);
+  // Copilot's tools and VS Code's MCP list: an editor built on VS Code (Cursor, Windsurf) may leave these APIs out,
+  // and everything else still works without them.
+  const forAgents = <T>(register: () => T[]): T[] => {
+    try {
+      return register();
+    } catch (error) {
+      output.warn(`Agent tools are not available in this editor: ${describeError(error)}`);
+      return [];
+    }
+  };
 
   context.subscriptions.push(
     output,
@@ -122,8 +132,8 @@ export function activate(context: vscode.ExtensionContext) {
     ...registerSyncCommands(sync, confirm, sessions, connections, output, clusters),
     ...registerConnectionCommands(connections, sessions),
     ...registerResourceCommands(sessions, explorer, confirm, () => names.clear()),
-    ...registerLanguageModelTools(sessions),
-    registerConsoleMcpServer(sessions, connections),
+    ...forAgents(() => registerLanguageModelTools(sessions)),
+    ...forAgents(() => [registerConsoleMcpServer(sessions, connections)]),
     registerClaudeCodeConfigCommand(sessions, context),
     vscode.commands.registerCommand('conduktor.showOutput', () => output.show()),
     vscode.commands.registerCommand('conduktor.validateFolder', async (folder?: vscode.Uri) => {
