@@ -3,7 +3,7 @@ import { InvalidOpenApiError, parseOpenApi } from '../src/openapi/parseOpenApi';
 import { cliKinds, snapshotCatalog } from './fixtures';
 
 describe('KindCatalog', () => {
-  it('agrees with the cliKind index the Console generates with ctl', () => {
+  it('agrees with the kind index the conduktor CLI ships', () => {
     for (const [kind, { Versions }] of Object.entries(cliKinds)) {
       for (const [version, expected] of Object.entries(Versions)) {
         const actual = snapshotCatalog.resolve(`v${version}`, kind);

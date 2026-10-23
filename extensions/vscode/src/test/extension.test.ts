@@ -975,8 +975,8 @@ const apiKey = process.env.CONDUKTOR_SMOKE_TOKEN;
     const kindOf = (name: string) => state.spec.catalog.latest(name)!;
     const apply = (resource: Resource) =>
       state.client.upsert(upsertTarget(kindOf(resource.kind), resource), resource, { dryRun: false });
-    // Service accounts need a broker with an authorizer: the local Console stack runs one as local-kafka-sasl. The
-    // packaged Console registers it from its config; a Console run from source needs it registered here.
+    // Service accounts need a broker with an authorizer, the test stack's local-kafka-sasl. A packaged Console may
+    // register it from its config; a Console run from source needs it registered here.
     const registered = await state.client
       .get(`/public/console/v2/kafka-cluster/${SASL_CLUSTER}`)
       .catch(() => undefined);

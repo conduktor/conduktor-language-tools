@@ -1,0 +1,9 @@
+Topic config descriptions in packages/core/snapshot/topic-configs.json come from the Apache Kafka 4.2
+documentation (https://kafka.apache.org/42/configuration/topic-configs/), under the Apache License 2.0, the
+license of this project too (see LICENSE). Apache Kafka's NOTICE reads:
+
+Apache Kafka
+Copyright 2026 The Apache Software Foundation.
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).

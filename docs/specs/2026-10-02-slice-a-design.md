@@ -26,7 +26,7 @@ refresh — without touching docs, the CLI or the Console UI.
 | Engine        | Native TypeScript client over the Console OpenAPI; no `ctl` dependency                                     | IDE-native diagnostics, diff and tree need structured data `ctl` does not emit. Drift from `ctl` is bounded by the shared Console API shape. |
 | Credentials   | A Console personal access token (PAT) or an admin API key; `whoami` decides what is enabled                | A PAT acts as the user, so RBAC applies as in the UI. Demos usually run as admin, and only an admin key reaches the admin-only APIs.         |
 | Admin upgrade | A PAT whose user holds `PlatformTokenCreate` can mint an admin key for the connection, on explicit request | Gets a presenter from "I have a login" to the admin features without leaving the editor.                                                     |
-| Repo          | New `conduktor/vscode-conduktor`, a sixth sibling in the workspace                                         | Own release cadence and `.vsix` CI; nothing in `the Console's frontend` is worth coupling to (see Reuse).                                          |
+| Repo          | New `conduktor/vscode-conduktor`, a sixth sibling in the workspace                                         | Own release cadence and `.vsix` CI; nothing in the Console's web UI is worth coupling to (see Reuse).                                        |
 | UI            | VS Code native surfaces only (tree, editor, CodeLens, diff, quick pick, status bar); no webviews           | The editor already provides what a webview would rebuild.                                                                                    |
 | Live edit     | Saving a live `conduktor:` document runs dry-run → diff + confirm → apply, on `apply`-mode connections     | The `kubectl edit` moment is the core of the click-ops demo.                                                                                 |
 | Validation    | Red Hat YAML extension (`redhat.vscode-yaml`) with schemas supplied at runtime                             | Completion, hover and diagnostics without writing a YAML language server.                                                                    |
@@ -238,17 +238,14 @@ Delete, Run action, Show output.
 
 ## Reuse
 
-`the Console's frontend` has no generated client for the public API, its `@conduktor/domain` Zod schemas
-are partial and describe what the UI parses, all its packages are private and unpublished, and
-`ui-kit` depends on `react-router`. Nothing is imported. The patterns worth copying are the
-`dryMode` preview-then-apply flow in `apps/client/src/api/mutations/agentOutputs.ts` and the
-upsert result shape in `packages/domain/src/applications.ts`.
+The Console's web UI has no generated client for the public API, and its packages are not published, so nothing is
+imported. Two of its patterns are worth copying: the `dryMode` preview-then-apply flow, and the shape of an upsert's
+result.
 
 ## Testing
 
-- **Catalog drift**: `KindCatalog` built from the committed the Console
-  `public-api-doc.yaml` must match `the CLI's kind index (v0.3.4)` (list paths, parents,
-  order) — the same data `ctl` derives.
+- **Catalog drift**: `KindCatalog` built from the committed `public-api-doc.yaml` must match the kind index the
+  `conduktor` CLI ships (list paths, parents, order): the same data `ctl` derives.
 - **Action catalog**: from the same document, `ActionCatalog` yields the twenty current actions
   with the right `adminOnly` and `read` tags (the consumer-group set admin-only; describe, members,
   topics, get offsets and the reset preview read).
@@ -259,10 +256,10 @@ upsert result shape in `packages/domain/src/applications.ts`.
 - **core units** (Vitest): env substitution and escapes, includes, ordering, export stripping,
   diff normalisation including the missing-live case, error mapping including the circe path.
 - **Client**: request/response tests against a stub server; one opt-in integration suite against
-  the local dev Console (`http://localhost:8080`, local stack) with a PAT from the environment.
+  a local dev Console (`http://localhost:8080`) with a PAT from the environment.
 - **Extension**: an `@vscode/test-electron` smoke test — activate, add a stub connection, Explorer
   lists kinds, a document gets diagnostics.
-- **Manual demo script** in the repo README, run against the local Console before each demo.
+- **Manual demo script** in the repo README, run against a local Console before each demo.
 - Checks: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm package` (`vsce package` → `.vsix`).
 
 Tooling: TypeScript, pnpm, esbuild bundle, Vitest, ESLint, Prettier. Distribution for the PoC is
@@ -290,8 +287,8 @@ a sideloaded `.vsix`; Marketplace publishing is out of scope.
   need stripping. Other kinds are unchecked.
 - The topic list lags writes (Console indexer, seconds to minutes); the item GET does not.
 - The published OpenAPI carries Java regexes (`(?s)`, `\_`) and discriminated unions whose branches share an
-  enum tag; the schema builder translates both. The `ApplicationGroup` example is invalid against its own schema
-  (the Console builds it with `PublicInstanceRoleId.unsafe("instanceViewConfig")`).
+  enum tag; the schema builder translates both. The `ApplicationGroup` example is invalid against its own schema: it
+  uses the role `instanceViewConfig`, which the instance permission enum does not have.
 
 Still open:
 

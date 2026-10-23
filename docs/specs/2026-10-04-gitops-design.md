@@ -122,5 +122,5 @@ Re-running Sync Everything refreshes synced copies and adds new resources; it is
   `conduktor apply -f environments/<env> -r --dry-run` with the local CLI reports every resource NotChanged.
 
   The CLI check covers global resources and real brokers. A Gateway's simulated cluster holds ACLs Kafka refuses
-  (`IdempotentWrite` on a transactional id), so service accounts are exercised on a local Console stack's SASL
+  (`IdempotentWrite` on a transactional id), so service accounts are exercised on the test stack's SASL
   broker (`local-kafka-sasl`, `StandardAuthorizer`).

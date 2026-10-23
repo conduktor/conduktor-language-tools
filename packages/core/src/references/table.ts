@@ -27,7 +27,7 @@ const permissions = (kind: string): ReferenceRule[] => [
   },
 ];
 
-// What each field names, from the Console. Consumer groups, Kafka principals and transactional ids have no IaC list,
+// What each field names, as the Console resolves it. Consumer groups, Kafka principals and transactional ids have no IaC list,
 // so their references are left out.
 export const REFERENCE_RULES: readonly ReferenceRule[] = [
   { kind: 'Application', path: 'spec.owner', target: 'Group' },

@@ -16,8 +16,7 @@ const topic = {
   spec: { partitions: 3, replicationFactor: 1, configs: {} },
 };
 
-// the Console builds this example with PublicInstanceRoleId.unsafe("instanceViewConfig"),
-// a role that is not in the instance permission enum.
+// The Console publishes this example with the role instanceViewConfig, which is not in the instance permission enum.
 const KNOWN_INVALID_EXAMPLES = new Set(['ApplicationGroup v1']);
 
 describe('buildResourceSchema', () => {

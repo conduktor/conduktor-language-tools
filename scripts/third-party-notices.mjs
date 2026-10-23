@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 // What a bundle may hold: licenses that ask only for their notice to travel with the code. Anything else, a copyleft
 // license or none at all, stops the build until someone has looked at it.
@@ -23,6 +23,14 @@ const repository = resolve(dirname(new URL(import.meta.url).pathname), '..');
 // What a package's npm release leaves out, taken from the source repositories at the release's tag, in
 // scripts/licenses/<package name>/: its LICENSE when it ships none, and the notices of code it bundles itself.
 const VENDORED = join(repository, 'scripts', 'licenses');
+// Text bundled from outside npm, by the file it is in: where it comes from, under which license, and its notice.
+const CONTENT = {
+  'packages/core/snapshot/topic-configs.json': {
+    name: 'Apache Kafka documentation, topic configuration reference 4.2',
+    license: 'Apache-2.0',
+    notice: join(VENDORED, 'content', 'apache-kafka-docs.NOTICE'),
+  },
+};
 
 /**
  * Writes, next to bundles, the repository's LICENSE and THIRD_PARTY_NOTICES.md: the license, and any notices, of each
@@ -31,10 +39,13 @@ const VENDORED = join(repository, 'scripts', 'licenses');
  */
 export function writeNotices(outdir, metafiles) {
   const packages = new Map();
+  const content = new Set();
   for (const metafile of metafiles)
     for (const input of Object.keys(metafile.inputs)) {
       const directory = packageDirectory(resolve(input));
       if (directory && !packages.has(directory)) packages.set(directory, describe(directory));
+      const file = relative(repository, resolve(input));
+      if (file in CONTENT) content.add(CONTENT[file]);
     }
   const refused = [...packages.values()].filter((pkg) => !allowed(pkg.license) || !pkg.text);
   if (refused.length > 0)
@@ -46,6 +57,9 @@ export function writeNotices(outdir, metafiles) {
         )
         .join('\n')}`,
     );
+  const bundledText = [...content].map((c) =>
+    [`## ${c.name} (${c.license})`, '', fenced(readFileSync(c.notice, 'utf8').trim())].join('\n\n'),
+  );
   const sections = [...packages.values()]
     .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
     .map((pkg) =>
@@ -53,7 +67,7 @@ export function writeNotices(outdir, metafiles) {
     );
   writeFileSync(
     join(outdir, 'THIRD_PARTY_NOTICES.md'),
-    `# Third-party notices\n\nThe bundled files in this folder include the following packages, under these licenses.\n\n${sections.join('\n\n')}\n`,
+    `# Third-party notices\n\nThe bundled files in this folder include the following packages and text, under these licenses.\n\n${[...sections, ...bundledText].join('\n\n')}\n`,
   );
   copyFileSync(join(repository, 'LICENSE'), join(outdir, 'LICENSE'));
 }

@@ -19,7 +19,7 @@ export const snapshotCatalog = KindCatalog.fromOpenApi(snapshotDoc);
 export const snapshotSchema = buildResourceSchema(snapshotDoc, snapshotCatalog);
 
 export const cliKinds = JSON.parse(
-  readFileSync(new URL('./fixtures/cliKind-v0.3.4.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('./fixtures/ctl-console-kinds.json', import.meta.url), 'utf8'),
 ) as Record<string, { Versions: Record<string, CliKindVersion> }>;
 
 /** The schema of a kind at its latest version. */

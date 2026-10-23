@@ -73,8 +73,7 @@ VS Code switches with **Conduktor: Change Mode**; Zed with a code action, until 
 ## Roadmap
 
 - **Git from the sync folder:** commit staged changes, explicit deletions, and conflict handling for drift.
-- **GitOps repositories,** as a separate extension: repository init, CI scripts and workflows, pull requests. Its
-  start is on branch `gitops-repo-init`.
+- **GitOps repositories,** as a separate extension: repository init, CI scripts and workflows, pull requests.
 - **Self-service:** ownership-aware validation for application teams.
 - **Zed in its registry,** and the language server on npm for any editor that speaks LSP.
 

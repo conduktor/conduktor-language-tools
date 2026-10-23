@@ -6,8 +6,8 @@ its steps below and overwrite the file under the same name. GitHub shows images 
 
 ## Setting up
 
-- a local Console stack, and a
-  connection called **local** in **prod** mode (switch to **dev** only for the shots that say so).
+- A local Console with demo data, as the live suite uses (CONTRIBUTING.md, "The live suite"), and a connection to it
+  in **prod** mode (switch to **dev** only for the shots that say so).
 - The **Light Modern** theme, as the existing shots use, the window at 1440×900 or so, the minimap and breadcrumbs off, a 15–16 px editor
   font. Capture the VS Code window only (⌘⇧4, then Space, then click the window), so it comes out at 2× — about
   2560 px wide. A GIF should be under 10 MB: 15 fps, a few seconds, no cursor hunting.
@@ -69,7 +69,7 @@ A file with two topics open, the Problems panel visible below.
 
 ### `agents` — AI agents
 
-1. Copilot Chat in agent mode, the local connection ready.
+1. Copilot Chat in agent mode, the connection ready.
 2. Ask: _"Using the Conduktor tools, write topics.yaml with an `orders-eu` topic on local-kafka: 6 partitions, 7 days
    retention. Validate and dry-run it."_
 3. Capture the chat with the `conduktor_validate` and `conduktor_dry_run` tool calls expanded and the file it wrote.

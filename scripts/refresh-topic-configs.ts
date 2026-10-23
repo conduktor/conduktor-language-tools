@@ -6,8 +6,7 @@ const KAFKA = '4.2';
 const SOURCE = `https://kafka.apache.org/${KAFKA.replace('.', '')}/configuration/topic-configs/`;
 const CONFLUENT_DOCS = 'https://docs.confluent.io/platform/current/installation/configuration/topic-configs.html';
 
-// From the Console's source
-// (confluentDefaultValues); Confluent publishes no machine-readable list.
+// The Confluent keys the Console accepts, with their defaults; Confluent publishes no machine-readable list.
 const CONFLUENT: Record<string, string> = {
   'confluent.key.schema.validation': 'false',
   'confluent.key.subject.name.strategy': 'io.confluent.kafka.serializers.subject.TopicNameStrategy',

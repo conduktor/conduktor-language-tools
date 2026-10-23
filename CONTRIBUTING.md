@@ -41,9 +41,11 @@ personal access token or an admin API key for a local Console:
 CONDUKTOR_SMOKE_URL=http://localhost:8080 CONDUKTOR_SMOKE_TOKEN=<token> pnpm test:vscode
 ```
 
-It expects a local Console stack, including
-its SASL broker on `localhost:19093`, registered as the `local-kafka-sasl` cluster by the tests, where service
-accounts and ACLs behave like real Kafka. The tests create and delete their own `vscode-*` resources. The CLI tests
+It needs a Console you can change, with a Kafka cluster registered as `local-kafka`, and, for the service account
+tests, a SASL broker with an authorizer on `localhost:19093`, which the tests register as `local-kafka-sasl`, where
+service accounts and ACLs behave like real Kafka.
+[Conduktor's quick start](https://docs.conduktor.io/guide/get-started#run-conduktor) runs a Console on
+`localhost:8080` with Docker; tests that need a cluster your stack lacks fail rather than skip. The tests create and delete their own `vscode-*` resources. The CLI tests
 run `ctl` in Docker, or from `conduktor` on the `PATH` when Docker is missing.
 
 The variables are separate from `CDK_*` because VS Code re-reads the login shell's environment on macOS, where
@@ -108,19 +110,21 @@ docs/assets/          the READMEs' illustrations and screenshots (SHOTS.md says 
 
 The extension bundles what it cannot ask the Console for. Each has a script to refresh it:
 
-| Snapshot                                     | Refresh                                                     |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| `packages/core/snapshot/public-api-doc.yaml` | `./scripts/refresh-snapshot.sh ../console`             |
-| `packages/core/snapshot/topic-configs.json`  | `node scripts/refresh-topic-configs.ts`                     |
+| Snapshot                                     | Refresh                                                        |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| `packages/core/snapshot/public-api-doc.yaml` | `CDK_BASE_URL=<Console> ./scripts/refresh-snapshot.sh`         |
+| `packages/core/snapshot/topic-configs.json`  | `node scripts/refresh-topic-configs.ts`                        |
 | `packages/core/snapshot/field-docs.json`     | `node scripts/refresh-field-docs.ts <conduktor-docs checkout>` |
 
 - **OpenAPI:** kinds come only from the Console's OpenAPI (the `cli_<kind>_<group>_v<N>_<order>` tags the CLI also
   reads), so a newer Console's kinds appear without a release; the snapshot is the offline fallback. A unit test
-  checks the catalog against the `cliKind` index that the Console generates with the CLI, which the script refreshes
-  too.
-- **Topic configs:** Kafka's own reference for the version the local stack runs, plus the Confluent keys the Console knows.
-- **Field docs:** the Conduktor reference pages (console, kafka and self-service). The docs repository is private, so
-  the script reads a local checkout, at `origin/main` or a ref given after the path, without touching it.
+  checks the catalog against the kind index the `conduktor` CLI ships, at the version the extension pins, which the
+  script refreshes too.
+- **Topic configs:** Kafka's own reference, for the version set in the script, plus the Confluent keys the Console
+  knows.
+- **Field docs:** the Conduktor reference pages (console, kafka and self-service), published at docs.conduktor.io. The
+  docs' source repository is not public, so Conduktor refreshes this one: the script reads a local checkout, at
+  `origin/main` or a ref given after the path, without touching it.
 
 The schema builder turns the OpenAPI components into draft-07 JSON Schema for yaml-language-server: it translates
 Java regexes, turns discriminator mappings into tagged `oneOf` branches, and only judges documents that are Console

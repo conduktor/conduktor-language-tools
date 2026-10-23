@@ -64,7 +64,7 @@ Names come from two places, each name marked with where it was found:
 
 ## Patterns
 
-Console reads a name pattern three ways (the Console source):
+Console reads a name pattern three ways:
 
 | Where                                                    | LITERAL                        | PREFIXED                         | Traps                                                                |
 | -------------------------------------------------------- | ------------------------------ | -------------------------------- | -------------------------------------------------------------------- |

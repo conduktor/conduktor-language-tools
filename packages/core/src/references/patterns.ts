@@ -18,7 +18,7 @@ export function patternTypeOf(value: unknown): PatternType {
   return typeof value === 'string' && value.toUpperCase() === 'PREFIXED' ? 'PREFIXED' : 'LITERAL';
 }
 
-// the Console reads names three ways: self-serve ownership and data quality targets compare characters as written;
+// The Console reads names three ways: self-serve ownership and data quality targets compare characters as written;
 // RBAC permissions treat a trailing * as a prefix; service-account ACLs go to Kafka, where LITERAL * is a wildcard.
 export function matcher(reading: PatternReading, type: PatternType, pattern: string): (name: string) => boolean {
   const everything = () => true;
