@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/conduktor/conduktor-language-tools",
+    "url": "git+https://github.com/conduktor/conduktor-language-tools.git",
     "directory": "packages/language-server"
   },
   "homepage": "https://github.com/conduktor/conduktor-language-tools/tree/main/extensions/zed#readme",
@@ -22,7 +22,7 @@
   ],
   "type": "module",
   "bin": {
-    "conduktor-console-language-server": "./dist/server.cjs"
+    "conduktor-console-language-server": "dist/server.cjs"
   },
   "files": [
     "dist"
