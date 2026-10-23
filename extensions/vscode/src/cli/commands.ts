@@ -4,6 +4,7 @@ import type { Confirm } from '../confirm';
 import type { SessionManager } from '../connections/session';
 import type { SyncFolder } from '../sync/syncFolder';
 import type { CliRun, CliRunner } from './runner';
+import { track } from '../telemetry';
 
 interface Ran {
   outcomes: CliOutcome[];
@@ -50,6 +51,8 @@ export function registerCliCommands(
     const left = ran.removed.length > 0 ? `; ${ran.removed.length} removed from the folder, left on the Console` : '';
     const summary = `${summarise(ran.outcomes) || 'nothing to do'}${left}`;
     const failed = ran.run.exitCode !== 0 || ran.outcomes.some((o) => o.result === 'failed');
+    const result = failed ? 'failure' : 'success';
+    track({ name: action === 'plan' ? 'environment.Planned' : 'environment.Applied', properties: { result } });
     const reason = ran.run.exitCode !== 0 ? ` ${lastLine(ran.run.stderr)}` : '';
     const message = `${action === 'plan' ? 'Plan' : 'Apply'} of ${env}: ${summary}.${reason}`;
     const show = failed ? vscode.window.showErrorMessage : vscode.window.showInformationMessage;

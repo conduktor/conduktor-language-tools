@@ -125,11 +125,12 @@ export async function until(check: () => boolean | Promise<boolean>, timeoutMs =
   }
 }
 
-/** Bundles the server as it ships, into a fresh folder. */
-export function buildServer(): string {
+/** Bundles the server as it ships, into a fresh folder: without a Segment write key unless a test gives one. */
+export function buildServer(writeKey = ''): string {
   const directory = mkdtempSync(join(tmpdir(), 'conduktor-ls-'));
   execFileSync(process.execPath, ['esbuild.mjs', '--outdir', join(directory, 'dist')], {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
+    env: { ...process.env, SEGMENT_WRITE_KEY: writeKey },
     stdio: 'pipe',
   });
   return directory;

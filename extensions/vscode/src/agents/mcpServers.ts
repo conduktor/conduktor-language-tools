@@ -4,6 +4,7 @@ import type { ConnectionStore } from '../connections/connectionStore';
 import type { Ready, SessionManager } from '../connections/session';
 import { claudeCodeConfig } from './claudeCodeConfig';
 import { installMcpServer } from './mcpInstall';
+import { track } from '../telemetry';
 
 export function registerConsoleMcpServer(sessions: SessionManager, connections: ConnectionStore): vscode.Disposable {
   const changed = new vscode.EventEmitter<void>();
@@ -65,6 +66,7 @@ export function registerClaudeCodeConfigCommand(
     }
     const config = claudeCodeConfig({ url: state.client.baseUrl, name: state.connection.name, serverPath });
     await vscode.env.clipboard.writeText(JSON.stringify(config, null, 2));
+    track({ name: 'agent.Configured', properties: { agent: 'claude-code' } });
     void vscode.window.showInformationMessage(
       `Copied the MCP config for ${state.connection.name}. Paste it into .mcp.json, then export CONDUKTOR_TOKEN (a personal access token) before starting Claude Code.`,
     );

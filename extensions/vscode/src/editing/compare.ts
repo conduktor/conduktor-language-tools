@@ -5,12 +5,14 @@ import {
   ConsoleError,
   describeError,
   expandIncludes,
+  kindOf,
   resourcePath,
   type Resource,
 } from '@conduktor/core';
 import type { SessionManager } from '../connections/session';
 import { includeReaderFor } from './includes';
 import { variablesFor } from './variables';
+import { track } from '../telemetry';
 
 const COMPARE_SCHEME = 'conduktor-compare';
 
@@ -65,6 +67,7 @@ export class Compare implements vscode.TextDocumentContentProvider, vscode.Dispo
     }
     try {
       await this.diffResource(expandIncludes(target.resource, includeReaderFor(uri)));
+      track({ name: 'resource.Diffed', properties: { kind: kindOf(target.kind, state.spec.catalog) } });
     } catch (error) {
       void vscode.window.showErrorMessage(`Cannot compare: ${describeError(error)}`);
     }

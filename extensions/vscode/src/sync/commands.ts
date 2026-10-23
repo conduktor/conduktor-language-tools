@@ -15,6 +15,7 @@ import type { Output } from '../output';
 import { resourceTarget } from '../explorer/resourceCommands';
 import { inWorkspace } from './folders';
 import { chooseFolder, type SyncFolder } from './syncFolder';
+import { track } from '../telemetry';
 
 const LARGE_SYNC = 20;
 const inform = (message: string) => void vscode.window.showInformationMessage(message);
@@ -48,6 +49,7 @@ export function registerSyncCommands(
       guarded(async (node?: ExplorerNode) => {
         if (node?.type === 'resource') {
           const uri = await sync.syncResource(node.kind, node.parents, node.name);
+          track({ name: 'sync.Completed', properties: { scope: 'resource', resources: 1 } });
           await vscode.window.showTextDocument(uri);
           return;
         }
@@ -71,7 +73,9 @@ export function registerSyncCommands(
               'Sync',
             )) === 'Sync',
         );
-        if (count !== undefined) inform(`Synced ${count} ${node.kind.kind} resources.`);
+        if (count === undefined) return;
+        track({ name: 'sync.Completed', properties: { scope: 'kind', resources: count } });
+        inform(`Synced ${count} ${node.kind.kind} resources.`);
       }),
     ),
     vscode.commands.registerCommand(
@@ -101,6 +105,8 @@ export function registerSyncCommands(
               .finally(() => reporter.dispose());
           },
         );
+        const written = Object.values(result.written).reduce((sum, n) => sum + n, 0);
+        track({ name: 'sync.Completed', properties: { scope: 'everything', resources: written + result.unchanged } });
         const { headline, details } = describeBootstrap(sync.environment() ?? state.connection.name, result);
         output.info(headline);
         details.forEach((line) => output.info(`  ${line}`));

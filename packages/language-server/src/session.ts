@@ -8,6 +8,7 @@ import {
   describeError,
   describeToken,
   loadSpec,
+  type Capability,
   type LoadedSpec,
   type SpecCache,
 } from '@conduktor/core';
@@ -30,6 +31,8 @@ export interface Session {
   connection?: Connection;
   /** Only once the Console accepted the token: what dry runs and applies go through. */
   client?: ConsoleClient;
+  /** What the token may do, once the Console accepted it. */
+  capability?: Capability;
   /** For the user's eyes: why the schema is not the Console's own, or why there are no dry runs. */
   alerts: Alert[];
   /** For the log. */
@@ -86,7 +89,7 @@ export async function openSession(options: SessionOptions, settings: unknown): P
   return {
     spec,
     connection,
-    ...(token.accepted && { client }),
+    ...(token.accepted && { client, capability: token.capability }),
     alerts,
     info: `Connected to ${where}, with the ${spec.source} OpenAPI${token.accepted ? `, as ${token.who}` : ''}.`,
   };
@@ -95,7 +98,7 @@ export async function openSession(options: SessionOptions, settings: unknown): P
 async function verifyToken(
   client: ConsoleClient,
   connection: Connection,
-): Promise<{ accepted: true; who: string } | { accepted: false; why: string }> {
+): Promise<{ accepted: true; who: string; capability: Capability } | { accepted: false; why: string }> {
   if (!connection.token)
     return {
       accepted: false,
@@ -106,8 +109,7 @@ async function verifyToken(
     };
   try {
     const info = await client.whoami();
-    capabilityOf(info);
-    return { accepted: true, who: describeToken(info) };
+    return { accepted: true, who: describeToken(info), capability: capabilityOf(info) };
   } catch (error) {
     return {
       accepted: false,

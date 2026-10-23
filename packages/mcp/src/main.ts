@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ConsoleClient, loadSpec, workspaceFile, type ToolContext } from '@conduktor/core';
+import { ConsoleClient, loadSpec, openSegment, Telemetry, workspaceFile, type ToolContext } from '@conduktor/core';
 import { createConduktorServer } from './server';
 
 declare const CONDUKTOR_VERSION: string;
+// Set in release builds only: any other build sends nothing.
+declare const SEGMENT_WRITE_KEY: string;
 
 const noCache = { read: () => Promise.resolve(undefined), write: () => Promise.resolve() };
 
@@ -40,7 +43,14 @@ async function main(): Promise<void> {
       };
     }));
 
-  await createConduktorServer(loadContext, CONDUKTOR_VERSION).connect(new StdioServerTransport());
+  const telemetry = new Telemetry(openSegment(SEGMENT_WRITE_KEY, process.env, homedir()), {
+    surface: 'mcp',
+    client: 'other',
+    extensionVersion: CONDUKTOR_VERSION,
+  });
+  // The client closing stdin ends the process: what is left is sent first.
+  process.once('beforeExit', () => void telemetry.dispose());
+  await createConduktorServer(loadContext, CONDUKTOR_VERSION, telemetry).connect(new StdioServerTransport());
 }
 
 main().catch((error: unknown) => {

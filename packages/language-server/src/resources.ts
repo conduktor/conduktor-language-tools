@@ -10,9 +10,11 @@ import {
   outcomeLabel,
   outcomeProblems,
   planDocuments,
+  outcomes,
   summarise,
   upsertDocuments,
   type ResourceDocument,
+  type Telemetry,
   type UpsertItem,
   type UpsertOutcome,
 } from '@conduktor/core';
@@ -53,6 +55,7 @@ export interface ResourcesHost {
   confirm(message: string, action: string): Promise<boolean>;
   log(message: string): void;
   progress<T>(title: string, task: () => Promise<T>): Promise<T>;
+  telemetry: Pick<Telemetry, 'track' | 'countAutomaticCheck'>;
 }
 
 /**
@@ -194,6 +197,7 @@ export class Resources {
       readInclude: this.includeReader(uri),
       cancelled: stale,
     });
+    this.host.telemetry.countAutomaticCheck();
     if (!stale()) this.record(uri, plan, 'dry run');
   }
 
@@ -229,6 +233,7 @@ export class Resources {
       planDocuments(client, spec.catalog, documents, { readInclude }),
     );
     if (!stale()) this.record(uri, plan, 'dry run');
+    this.host.telemetry.track({ name: 'resources.Checked', properties: outcomes(plan, spec.catalog) });
     const summary = summarise(name, plan);
     this.host.log(summary.text);
     const path = filePath(uri);
@@ -253,6 +258,10 @@ export class Resources {
       upsertDocuments(client, spec.catalog, documents, { dryRun: false, readInclude, stopOnError: true }),
     );
     if (!stale()) this.record(uri, items, 'applied');
+    this.host.telemetry.track({
+      name: 'resources.Applied',
+      properties: { ...outcomes(items, spec.catalog), from: 'file' },
+    });
     const applied = summarise(name, items, 'Applied to');
     this.host.log(applied.text);
     this.host.show(applied.failed > 0 ? 'warning' : 'info', applied.text);

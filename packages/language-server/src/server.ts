@@ -3,13 +3,16 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   buildSpec,
+  clientOf,
   describeError,
   isRecord,
+  kindOf,
   parsedDocuments,
   presetFromTemplate,
   referenceProblems,
   type KindCatalog,
   type ReferenceTarget,
+  type Telemetry,
   TOPIC_PRESETS,
   type TopicPreset,
 } from '@conduktor/core';
@@ -63,9 +66,11 @@ const NAMES_WAIT_MS = 3_000;
 
 export interface ServerOptions extends SessionOptions {
   home: string;
+  telemetry: Telemetry;
 }
 
 export function startServer(lsp: LspConnection, options: ServerOptions): void {
+  const { telemetry } = options;
   const documents = new TextDocuments(TextDocument);
   const schema = createSchemaService();
   let session: Session | undefined;
@@ -139,6 +144,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     },
     show: (level, message) => show(level === 'warning' ? MessageType.Warning : MessageType.Info, message),
     confirm,
+    telemetry,
     log: (message) => lsp.console.info(message),
     progress: async (title, task) => {
       const reporter = await lsp.window.createWorkDoneProgress();
@@ -181,6 +187,19 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
 
   const use = (next: Session) => {
     session = next;
+    const { connection, capability, spec } = next;
+    if (connection)
+      telemetry.track(
+        capability
+          ? {
+              name: 'console.Connected',
+              properties: { mode: connection.mode, token: capability, openApi: spec.source },
+            }
+          : {
+              name: 'console.Failed',
+              properties: { mode: connection.mode, reason: connection.token ? 'refused' : 'no-token' },
+            },
+      );
     lsp.console.info(next.info);
     for (const { level, message } of next.alerts)
       show(level === 'error' ? MessageType.Error : MessageType.Warning, message);
@@ -199,6 +218,8 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     lensRefresh = params.capabilities.workspace?.codeLens?.refreshSupport === true;
     pullsSettings = params.capabilities.workspace?.configuration === true;
     inZed = /^Zed\b/.test(params.clientInfo?.name ?? '');
+    telemetry.identify(clientOf(params.clientInfo?.name), params.clientInfo?.version);
+    telemetry.track({ name: 'Started', properties: {} });
     return {
       capabilities: {
         textDocumentSync: { openClose: true, change: TextDocumentSyncKind.Incremental, save: { includeText: false } },
@@ -380,6 +401,10 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     if (newName.trim() === '' || /[\r\n]/.test(newName))
       throw new ResponseError(ErrorCodes.InvalidParams, 'A name is one line of text.');
     const { edit, patterns } = renameEdit(found.target, newName, await index.located(catalog), catalog);
+    telemetry.track({
+      name: 'resource.Renamed',
+      properties: { kind: kindOf(found.target.kind, catalog), files: Object.keys(edit.changes ?? {}).length },
+    });
     void renamed(found.target, newName, patterns, catalog);
     return edit;
   });
@@ -413,6 +438,7 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
       if (!(await confirm(question, 'Switch to dev'))) return;
     }
     session = { ...session, connection: { ...connection, mode: target } };
+    telemetry.track({ name: 'mode.Changed', properties: { mode: target } });
     show(MessageType.Info, `${connection.name} is in ${target} mode${target === 'dev' ? ' until Zed restarts' : ''}.`);
     refreshLenses();
   };
@@ -463,6 +489,9 @@ export function startServer(lsp: LspConnection, options: ServerOptions): void {
     else if (command === APPLY_PRESET) await applyTopicPreset(args?.[0], args?.[1], args?.[2]);
     else await resources.execute(command, args ?? []);
   });
+
+  // Shutdown comes before exit, which ends the process: what is left is sent while the client waits.
+  lsp.onShutdown(() => telemetry.dispose());
 
   documents.listen(lsp);
 }

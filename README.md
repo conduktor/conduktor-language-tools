@@ -77,6 +77,11 @@ VS Code switches with **Conduktor: Change Mode**; Zed with a code action, until 
 - **Self-service:** ownership-aware validation for application teams.
 - **Zed in its registry,** and the language server on npm for any editor that speaks LSP.
 
+## Telemetry
+
+Release builds send usage events to Conduktor, never what you write. [TELEMETRY.md](TELEMETRY.md) lists every field,
+and how to turn it off.
+
 ## Contributing
 
 Building from source, running the tests, cutting a release and the repository's layout: see

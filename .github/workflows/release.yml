@@ -62,6 +62,8 @@ jobs:
         env:
           PRERELEASE: ${{ steps.version.outputs.prerelease }}
           VSIX: ${{ steps.version.outputs.vsix }}
+          # Only this step builds with the key: the tests above run on builds that send nothing.
+          SEGMENT_WRITE_KEY: ${{ secrets.SEGMENT_WRITE_KEY }}
         run: |
           flags=(--out "$GITHUB_WORKSPACE/$VSIX")
           if [[ "$PRERELEASE" == true ]]; then flags+=(--pre-release); fi

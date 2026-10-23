@@ -1,10 +1,11 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { planDocuments } from '@conduktor/core';
+import { outcomes, planDocuments } from '@conduktor/core';
 import type { SessionManager } from '../connections/session';
 import type { Output } from '../output';
 import { fileDocuments, type Source } from './includes';
 import type { ResourceController } from './resourceController';
+import { track } from '../telemetry';
 
 export interface FolderValidation {
   files: number;
@@ -79,6 +80,7 @@ export async function validateFolder(
     );
   for (const [{ file, text }, fileItems] of byFile) controller.recordFolderResults(file.uri, text, fileItems);
 
+  track({ name: 'folder.Validated', properties: outcomes(items, state.spec.catalog) });
   const result: FolderValidation = {
     files: byFile.size,
     resources: items.length,
