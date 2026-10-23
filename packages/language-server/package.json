@@ -24,7 +24,7 @@
     "yaml-language-server": "^1.25.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "esbuild": "^0.28.0",
     "vitest": "^5.0.5",
     "vscode-jsonrpc": "^8.2.1"
