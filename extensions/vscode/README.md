@@ -36,19 +36,14 @@ what applying it would change.
 
 ## Quick start
 
-1. **Install.** Download `conduktor-console-<version>.vsix` from the
-   [latest release](https://github.com/conduktor/conduktor-language-tools/releases/latest) and run **Extensions: Install from
-   VSIX…** in VS Code. Or, with the [GitHub CLI](https://cli.github.com), fetch and install the latest in one go:
-
-   ```sh
-   gh release download --repo conduktor/conduktor-language-tools --pattern '*.vsix' \
-     --output /tmp/conduktor-console.vsix --clobber && code --install-extension /tmp/conduktor-console.vsix
-   ```
-
-   It needs the `code` command (**Shell Command: Install 'code' command in PATH** in VS Code). Run it again to
-   update: an extension installed from a `.vsix` does not update itself. It asks for
+1. **Install.** Get **Conduktor Console** from the
+   [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=conduktor.conduktor-console), or run
+   `code --install-extension conduktor.conduktor-console`. Editors that install from Open VSX, such as VSCodium, get it
+   from [Open VSX](https://open-vsx.org/extension/conduktor/conduktor-console). It asks for
    [Red Hat YAML](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), which carries the schema
-   features. To build it yourself, see [CONTRIBUTING.md](../../CONTRIBUTING.md#install-from-source).
+   features. Each version's `.vsix` is also on the
+   [releases page](https://github.com/conduktor/conduktor-language-tools/releases); to build it yourself, see
+   [CONTRIBUTING.md](../../CONTRIBUTING.md#install-from-source).
 
 2. **Connect.** Open the **Conduktor** view in the activity bar and choose **Add Connection**: the Console URL (for a
    local stack, `http://localhost:8080`), a personal access token or an admin API key, a name and a mode. Start in

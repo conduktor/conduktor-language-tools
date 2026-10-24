@@ -51,7 +51,7 @@ Both run on the same core: VS Code through its extension, Zed through a language
 | Sync folder, Plan and Apply with the CLI                  |                   ✓                    |                                 |
 | Guided start                                              |                   ✓                    |                                 |
 | Agent tools for Copilot, Claude Code and any MCP client   |                   ✓                    |                                 |
-| Install                                                   |   a `.vsix` from the latest release    |    a dev extension, for now     |
+| Install                                                   |      the Marketplace or Open VSX       |    a dev extension, for now     |
 
 What Zed lacks is UI: its extensions cannot add views or panels.
 
