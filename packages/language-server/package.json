@@ -43,10 +43,10 @@
     "@conduktor/core": "workspace:*",
     "@types/node": "^22.20.5",
     "esbuild": "^0.28.0",
-    "vitest": "^5.0.5",
+    "vitest": "^5.1.0",
     "vscode-jsonrpc": "^8.2.1",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-languageserver-textdocument": "^1.0.16",
     "yaml": "^2.9.0",
     "yaml-language-server": "^2.0.0"
   }
